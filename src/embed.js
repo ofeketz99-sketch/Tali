@@ -98,7 +98,7 @@ export const Embed = Node.create({
         tools.className = 'embed-tools';
         const change = (width, wrap) => {
           const { name } = parse();
-          const target = [name, String(Math.max(60, Math.min(1400, Math.round(width)))), ...(wrap === 'none' ? [] : [wrap])].join('|');
+          const target = width == null ? name : [name, String(Math.max(60, Math.min(1400, Math.round(width)))), ...(wrap === 'none' ? [] : [wrap])].join('|');
           const pos = typeof getPos === 'function' ? getPos() : null;
           if (typeof pos === 'number') editor.commands.command(({ tr, dispatch }) => {
             if (dispatch) dispatch(tr.setNodeMarkup(pos, undefined, { ...current.attrs, target }));
@@ -118,6 +118,7 @@ export const Embed = Node.create({
         control('רגיל', 'טקסט לפני התמונה ואחריה', () => { const a = parse(); change(a.width || img.offsetWidth || 300, 'none'); });
         control('↤', 'טקסט עוטף מצד ימין', () => { const a = parse(); change(a.width || img.offsetWidth || 300, 'wrap-left'); });
         control('↦', 'טקסט עוטף מצד שמאל', () => { const a = parse(); change(a.width || img.offsetWidth || 300, 'wrap-right'); });
+        control('איפוס', 'גודל טבעי והסרת ציפת טקסט', () => change(null, 'none'));
         dom.append(img, tools);
         const render = () => {
           const a = parse();
@@ -223,7 +224,7 @@ export const LocalImage = Image.extend({
         if (typeof at !== 'number') return;
         editor.commands.command(({ tr, dispatch }) => {
           if (dispatch) dispatch(tr.setNodeMarkup(at, undefined, { ...current.attrs,
-            width: Math.max(60, Math.min(1400, Math.round(width))), wrap }));
+            width: width == null ? null : Math.max(60, Math.min(1400, Math.round(width))), wrap }));
           return true;
         });
       }
@@ -239,6 +240,7 @@ export const LocalImage = Image.extend({
       button('רגיל', 'ללא ציפת טקסט', () => change(current.attrs.width || img.offsetWidth || 300, 'none'));
       button('↤', 'טקסט עוטף מצד ימין', () => change(current.attrs.width || img.offsetWidth || 300, 'left'));
       button('↦', 'טקסט עוטף מצד שמאל', () => change(current.attrs.width || img.offsetWidth || 300, 'right'));
+      button('איפוס', 'החזרת גודל טבעי ותחביר Markdown רגיל', () => change(null, 'none'));
       dom.append(img, tools);
       const render = () => {
         const a = current.attrs;
