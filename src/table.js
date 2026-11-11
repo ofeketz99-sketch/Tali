@@ -150,8 +150,16 @@ export function attachTableBar(editor, scroller) {
   btn('→ עמודה', 'הוספת עמודה מימין', () => chain().addColumnBefore().run());
   btn('← עמודה', 'הוספת עמודה משמאל', () => chain().addColumnAfter().run());
   sep();
-  btn('✕ שורה', 'מחיקת השורה', () => chain().deleteRow().run());
-  btn('✕ עמודה', 'מחיקת העמודה', () => chain().deleteColumn().run());
+  const deleteRowBtn = btn('✕ שורה', 'מחיקת השורה הנוכחית', () => chain().deleteRow().run());
+  const deleteColBtn = btn('✕ עמודה', 'מחיקת העמודה הנוכחית', () => chain().deleteColumn().run());
+  sep();
+  btn('העתקת טבלה', 'העתקת הטבלה השלמה, כולל תוכן ועיצוב, ללוח', async () => {
+    const table = tableElement();
+    if (!table) return;
+    const rows = [...table.rows].map((row) => [...row.cells].map((cell) => cell.innerText.replace(/\\s*\\n\\s*/g, ' ').trim()).join('\\t')).join('\\n');
+    try { await window.api.copyTable(table.outerHTML, rows); }
+    catch (err) { console.error('Failed to copy table', err); }
+  });
   sep();
   const merge = btn('⊞ מיזוג', 'מיזוג התאים המסומנים, או פיצול תא ממוזג', () => chain().mergeOrSplit().run());
   btn('כותרת', 'שורת כותרת מודגשת (הפעלה/כיבוי)', () => chain().toggleHeaderRow().run());
@@ -187,6 +195,8 @@ export function attachTableBar(editor, scroller) {
     const table = editor.isFocused && editor.isActive('table') ? tableElement() : null;
     if (!table) { bar.hidden = true; colors.hidden = true; return; }
     merge.innerHTML = editor.can().splitCell() ? '⊟ פיצול' : '⊞ מיזוג';
+    deleteRowBtn.disabled = !editor.can().deleteRow();
+    deleteColBtn.disabled = !editor.can().deleteColumn();
     colorBtn.disabled = !editor.can().setCellAttribute('backgroundColor', null);
     bar.hidden = false;
     const r = table.getBoundingClientRect();
