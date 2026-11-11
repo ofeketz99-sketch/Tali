@@ -911,3 +911,34 @@ dialog { border-radius: 18px; }
 .patch-note-release code { direction: ltr; unicode-bidi: isolate; background: var(--code-bg); border-radius: 4px; padding: 1px 4px; font-size: .91em; }
 .patch-note-release p { margin: 6px 0; }
 .patch-notes-content .patch-notes-message { text-align: center; margin: 20px 0; color: var(--muted); }
+
+/* ===== Right navigation: expanded, compact rail, hidden ===== */
+#sidebar { transition: width .22s var(--ease), min-width .22s var(--ease); overflow: hidden; }
+body[data-sidebar-mode="compact"] #sidebar { width: 52px; min-width: 52px; }
+body[data-sidebar-mode="compact"] .side-head {
+  flex-direction: column; align-items: center; gap: 4px; padding: 7px 5px 6px;
+}
+body[data-sidebar-mode="compact"] .side-head .vault { width: 100%; flex: none; justify-content: center; }
+body[data-sidebar-mode="compact"] .side-head .app-logo { width: 30px; height: 30px; }
+body[data-sidebar-mode="compact"] .side-head .brand-text,
+body[data-sidebar-mode="compact"] .side-note-label,
+body[data-sidebar-mode="compact"] .search-box,
+body[data-sidebar-mode="compact"] .side-hint,
+body[data-sidebar-mode="compact"] #tree { display: none; }
+body[data-sidebar-mode="compact"] .side-top {
+  flex-direction: column; align-items: center; padding: 8px 5px; gap: 7px;
+}
+body[data-sidebar-mode="compact"] .side-top #btnNote,
+body[data-sidebar-mode="compact"] .side-top #btnFolder {
+  flex: none; width: 34px; min-width: 34px; height: 34px; padding: 0; display: grid; place-items: center;
+}
+body[data-sidebar-mode="hidden"] #sidebar { display: none; }
+.sidebar-restore { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 32px; height: 32px; padding: 0; border: 1px solid var(--accent-line); background: var(--panel-bg); }
+.sidebar-restore[hidden] { display: none; }
+
+/* Unified image drawing modes and iconography */
+#paint .pt-presets { gap: 4px; }
+#paint .pt-presets button { font-size: 12px; white-space: nowrap; }
+#paint .pt-tools button { display: grid; place-items: center; }
+#paint .pt-tools .ic { margin: auto; }
+#paint .pt-presets button:disabled { opacity: .6; }
