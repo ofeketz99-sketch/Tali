@@ -16,6 +16,7 @@ import { Markdown } from 'tiptap-markdown';
 import { WikiLink } from './wikilink.js';
 import { splitLinksLines, mergeLinksLines } from '../links.js';
 import { Embed, LocalImage } from './embed.js';
+import { splitOverlay, joinOverlay } from './overlay-data.js';
 import {
   ObsidianMarkdown, FaithfulText, FaithfulHardBreak, FaithfulHorizontalRule, FaithfulHeading, FaithfulLink,
   RawHtmlBlock, RawHtmlInline,
@@ -29,6 +30,8 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
   let raw = false;
   let loading = false;
   let frontmatter = null;
+  let overlayController = null;
+  let overlayObjects = [];
   const imagesOf = (list) => [...(list || [])].filter((f) => f.type.startsWith('image/'));
 
   const editor = new Editor({
@@ -108,11 +111,15 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
   let endsWithNewline = false;
   const richMarkdown = () => {
     const out = joinFrontmatter(frontmatter, editor.storage.markdown.getMarkdown());
-    return endsWithNewline && out && !out.endsWith('\n') ? out + '\n' : out;
+    const body = endsWithNewline && out && !out.endsWith('\n') ? out + '\n' : out;
+    return joinOverlay(body, overlayController ? overlayController.getItems() : overlayObjects);
   };
   const loadRich = (md) => {
-    endsWithNewline = /\n$/.test(md);
-    const parts = splitFrontmatter(md);
+    const partsWithOverlay = splitOverlay(md);
+    overlayObjects = partsWithOverlay.objects;
+    overlayController?.setItems(overlayObjects);
+    endsWithNewline = /\n$/.test(partsWithOverlay.markdown);
+    const parts = splitFrontmatter(partsWithOverlay.markdown);
     frontmatter = parts.frontmatter;
     editor.commands.setContent(parts.body, false);
     showProps();
@@ -120,6 +127,11 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
 
   return {
     editor,
+    setOverlayController(controller) {
+      overlayController = controller;
+      controller.setItems(overlayObjects);
+      controller.setEnabled(!raw);
+    },
     isRaw: () => raw,
     getMarkdown: () => (raw ? rawElement.value : richMarkdown()),
     setMarkdown(md) {
@@ -127,6 +139,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       loadRich(md || '');
       rawElement.value = md || '';
       loading = false;
+      overlayController?.setEnabled(!raw);
     },
     // מסמן מחדש קישורים להערות שלא קיימות (אחרי יצירה, מחיקה או שינוי שם)
     refreshLinks() {
@@ -140,6 +153,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       else rawElement.value = richMarkdown();
       loading = false;
       raw = !raw;
+      overlayController?.setEnabled(!raw);
       element.hidden = raw;
       rawElement.hidden = !raw;
       showProps();
