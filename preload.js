@@ -5,6 +5,7 @@ const call = (channel) => (...args) => ipcRenderer.invoke(channel, ...args);
 
 contextBridge.exposeInMainWorld('api', {
   init: call('init'),
+  patchNotes: call('patch-notes'),
   pickFolder: call('pick-folder'),
   tree: call('tree'),
   read: call('read'),
