@@ -50,15 +50,15 @@
   root.querySelector('button').focus({ preventScroll: true });
   root.querySelectorAll('img').forEach(img => { img.addEventListener('error', finish); if (img.complete && !img.naturalWidth) finish(); });
   if (ended) return;
-  deadline = setTimeout(finish, 3100); // Independent fail-open watchdog.
-  const animate = (el, frames, duration = 3000, delay = 0) => {
+  deadline = setTimeout(finish, 4750); // Independent fail-open watchdog.
+  const animate = (el, frames, duration = 4650, delay = 0) => {
     const animation = el.animate(frames, { duration, delay, fill: 'both', easing: 'linear' });
     animations.push(animation);
     return animation;
   };
   try {
     if (!window.TaliSplashArt) { finish(); return; }
-    const timeline = animate(root, [{ opacity: 1, offset: 0 }, { opacity: 1, offset: .87 }, { opacity: 0, offset: 1 }]);
+    const timeline = animate(root, [{ opacity: 1, offset: 0 }, { opacity: 1, offset: 4250 / 4650 }, { opacity: 0, offset: 1 }]);
     timeline.finished.then(finish, () => {});
     const logo = root.querySelector('img');
     logo.decode().then(() => {

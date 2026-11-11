@@ -117,14 +117,36 @@
         const bow = texture === this.cover ? 0 : 3 * Math.sin(Math.PI * u);
         points.push([this.project(x,-H/2 + bow,depth),this.project(x,H/2 + bow,depth)]);
       }
-      g.beginPath(); g.moveTo(...points[0][0]);
-      points.slice(1).forEach(p=>g.lineTo(...p[0]));
-      [...points].reverse().forEach(p=>g.lineTo(...p[1])); g.closePath();
+      const outline = new Path2D();
+      const contour = points.map(p=>p[0]).concat([...points].reverse().map(p=>p[1]));
+      const radius = (texture === this.cover ? 15 : 9) * this.scale;
+      contour.forEach((point,i) => {
+        const prev=contour[(i+contour.length-1)%contour.length], next=contour[(i+1)%contour.length];
+        const inset = other => {
+          const distance=Math.hypot(other[0]-point[0],other[1]-point[1]);
+          const fraction=Math.min(.45,radius/(distance||1));
+          return [mix(point[0],other[0],fraction),mix(point[1],other[1],fraction)];
+        };
+        const before=inset(prev), after=inset(next);
+        if(i===0) outline.moveTo(...before); else outline.lineTo(...before);
+        outline.quadraticCurveTo(...point,...after);
+      });
+      outline.closePath();
       if (shadow) {
-        g.save(); g.shadowColor = this.colors.shadow; g.shadowBlur = 22 * this.scale;
-        g.shadowOffsetY = 12 * this.scale; g.fillStyle = this.colors.paper; g.fill(); g.restore();
+        g.save(); g.shadowColor = this.colors.shadow; g.shadowBlur = 28 * this.scale;
+        g.shadowOffsetY = 16 * this.scale; g.fillStyle = this.colors.paper; g.fill(outline); g.restore();
       }
-      g.fillStyle = texture === this.cover ? this.colors.cover : this.colors.paper; g.fill();
+      if (texture === this.cover || z < 0) {
+        g.save();
+        for(let layer=7;layer>0;layer--) {
+          g.save();g.translate(0,layer*this.scale);
+          g.fillStyle=texture===this.cover?this.colors.cover:(layer%2?this.colors.edge:this.colors.paper);
+          g.fill(outline);g.restore();
+        }
+        g.restore();
+      }
+      g.fillStyle = texture === this.cover ? this.colors.cover : this.colors.paper; g.fill(outline);
+      g.save();g.clip(outline);
       for (let i = 0; i < strips; i++) {
         const u = i / strips * W, v = (i + 1) / strips * W;
         const a = back ? W-u : u, b = back ? W-v : v;
@@ -136,6 +158,7 @@
         g.fillStyle = this.colors.ink; g.save(); g.globalAlpha *= shade;
         g.beginPath(); g.moveTo(...tl); g.lineTo(...tr); g.lineTo(...br); g.lineTo(...bl); g.closePath(); g.fill(); g.restore();
       }
+      g.restore();
     }
 
     draw(ms) {
@@ -148,7 +171,7 @@
       }
       this.width = width; this.height = height;
       g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,width,height);
-      const t = ms / 1000;
+      const t = ms / 1250; // 25% more time for the camera, paper and closing gesture.
       const pull = smooth(t/1.85), close = smooth((t-1.58)/.65), dissolve = smooth((t-2.22)/.36);
       const fit = Math.min(1, width/550, height/460);
       this.scale = fit * mix(8.5, 1, 1-Math.pow(1-pull,2));

@@ -1,3 +1,9 @@
+# 2.3 — Softer book and slower pacing (2026-11-11)
+
+- Extended the intro to 4.65 seconds: camera/page motion takes 25% longer and the fully revealed logo holds for approximately one additional second before the fade.
+- Rounded the paper and cover silhouettes, added layered page/cover thickness and softer depth shadows, and lightened the cover to pastel blue.
+- Verified desktop/mobile frames, completion, skipping, reduced motion, asset failures, Electron reload behavior, build and existing tests.
+
 # 2.2 — Illustrated splash refinement (2026-11-11)
 
 - Reworked the opening around the supplied close-up reference: fine paper grain, irregular hand-drawn ink, a closer opening camera and a continuous eased pullback.
