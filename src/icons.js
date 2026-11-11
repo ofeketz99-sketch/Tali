@@ -37,6 +37,9 @@ const PATHS = {
   trash: '<path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
   filePlus: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 12v6M9 15h6"/>',
+  eraser: '<path d="m7 21-4-4a2 2 0 0 1 0-3L15 2a2 2 0 0 1 3 0l4 4a2 2 0 0 1 0 3L10 21z"/><path d="m8 10 8 8M10 21h12"/>',
+  panelCollapse: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M14 4v16M11 9l-3 3 3 3"/>',
+  panelExpand: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M10 4v16M7 9l3 3-3 3"/>',
 };
 
 export function icon(name, size = 18) {
