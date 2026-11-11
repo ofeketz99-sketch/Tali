@@ -83,7 +83,14 @@ document.addEventListener('click', (e) => {
 document.addEventListener('animationend', (e) => { if (e.animationName === 'jelly') e.target.classList?.remove('jelly'); });
 
 // ===== מחוון שמירה בשורת המצב: נקודה שמהבהבת כשיש שינויים, ונהיית ✓ כשנשמר =====
-function setSaveState(s) { const d = $('saveDot'); if (d) d.dataset.state = s; }
+// מצב השמירה בשורת המצב: נקודה וטקסט קצר
+const SAVE_TEXT = { dirty: 'שומר…', saved: 'נשמר', error: 'לא נשמר' };
+function setSaveState(s) {
+  const d = document.getElementById('saveDot');
+  if (d) d.dataset.state = s || '';
+  const t = document.getElementById('saveText');
+  if (t) { t.textContent = SAVE_TEXT[s] || ''; t.dataset.state = s || ''; }
+}
 import { loadPrefs, getPrefs, openSettings } from './settings.js';
 import { openPalette, closePalette, isPaletteOpen, fuzzy } from './palette.js';
 
@@ -153,7 +160,7 @@ let saveTimer = null;
 const noteChanged = () => {
   state.dirty = true;
   setSaveState('dirty');
-  setStatus('נערך…');
+  scheduleWordCount();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSave, 600);
 };
@@ -180,7 +187,7 @@ const hoverPreview = setupHoverPreview({
 const pageOverlay = createPageOverlay({ page: $('page'), onChange: noteChanged });
 editorApi.setOverlayController(pageOverlay);
 const useOverlay = (tool) => {
-  if (!state.currentPath) { setStatus('קודם פותחים פתק'); return; }
+  if (!state.currentPath) { setStatus('קודם פותחים מסמך'); return; }
   if (editorApi.isRaw()) { setStatus('עבור לתצוגה המעוצבת כדי לשרטט על הדף'); return; }
   pageOverlay.setEnabled(true);
   if (tool === 'textbox') pageOverlay.setMode('textbox');
@@ -343,6 +350,27 @@ async function saveDroppedImages(files) {
 }
 
 function setStatus(text) { $('status').textContent = text; }
+
+// ספירת מילים בשורת המצב (בתצוגה המעוצבת: הטקסט המוצג, ב־Markdown: הטקסט הגולמי)
+function updateWordCount() {
+  const out = $('wordCount');
+  if (!state.currentPath) { out.textContent = ''; return; }
+  const text = editorApi.isRaw() ? $('raw').value : (document.querySelector('#editor .ProseMirror')?.innerText || '');
+  const n = (text.match(/[\p{L}\p{N}][\p{L}\p{N}'"\u05F3\u05F4־-]*/gu) || []).length;
+  out.textContent = n === 1 ? 'מילה אחת' : `${n.toLocaleString('he-IL')} מילים`;
+}
+let wordTimer = null;
+function scheduleWordCount() { clearTimeout(wordTimer); wordTimer = setTimeout(updateWordCount, 400); }
+
+// פס גלילה שמופיע רק בגלילה או בריחוף על האזור הנגלל
+const scrollTimers = new WeakMap();
+document.addEventListener('scroll', (e) => {
+  const el = e.target === document ? document.documentElement : e.target;
+  if (!(el instanceof Element)) return;
+  el.classList.add('is-scrolling');
+  clearTimeout(scrollTimers.get(el));
+  scrollTimers.set(el, setTimeout(() => el.classList.remove('is-scrolling'), 900));
+}, true);
 // נתיב יחסי להצגה: "תיקייה › הערה", בלי .md (שבעברית קפץ לתחילת השורה)
 const prettyPath = (p) => p.slice(state.root.length + 1).replace(/\.md$/i, '').split(/[\\/]/).join(' › ');
 
@@ -362,7 +390,6 @@ async function saveNow() {
   try {
     state.mtime = await window.api.write(p, content, state.mtime);
     state.diskText = content;
-    setStatus('נשמר');
     if (!state.dirty) setSaveState('saved');
     refreshLinksPanel(); // ייתכן שהמאפיינים (links:) נערכו ידנית
   } catch (err) {
@@ -388,7 +415,6 @@ async function saveDespiteOutsideChange(p, content) {
     }
     state.mtime = await window.api.write(p, content, null);
     state.diskText = content;
-    setStatus('נשמר');
     if (!state.dirty) setSaveState('saved');
   } catch (err) {
     state.dirty = true;
@@ -544,6 +570,7 @@ async function openNote(p, { history = true } = {}) {
   void pg.offsetWidth;
   pg.classList.add('enter');
   setStatus(prettyPath(p));
+  updateWordCount();
   drawTree();
   refreshBacklinks();
   refreshLinksPanel();
@@ -625,7 +652,8 @@ async function enterRoot(r) {
   $('page').hidden = true;
   $('empty').hidden = false;
   $('btnPickBig').hidden = true;
-  $('btnNewBig').hidden = false;
+  setSaveState('');
+  $('wordCount').textContent = '';
   setStatus('תיקיית המסמכים: ' + $('vaultName').textContent);
   drawTree();
 }
@@ -973,10 +1001,6 @@ async function newFolder() {
 }
 
 $('btnNote').addEventListener('click', () => newNote());
-$('btnNewBig').addEventListener('click', async () => {
-  if (!state.root) await enterRoot(await window.api.pickFolder());
-  if (state.root) newNote();
-});
 $('btnFolder').addEventListener('click', newFolder);
 $('btnGraph').addEventListener('click', showGraph);
 $('btnTags').addEventListener('click', () => showTags());

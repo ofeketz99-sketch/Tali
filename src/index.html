@@ -34,7 +34,6 @@
       <button id="btnTasks" class="icon-btn" data-tip="משימות (Ctrl+Shift+T)" data-icon="tasks" aria-label="משימות"></button>
       <button id="btnGhosts" class="icon-btn" data-tip="מסמכי רפאים: קישורים למסמכים שעוד לא נוצרו" data-icon="ghost" aria-label="מסמכי רפאים"></button>
     </div>
-    <div class="side-hint">מעבר מהיר <kbd>Ctrl+O</kbd> · פקודות <kbd>Ctrl+P</kbd></div>
     <div id="tree"></div>
   </aside>
 
@@ -43,7 +42,6 @@
     <div id="pageWrap">
       <div id="empty" class="empty" aria-label="מסך הבית">
         <button id="btnPickBig" class="primary">בחירת תיקייה</button>
-        <button id="btnNewBig" type="button" class="primary btn-new btn-new-big" aria-label="מסמך חדש" hidden><svg class="btn-new-waves" viewBox="0 0 176 80" preserveAspectRatio="none" aria-hidden="true"><path d="M0 0 H86 C73 24 60 34 42 44 C20 57 7 69 0 79 Z" fill="#d9effa" opacity=".70"/><path d="M0 80 C14 51 27 46 46 50 C68 53 87 72 115 78 C138 82 160 80 176 80 Z" fill="#eaf5fa" opacity=".94"/></svg><span class="btn-new-icon" aria-hidden="true"><span data-icon="plus"></span></span><span class="btn-new-label">מסמך חדש</span></button>
       </div>
       <div id="page" hidden>
         <textarea id="props" hidden spellcheck="false" title="מאפיינים (frontmatter)"></textarea>
@@ -53,7 +51,7 @@
       <section id="backlinks" hidden></section>
       <aside id="linksPanel" hidden></aside>
     </div>
-    <div id="statusBar"><span id="saveDot" title="מצב שמירה"></span><div id="status"></div></div>
+    <div id="statusBar"><span id="saveDot" aria-hidden="true"></span><span id="saveText"></span><div id="status"></div><span id="wordCount"></span></div>
   </main>
 
   <dialog id="dlg">
