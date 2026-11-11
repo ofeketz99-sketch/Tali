@@ -28,6 +28,7 @@
   --accent-tint: color-mix(in srgb, var(--accent) 6%, var(--panel-bg));   /* משטחים: סרגלים, כותרות */
   --accent-line: color-mix(in srgb, var(--accent) 35%, var(--border));    /* קווי מסגרת צבעוניים */
   --on-accent: color-mix(in srgb, var(--accent) 22%, #0b1a24);            /* טקסט על מילוי בצבע המודגש */
+  --sheen: color-mix(in srgb, var(--accent) 18%, #ffffff);                /* ברק על כפתור "מסמך חדש", בהיר גם במצב כהה */
 
   --radius: 8px;
   --ease: cubic-bezier(.2, .7, .2, 1);
@@ -912,7 +913,39 @@ dialog { border-radius: 18px; }
 .ProseMirror .embed-chip { vertical-align: middle; gap: 4px; }
 .table-bar button { height: 30px; padding: 0 8px; }
 .table-bar button:not(:has(span)) { width: 30px; padding: 0; }
-=======
+
+/* ===== כפתור "מסמך חדש": מילוי בגרדיאנט עדין עם מרקם נייר =====
+   שלוש שכבות: ברק רך מלמעלה, מרקם גרגירי (רעש SVG אפור, בלי צבע קבוע), וגרדיאנט אלכסוני בגוון המודגש. */
+button.btn-new {
+  position: relative; isolation: isolate; overflow: hidden;
+  color: var(--on-accent); border: 1px solid color-mix(in srgb, var(--accent) 70%, var(--text) 8%);
+  /* הרעש: אפור משתנה (מהערוץ האדום של feTurbulence), ב־overlay מעל הגרדיאנט = גרגיר נייר עדין */
+  --btn-new-bg:
+    radial-gradient(130% 110% at 15% -10%, color-mix(in srgb, var(--sheen) 62%, transparent) 0%, transparent 52%),
+    radial-gradient(90% 120% at 100% 120%, color-mix(in srgb, var(--accent-strong) 30%, transparent) 0%, transparent 60%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 .32'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E"),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 62%, var(--sheen)) 0%, var(--accent) 50%, color-mix(in srgb, var(--accent) 80%, var(--accent-strong)) 100%);
+  background: var(--btn-new-bg);
+  background-blend-mode: normal, normal, overlay, normal;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--sheen) 55%, transparent),
+    inset 0 -2px 6px color-mix(in srgb, var(--accent-strong) 22%, transparent),
+    0 2px 6px color-mix(in srgb, var(--accent) 38%, transparent);
+  border-radius: 12px; letter-spacing: .2px;
+  transition: transform .18s var(--ease), box-shadow .18s var(--ease), filter .18s var(--ease);
+}
+/* ברק שעובר לאט בריחוף */
+button.btn-new::after {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(110deg, transparent 30%, color-mix(in srgb, var(--sheen) 35%, transparent) 50%, transparent 70%);
+  transform: translateX(-120%); transition: transform .6s var(--ease);
+}
+button.btn-new:hover { background: var(--btn-new-bg); background-blend-mode: normal, normal, overlay, normal; filter: saturate(1.08) brightness(1.03); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--sheen) 60%, transparent), inset 0 -2px 6px color-mix(in srgb, var(--accent-strong) 22%, transparent), 0 6px 16px color-mix(in srgb, var(--accent) 42%, transparent); }
+button.btn-new:hover::after { transform: translateX(120%); }
+button.btn-new .ic { filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--sheen) 40%, transparent)); }
+button.btn-new-big { display: inline-flex; align-items: center; gap: 9px; padding: 12px 30px; font-size: 16px; border-radius: 16px; }
+button.btn-new-big[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { button.btn-new::after { display: none; } }
 
 /* ===== Patch Notes (לוח פקודות) ===== */
 .patch-notes-dialog {
@@ -960,3 +993,140 @@ body[data-sidebar-mode="hidden"] #sidebar { display: none; }
 #paint .pt-tools button { display: grid; place-items: center; }
 #paint .pt-tools .ic { margin: auto; }
 #paint .pt-presets button:disabled { opacity: .6; }
+
+/* =====================================================================
+   3.0: תצוגות כספת (גרף, תגיות, משימות, הערות רפאים), תצוגה מקדימה, הטמעת הערות,
+   נוסחאות, טופס מאפיינים, שינוי גודל תמונה בגרירה, גרירה בעץ
+   ===================================================================== */
+.side-views { display: flex; gap: 4px; padding: 0 10px 8px; }
+.side-views .icon-btn { flex: 1; height: 30px; border: 1px solid var(--border); background: var(--input-bg); border-radius: 9px; }
+.side-views .icon-btn:hover { border-color: var(--accent-line); }
+body[data-sidebar-mode="compact"] .side-views { flex-direction: column; align-items: center; padding: 0 5px 8px; }
+body[data-sidebar-mode="compact"] .side-views .icon-btn { flex: none; width: 34px; height: 30px; }
+
+/* חלונות התצוגות */
+.vault-dialog { width: min(760px, calc(100vw - 40px)); max-height: min(84vh, 820px); padding: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--panel-bg); color: var(--text); overflow: hidden; display: none; }
+.vault-dialog[open] { display: flex; flex-direction: column; animation: dialog-in .22s var(--ease); }
+.vault-dialog::backdrop { background: color-mix(in srgb, var(--text) 22%, transparent); }
+.vd-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 12px; border-bottom: 1px solid var(--border); background: var(--accent-tint); }
+.vd-head h2 { margin: 0; font: 600 17px var(--font-ui); flex: 1; }
+.vd-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-strong); }
+.vd-tools { display: flex; gap: 14px; align-items: center; }
+.vd-toggle { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
+.vd-toggle input { accent-color: var(--accent); }
+.vd-body { overflow: auto; padding: 12px 16px 16px; flex: 1; min-height: 0; }
+.vd-intro { color: var(--muted); font-size: 13px; margin: 2px 0 12px; }
+.vd-filter { width: 100%; box-sizing: border-box; margin-bottom: 8px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--input-bg); color: var(--text); }
+.vd-link { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 9px; cursor: pointer; animation: rise-small .22s var(--ease) both; animation-delay: calc(var(--i, 0) * 18ms); }
+.vd-link:hover { background: var(--accent-soft); color: var(--accent-strong); }
+.vd-link .ic { color: var(--faint); flex: none; }
+
+/* גרף */
+.graph-dialog { width: min(1100px, calc(100vw - 40px)); height: min(84vh, 820px); }
+.graph-dialog .vd-body { padding: 0; position: relative; display: flex; }
+.graph-canvas { flex: 1; width: 100%; height: 100%; display: block; cursor: grab; background: radial-gradient(circle at 50% 45%, var(--page-bg) 0%, color-mix(in srgb, var(--page-bg) 70%, var(--accent-tint)) 100%); }
+.graph-canvas:active { cursor: grabbing; }
+.graph-hint { position: absolute; bottom: 10px; inset-inline-start: 14px; font-size: 12px; color: var(--faint); pointer-events: none; }
+
+/* הערות רפאים */
+.ghost-row { border: 1px solid var(--border); border-radius: 11px; margin-bottom: 7px; background: var(--input-bg); animation: rise-small .22s var(--ease) both; animation-delay: calc(var(--i, 0) * 18ms); }
+.ghost-row summary { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; list-style: none; }
+.ghost-row summary::-webkit-details-marker { display: none; }
+.ghost-row .vd-name { flex: 1; font-weight: 600; color: var(--muted); }
+.ghost-row .vd-name::after { content: ''; display: block; border-bottom: 1px dashed var(--faint); width: fit-content; }
+.ghost-row .vd-count { font-size: 12px; color: var(--faint); }
+.vd-action { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; font-size: 12px; border-radius: 8px; border: 1px solid var(--accent-line); background: var(--accent-soft); color: var(--accent-strong); }
+.ghost-row ul { list-style: none; margin: 0; padding: 0 10px 8px; }
+
+/* תגיות */
+.tags-layout { display: grid; grid-template-columns: 220px 1fr; gap: 16px; min-height: 340px; }
+.tags-list { border-inline-end: 1px solid var(--border); padding-inline-end: 12px; max-height: 60vh; overflow: auto; }
+.tag-chip { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; padding: 6px 10px; border: 1px solid transparent; border-radius: 9px; background: none; color: var(--text); text-align: start; }
+.tag-chip:hover { background: var(--accent-soft); }
+.tag-chip.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-strong); font-weight: 600; }
+.tc-count { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--border); color: var(--muted); }
+.tags-notes h3 { margin: 2px 0 10px; font-size: 15px; color: var(--accent-strong); }
+.ProseMirror .tag { color: var(--accent-strong); background: var(--accent-soft); border-radius: 6px; padding: 0 4px; cursor: pointer; transition: background .15s var(--ease); }
+.ProseMirror .tag:hover { background: color-mix(in srgb, var(--accent) 30%, var(--page-bg)); }
+
+/* משימות */
+.tasks-summary { padding: 10px 12px 12px; margin-bottom: 12px; border: 1px solid var(--accent-line); border-radius: 12px; background: var(--accent-tint); }
+.ts-numbers { display: flex; gap: 10px; align-items: baseline; margin-bottom: 8px; }
+.ts-numbers b { font-size: 18px; color: var(--accent-strong); }
+.ts-numbers span { color: var(--muted); font-size: 13px; }
+.ts-bar, .tn-bar { display: block; height: 6px; border-radius: 6px; background: var(--border); overflow: hidden; }
+.ts-bar i, .tn-bar i { display: block; height: 100%; background: var(--accent); border-radius: 6px; transition: width .3s var(--ease); }
+.task-note { margin-bottom: 10px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; animation: rise-small .22s var(--ease) both; animation-delay: calc(var(--i, 0) * 22ms); }
+.tn-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--input-bg); cursor: pointer; font-weight: 600; }
+.tn-head:hover { color: var(--accent-strong); }
+.tn-name { flex: 1; }
+.tn-count { font-size: 12px; color: var(--muted); font-weight: 500; }
+.tn-bar { width: 70px; }
+.task-row { display: flex; align-items: center; gap: 9px; padding: 6px 12px; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.task-row input { accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
+.task-text { cursor: pointer; flex: 1; }
+.task-text:hover { color: var(--accent-strong); }
+.task-row.done .task-text { color: var(--faint); text-decoration: line-through; }
+
+/* תצוגה מקדימה בריחוף על קישור */
+.note-preview { position: fixed; z-index: 900; width: 380px; max-height: 320px; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-bg); box-shadow: var(--shadow); overflow: hidden; opacity: 0; transform: translateY(4px); transition: opacity .16s var(--ease), transform .16s var(--ease); }
+.note-preview[hidden] { display: none; }
+.note-preview.show { opacity: 1; transform: none; }
+.np-head { display: flex; align-items: center; gap: 7px; padding: 8px 12px; border: none; border-bottom: 1px solid var(--border); background: var(--accent-tint); color: var(--accent-strong); font-weight: 600; text-align: start; border-radius: 0; }
+.np-head span { flex: 1; }
+.np-head .ic:last-child { transform: rotate(90deg); opacity: .6; }
+.np-body { overflow: auto; padding: 8px 14px 10px; font-family: var(--font-doc); font-size: 13.5px; line-height: 1.6; }
+.np-body h1, .np-body h2, .np-body h3 { font-size: 1.1em; margin: .6em 0 .3em; }
+.np-body img { max-width: 100%; border-radius: 6px; }
+.np-body p { margin: 0 0 .5em; }
+.np-link { color: var(--accent-strong); cursor: pointer; border-bottom: 1px solid var(--accent-line); }
+.np-link.unresolved { color: var(--muted); border-bottom-style: dashed; }
+.np-empty, .np-more { color: var(--faint); font-size: 12px; }
+
+/* ![[הערה]] מוטמעת */
+.ProseMirror .embed-note { display: block; margin: .5em 0; border: 1px solid var(--accent-line); border-inline-start: 3px solid var(--accent); border-radius: 10px; background: color-mix(in srgb, var(--accent-tint) 55%, var(--page-bg)); overflow: hidden; cursor: default; }
+.ProseMirror .embed-note .en-head { display: flex; align-items: center; gap: 7px; padding: 6px 12px; font-size: 13px; font-weight: 600; color: var(--accent-strong); cursor: pointer; border-bottom: 1px solid var(--accent-line); }
+.ProseMirror .embed-note .en-name { flex: 1; }
+.ProseMirror .embed-note .en-open { font-size: 11px; font-weight: 500; color: var(--muted); }
+.ProseMirror .embed-note .en-body { display: block; padding: 8px 14px 4px; max-height: 420px; overflow: auto; }
+.ProseMirror .embed-note .en-body img { max-width: 100%; }
+
+/* נוסחאות */
+.ProseMirror .math-src { display: none; }
+.ProseMirror .math-inline { cursor: text; padding: 0 1px; border-radius: 4px; direction: ltr; unicode-bidi: isolate; display: inline-block; }
+.np-body .katex, .en-body .katex { direction: ltr; unicode-bidi: isolate; display: inline-block; }
+.np-task { list-style: none; margin-inline-start: -1.1em; }
+.ProseMirror .math-inline:hover { background: var(--accent-soft); }
+.ProseMirror .math-display-inline { display: block; text-align: center; }
+.ProseMirror .math-block.rendered { font-family: inherit; white-space: normal; text-align: center; padding: 6px 0; background: none; border: none; }
+.ProseMirror .math-block.rendered:hover { background: var(--accent-soft); border-radius: 8px; }
+.katex { font-size: 1.08em; }
+
+/* טופס מאפיינים */
+.props-form { margin: 0 0 18px; padding: 8px 10px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--input-bg); animation: rise-small .2s var(--ease); }
+.props-form[hidden] { display: none; }
+.pf-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; padding: 0 2px; }
+.pf-mode { font-size: 11px; padding: 2px 9px; border-radius: 7px; border: 1px solid var(--border); background: var(--panel-bg); color: var(--muted); }
+.pf-row { display: grid; grid-template-columns: minmax(80px, 160px) 1fr 26px; gap: 6px; margin-bottom: 4px; }
+.pf-row input { min-width: 0; padding: 5px 8px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text); font-size: 13px; }
+.pf-row input:hover { border-color: var(--border); }
+.pf-row input:focus { border-color: var(--accent-line); background: var(--panel-bg); outline: none; }
+.pf-key { color: var(--muted); font-weight: 600; }
+.pf-row.is-list .pf-val { color: var(--accent-strong); }
+.pf-del { border: none; background: none; color: var(--faint); padding: 0; display: grid; place-items: center; border-radius: 6px; opacity: 0; }
+.pf-row:hover .pf-del, .pf-del:focus-visible { opacity: 1; }
+.pf-del:hover { color: var(--text); background: var(--accent-soft); }
+.pf-add { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; padding: 3px 9px; font-size: 12px; border: 1px dashed var(--border); border-radius: 8px; background: none; color: var(--muted); }
+.pf-add:hover { color: var(--accent-strong); border-color: var(--accent-line); }
+
+/* שינוי גודל תמונה בגרירה: ידית בפינה */
+.ProseMirror .embed-image { position: relative; }
+.embed-resize { position: absolute; bottom: 6px; inset-inline-end: 6px; width: 14px; height: 14px; border-radius: 4px; border: 2px solid var(--panel-bg); background: var(--accent); box-shadow: var(--shadow); cursor: nesw-resize; opacity: 0; transition: opacity .15s var(--ease), transform .15s var(--ease); }
+.ProseMirror .embed-image:hover .embed-resize, .embed-image.resizing .embed-resize { opacity: 1; }
+.embed-resize:hover { transform: scale(1.15); }
+.embed-image.resizing img { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* גרירה בעץ */
+#tree .node.dragging { opacity: .45; }
+#tree .node.drop-target { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-line); }
+#tree.drop-root { box-shadow: inset 0 0 0 2px var(--accent-line); border-radius: 10px; }

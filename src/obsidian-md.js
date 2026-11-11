@@ -9,6 +9,7 @@ import Heading from '@tiptap/extension-heading';
 import Link from '@tiptap/extension-link';
 import { Plugin } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { renderMath } from './math.js';
 
 // תגיות HTML שהעורך יודע לייצג (ומייצר בעצמו בשמירה של צבע, יישור וקו תחתון).
 // כל תגית אחרת נשמרת כמו שהיא, כקטע HTML גולמי.
@@ -278,8 +279,12 @@ export const RawHtmlBlock = Node.create({
       const dom = document.createElement('div');
       dom.title = 'לעריכה: מצב Markdown';
       if (node.attrs.kind === 'math') {
+        // $...$: מוצג מעובד (KaTeX). המקור נשמר כמו שהוא, ונערך במצב Markdown.
         dom.className = 'math-block';
-        dom.textContent = node.attrs.html;
+        const tex = node.attrs.html.replace(/^\s*\$\$/, '').replace(/\$\$\s*$/, '');
+        const html = renderMath(tex, true);
+        if (html) { dom.classList.add('rendered'); dom.innerHTML = html; dom.dataset.source = node.attrs.html; }
+        else dom.textContent = node.attrs.html;
       } else {
         dom.className = 'raw-html';
         dom.innerHTML = node.attrs.html; // קבצים של המשתמש; סקריפטים חסומים ב־CSP

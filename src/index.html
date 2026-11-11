@@ -7,6 +7,7 @@
   <title>Tali</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="splash.css" />
+  <link rel="stylesheet" href="../node_modules/katex/dist/katex.min.css" />
 </head>
 <body>
   <script src="splash.js"></script><!-- first in body: the intro overlay is in the very first paint -->
@@ -22,12 +23,18 @@
       <button id="btnSidebarHide" class="icon-btn" data-tip="הסתרת הסרגל הימני" data-icon="close" aria-label="הסתרת הסרגל הימני"></button>
     </div>
     <div class="side-top">
-      <button id="btnNote" class="primary" data-tip="הערה חדשה (Ctrl+N)"><span data-icon="plus"></span><span class="side-note-label">הערה חדשה</span></button>
+      <button id="btnNote" class="primary btn-new" data-tip="מסמך חדש (Ctrl+N)"><span data-icon="filePlus"></span><span class="side-note-label">מסמך חדש</span></button>
       <button id="btnFolder" class="icon-btn" data-tip="תיקייה חדשה (Ctrl+Shift+N)" data-icon="folderPlus"></button>
     </div>
     <div class="search-box">
       <span data-icon="search"></span>
       <input id="search" type="search" placeholder="חיפוש בכל ההערות…" title="חיפוש בכל ההערות (Ctrl+Shift+F)" />
+    </div>
+    <div class="side-views" role="toolbar" aria-label="תצוגות">
+      <button id="btnGraph" class="icon-btn" data-tip="גרף הקישורים (Ctrl+G)" data-icon="graph" aria-label="גרף הקישורים"></button>
+      <button id="btnTags" class="icon-btn" data-tip="תגיות" data-icon="tag" aria-label="תגיות"></button>
+      <button id="btnTasks" class="icon-btn" data-tip="משימות (Ctrl+Shift+T)" data-icon="tasks" aria-label="משימות"></button>
+      <button id="btnGhosts" class="icon-btn" data-tip="הערות רפאים: קישורים להערות שעוד לא נוצרו" data-icon="ghost" aria-label="הערות רפאים"></button>
     </div>
     <div class="side-hint">מעבר מהיר <kbd>Ctrl+O</kbd> · פקודות <kbd>Ctrl+P</kbd></div>
     <div id="tree"></div>
@@ -38,7 +45,7 @@
     <div id="pageWrap">
       <div id="empty" class="empty" aria-label="מסך הבית">
         <button id="btnPickBig" class="primary">בחירת תיקייה</button>
-        <button id="btnNewBig" class="primary" hidden>הערה חדשה</button>
+        <button id="btnNewBig" class="primary btn-new btn-new-big" hidden><span data-icon="filePlus"></span><span>מסמך חדש</span></button>
       </div>
       <div id="page" hidden>
         <textarea id="props" hidden spellcheck="false" title="מאפיינים (frontmatter)"></textarea>

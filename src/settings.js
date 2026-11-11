@@ -207,7 +207,7 @@ function buildDialog() {
       'כך ייראה הטקסט בהערות. The quick brown fox jumps over the lazy dog.'),
 
     el('h3', {}, 'הערות וקבצים'),
-    row('הערה חדשה נוצרת', null, select('newNoteLocation', [['selected', 'בתיקייה שנבחרה בעץ'], ['root', 'בתיקייה הראשית']])),
+    row('מסמך חדש נוצר', null, select('newNoteLocation', [['selected', 'בתיקייה שנבחרה בעץ'], ['root', 'בתיקייה הראשית']])),
     row('תמונות מיובאות נשמרות', null, select('attachMode', [['folder', 'בתיקייה קבועה'], ['beside', 'ליד ההערה']], { onChange: refresh })),
     row('שם התיקייה לתמונות', 'בתוך התיקייה הראשית', folderInput),
     row('קישורים חוזרים', 'הרשימה מתחת לדף', check('showBacklinks')),

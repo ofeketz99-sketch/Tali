@@ -17,6 +17,9 @@ import { WikiLink } from './wikilink.js';
 import { splitLinksLines, mergeLinksLines } from '../links.js';
 import { Embed, LocalImage } from './embed.js';
 import { splitOverlay, joinOverlay } from './overlay-data.js';
+import { MathPreview } from './math.js';
+import { Tags } from './tags.js';
+import { attachPropsEditor } from './props-editor.js';
 import {
   ObsidianMarkdown, FaithfulText, FaithfulHardBreak, FaithfulHorizontalRule, FaithfulHeading, FaithfulLink,
   RawHtmlBlock, RawHtmlInline,
@@ -76,9 +79,11 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       TaskItem.configure({ nested: true }),
       FaithfulLink,
       LocalImage.configure({ localSrc: links.localSrc }),
-      Embed.configure({ resolve: links.resolve, onOpen: links.onOpen, onEditDrawing: links.onEditDrawing }),
+      Embed.configure({ resolve: links.resolve, onOpen: links.onOpen, onEditDrawing: links.onEditDrawing, read: links.read }),
       Placeholder.configure({ placeholder: 'התחל לכתוב… ([[ לקישור להערה אחרת)' }),
       WikiLink.configure(links),
+      MathPreview,
+      Tags.configure({ onClick: (tag) => links.onTag?.(tag) }),
       // html: true שומר עיצוב שאין לו תחביר Markdown (צבע, יישור) כ־HTML בתוך הקובץ.
       // breaks: true כמו באובסידיאן: ירידת שורה בודדת היא ירידת שורה.
       Markdown.configure({ html: true, tightLists: true, linkify: true, breaks: true }),
@@ -92,16 +97,21 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
   // מאפיינים: מוצגים בתיבה מעל הדף רק כשיש כאלה בקובץ.
   // השורות של links: לא מוצגות כאן (הן בלוח "קישורים"), ונשמרות בצד במקומן המקורי.
   let linkLines = { block: [], at: -1 };
+  const propsForm = attachPropsEditor(propsElement);
   const showProps = () => {
     const parts = splitLinksLines(frontmatter ?? '');
     linkLines = { block: parts.block, at: parts.at };
     propsElement.value = parts.rest;
     propsElement.hidden = frontmatter == null || raw || !parts.rest.trim();
+    propsElement.dataset.blocked = raw ? '1' : '0';
     propsElement.style.height = 'auto';
     propsElement.style.height = propsElement.scrollHeight + 2 + 'px';
+    propsForm.render();
   };
   propsElement.addEventListener('input', () => {
     frontmatter = mergeLinksLines(propsElement.value, linkLines.block, linkLines.at);
+    // כל המאפיינים נמחקו: גם השורות --- יורדות, במקום להשאיר בלוק ריק בראש הקובץ
+    if (!frontmatter.trim()) frontmatter = null;
     propsElement.style.height = 'auto';
     propsElement.style.height = propsElement.scrollHeight + 2 + 'px';
     if (!loading) onChange();
@@ -122,6 +132,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
     const parts = splitFrontmatter(partsWithOverlay.markdown);
     frontmatter = parts.frontmatter;
     editor.commands.setContent(parts.body, false);
+    propsForm.reset();
     showProps();
   };
 
@@ -133,6 +144,8 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       controller.setEnabled(!raw);
     },
     isRaw: () => raw,
+    // "הוספת מאפיינים" בהערה שאין בה: טופס עם שורה ריקה
+    addProperties() { if (!raw) propsForm.addFirst(); },
     getMarkdown: () => (raw ? rawElement.value : richMarkdown()),
     setMarkdown(md) {
       loading = true;

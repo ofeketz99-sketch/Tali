@@ -7,7 +7,7 @@ import {
   Palette, TableCellsMerge, TableCellsSplit, BetweenHorizontalStart, BetweenHorizontalEnd,
   BetweenVerticalStart, BetweenVerticalEnd, Heading, Pen, Slash, MoveUpRight, Square, Circle, Eraser,
   Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
-  PanelRightClose, PanelRightOpen,
+  PanelRightClose, PanelRightOpen, Waypoints, Ghost, Hash, FileDown, FileType, ListChecks,
 } from 'lucide';
 
 const ICONS = {
@@ -23,6 +23,8 @@ const ICONS = {
   // פעולות
   check: Check, edit: Pencil, copy: Copy, link: Link, trash: Trash2, close: X, palette: Palette,
   paperclip: Paperclip, warning: TriangleAlert,
+  // תצוגות כספת וייצוא
+  graph: Waypoints, ghost: Ghost, tag: Hash, exportPdf: FileDown, exportWord: FileType, taskSection: ListChecks,
   // טבלה
   rowBefore: BetweenHorizontalStart, rowAfter: BetweenHorizontalEnd,
   colBefore: BetweenVerticalStart, colAfter: BetweenVerticalEnd,

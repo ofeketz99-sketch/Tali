@@ -1,6 +1,6 @@
 {
   "name": "tali",
-  "version": "2.7.0",
+  "version": "3.0.0",
   "productName": "Tali",
   "description": "Tali: אפליקציית הערות אישית. אובסידיאן פוגש וורד",
   "main": "main.js",
@@ -9,8 +9,8 @@
     "build": "esbuild src/renderer.js --bundle --outfile=dist/renderer.js --sourcemap --log-level=warning",
     "start": "npm run build && electron .",
     "watch": "esbuild src/renderer.js --bundle --outfile=dist/renderer.js --sourcemap --watch",
-    "test": "node --test tests/overlay-data.test.mjs tests/stroke-smoothing.test.mjs",
-    "check": "node --check main.js && node --check preload.js && node --check links.js && node --check launcher/index.js && npm run build && npm test",
+    "test": "node --test tests/overlay-data.test.mjs tests/stroke-smoothing.test.mjs tests/vault-data.test.mjs",
+    "check": "node --check main.js && node --check preload.js && node --check links.js && node --check vault-data.js && node --check launcher/index.js && npm run build && npm test",
     "splash:emblem": "electron tools/splash-render/main.js -- emblem",
     "splash:preview": "electron tools/splash-render/main.js -- preview",
     "splash:render": "electron tools/splash-render/main.js -- video src/splash.webm 48"
@@ -33,6 +33,7 @@
     "@tiptap/extension-underline": "^2.11.0",
     "@tiptap/pm": "^2.11.0",
     "@tiptap/starter-kit": "^2.11.0",
+    "katex": "^0.16.22",
     "tiptap-markdown": "^0.8.10"
   },
   "devDependencies": {

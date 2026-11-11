@@ -28,4 +28,8 @@ contextBridge.exposeInMainWorld('api', {
   copyTable: call('copy-table'),
   saveConflictCopy: call('save-conflict-copy'),
   writeImage: call('write-image'),
+  vaultIndex: call('vault-index'),
+  move: call('move'),
+  exportNote: call('export-note'),
+  openExternalFile: call('open-export'),
 });

@@ -3,6 +3,43 @@
 import { Node } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
 import { icon } from './icons.js';
+import { renderNoteHtml } from './note-render.js';
+
+// ידית בפינת התמונה: גרירה משנה את הרוחב בתצוגה, ובשחרור נשמר הרוחב החדש (onCommit).
+// בעברית התמונה מיושרת לימין, ולכן הידית בפינה השמאלית התחתונה וגרירה שמאלה מגדילה.
+function addResizeHandle(dom, img, onCommit) {
+  const handle = document.createElement('span');
+  handle.className = 'embed-resize';
+  handle.dataset.tip = 'גרירה לשינוי הגודל';
+  handle.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startW = img.getBoundingClientRect().width;
+    const rtl = getComputedStyle(dom).direction === 'rtl';
+    const max = (dom.closest('.ProseMirror')?.clientWidth || 1400) - 8;
+    let width = startW;
+    try { handle.setPointerCapture(event.pointerId); } catch { /* המעקב על החלון מספיק */ }
+    dom.classList.add('resizing');
+    const move = (e) => {
+      const dx = (e.clientX - startX) * (rtl ? -1 : 1);
+      width = Math.max(60, Math.min(max, startW + dx));
+      img.style.width = Math.round(width) + 'px';
+    };
+    // מעקב על החלון כולו (בשלב הלכידה), כדי שהגרירה תמשיך גם כשהעכבר יוצא מהידית
+    const up = () => {
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
+      dom.classList.remove('resizing');
+      if (Math.abs(width - startW) >= 2) onCommit(width);
+    };
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
+  });
+  dom.append(handle);
+}
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i;
 
@@ -53,6 +90,7 @@ export const Embed = Node.create({
     return {
       resolve: () => null,  // target -> נתיב בדיסק או null
       onOpen: () => {},     // (target) => void
+      read: null,           // (path) => Promise<string> — תוכן הערה מוטמעת
       onEditDrawing: () => {}, // (path) => void — לחיצה כפולה על ציור
     };
   },
@@ -80,7 +118,7 @@ export const Embed = Node.create({
       let current = node;
       const parse = () => {
         const parts = current.attrs.target.split('|');
-        const width = /^\\d+$/.test(parts[1] || '') ? Number(parts[1]) : null;
+        const width = /^\d+$/.test(parts[1] || '') ? Number(parts[1]) : null;
         const wrap = ['wrap-left', 'wrap-right'].includes(parts[2]) ? parts[2] : 'none';
         return { name: parts[0], width, wrap };
       };
@@ -121,6 +159,7 @@ export const Embed = Node.create({
         control('↦', 'טקסט עוטף מצד שמאל', () => { const a = parse(); change(a.width || img.offsetWidth || 300, 'wrap-right'); });
         control('איפוס', 'גודל טבעי והסרת ציפת טקסט', () => change(null, 'none'));
         dom.append(img, tools);
+        addResizeHandle(dom, img, (w) => change(w, parse().wrap));
         const render = () => {
           const a = parse();
           img.style.width = a.width ? a.width + 'px' : '';
@@ -138,7 +177,33 @@ export const Embed = Node.create({
         return { dom, update: (updated) => {
           if (updated.type.name !== 'embed' || updated.attrs.target.split('|')[0] !== initial.name) return false;
           current = updated; render(); return true;
-        }, stopEvent: (event) => !!event.target.closest?.('.embed-tools') };
+        }, stopEvent: (event) => !!event.target.closest?.('.embed-tools, .embed-resize') };
+      }
+      // ![[הערה]] או ![[הערה#כותרת]]: התוכן של ההערה האחרת, לקריאה בלבד. בקובץ נשאר ![[...]].
+      if (path && /\.md$/i.test(path) && this.options.read) {
+        const heading = initial.name.includes('#') ? initial.name.slice(initial.name.indexOf('#') + 1) : '';
+        const shown = initial.name.split('#')[0].split('/').pop() + (heading ? ' › ' + heading : '');
+        dom.classList.add('embed-note');
+        dom.contentEditable = 'false';
+        dom.dataset.target = initial.name;
+        const head = document.createElement('span');
+        head.className = 'en-head';
+        head.innerHTML = `${icon('file', 15)}<span class="en-name"></span><span class="en-open">פתיחה</span>`;
+        head.querySelector('.en-name').textContent = shown;
+        const body = document.createElement('span');
+        body.className = 'en-body';
+        body.textContent = 'טוען…';
+        dom.append(head, body);
+        this.options.read(path).then((text) => {
+          body.innerHTML = renderNoteHtml(text, { resolve: this.options.resolve, fileUrl, heading, limit: 6000 });
+        }).catch(() => { body.textContent = 'לא ניתן לקרוא את ההערה'; });
+        dom.addEventListener('mousedown', (event) => { if (event.button === 0) event.preventDefault(); });
+        dom.addEventListener('click', (event) => {
+          const link = event.target.closest('.np-link');
+          if (link) this.options.onOpen(link.dataset.target);
+          else if (event.target.closest('.en-head')) this.options.onOpen(initial.name);
+        });
+        return { dom, stopEvent: () => true, ignoreMutation: () => true };
       }
       dom.classList.add('embed-chip');
       if (!path) dom.classList.add('unresolved');
@@ -244,6 +309,7 @@ export const LocalImage = Image.extend({
       button('↦', 'טקסט עוטף מצד שמאל', () => change(current.attrs.width || img.offsetWidth || 300, 'right'));
       button('איפוס', 'החזרת גודל טבעי ותחביר Markdown רגיל', () => change(null, 'none'));
       dom.append(img, tools);
+      addResizeHandle(dom, img, (w) => change(w, current.attrs.wrap || 'none'));
       const render = () => {
         const a = current.attrs;
         img.alt = a.alt || '';
@@ -261,7 +327,7 @@ export const LocalImage = Image.extend({
           if (updated.type.name !== current.type.name || updated.attrs.src !== source) return false;
           current = updated; render(); return true;
         },
-        stopEvent: (event) => !!event.target.closest?.('.embed-tools'),
+        stopEvent: (event) => !!event.target.closest?.('.embed-tools, .embed-resize'),
       };
     };
   },

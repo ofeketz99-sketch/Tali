@@ -7,6 +7,8 @@ const { execFile } = require('child_process');
 const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 const { resolveLink, extractLinks, replaceLinks } = require('./links');
+const { extractTags, extractTasks, extractTargets } = require('./vault-data');
+const os = require('os');
 
 // שם האפליקציה: Tali. ההגדרות נשארות בתיקייה המקורית (my-notes), כדי ששינוי השם לא ימחק אותן.
 // בבדיקות מעבירים --user-data-dir, ואז לא נוגעים בתיקייה האמיתית.
@@ -20,6 +22,7 @@ const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 // ה־CHANGELOG נמצא במאגר פרטי. מושכים אותו דרך Git של התהליך הראשי (בלי token בממשק).
 // git fetch לא נוגע בקבצי העבודה או בענף המקומי; אם אין חיבור נופלים לעותק המקומי.
 let patchNotesCache = null;
+let lastExport = null;
 async function gitCommand(args) {
   const candidates = process.platform === 'win32'
     ? ['git', 'C:\\Program Files\\Git\\cmd\\git.exe']
@@ -146,6 +149,74 @@ async function updateLinksAfterRename(from, to, before) {
   return changed;
 }
 
+// ===== אינדקס הכספת: קישורים, תגיות ומשימות לכל הערה =====
+// הניתוח של כל קובץ נשמר בזיכרון לפי זמן השינוי שלו, כך שקריאה חוזרת זולה.
+const parseCache = new Map(); // path -> { mtime, targets, tags, tasks }
+async function vaultIndex() {
+  if (!root) return { notes: [] };
+  const files = await walkFiles(root);
+  const attachments = await walkFiles(root, [], false);
+  const resolve = makeResolver(files.concat(attachments));
+  const notes = [];
+  for (const file of files) {
+    let st;
+    try { st = await fs.stat(file); } catch { continue; }
+    let parsed = parseCache.get(file);
+    if (!parsed || parsed.mtime !== st.mtimeMs) {
+      const text = await fs.readFile(file, 'utf8');
+      parsed = { mtime: st.mtimeMs, targets: extractTargets(text), tags: [...new Set(extractTags(text).map((t) => t.tag))], tasks: extractTasks(text) };
+      parseCache.set(file, parsed);
+    }
+    const links = [], missing = [];
+    for (const t of parsed.targets) {
+      const p = resolve(t);
+      if (p) { if (/\.md$/i.test(p) && p !== file) links.push(p); }
+      else if (!/\.[a-z0-9]{2,5}$/i.test(t) || /\.md$/i.test(t)) missing.push(t.split('#')[0].trim());
+    }
+    notes.push({
+      path: file,
+      name: path.basename(file).replace(/\.md$/i, ''),
+      rel: path.relative(root, file).replace(/\\/g, '/').replace(/\.md$/i, ''),
+      links: [...new Set(links)], missing: [...new Set(missing.filter(Boolean))],
+      tags: parsed.tags, tasks: parsed.tasks,
+    });
+  }
+  return { notes };
+}
+
+// ===== ייצוא: PDF דרך מנוע ההדפסה של Chromium, ו־Word כ־HTML שוורד פותח (תמונות מוטמעות בקובץ) =====
+const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', avif: 'image/avif' };
+async function inlineImages(html) {
+  const out = [];
+  let last = 0;
+  const re = /src="file:\/\/\/([^"?]+)(?:\?[^"]*)?"/g;
+  let mm;
+  while ((mm = re.exec(html))) {
+    out.push(html.slice(last, mm.index));
+    let replacement = mm[0];
+    try {
+      const file = safe(decodeURIComponent(mm[1]).replace(/\//g, path.sep));
+      const type = MIME[path.extname(file).slice(1).toLowerCase()];
+      if (type) replacement = `src="data:${type};base64,${(await fs.readFile(file)).toString('base64')}"`;
+    } catch { /* תמונה מחוץ לכספת או חסרה: נשארת כמו שהיא */ }
+    out.push(replacement);
+    last = mm.index + mm[0].length;
+  }
+  out.push(html.slice(last));
+  return out.join('');
+}
+function exportDocument(title, body, css, forWord) {
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const head = forWord
+    ? '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+    : '<!doctype html><html>';
+  // כותרת מהשם רק אם ההערה לא פותחת כבר בכותרת זהה
+  const first = /^\s*<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(body);
+  const same = first && first[1].replace(/<[^>]+>/g, '').trim() === String(title).trim();
+  const titleHtml = same ? '' : `<h1 class="doc-title">${esc(title)}</h1>`;
+  return `${head}<head><meta charset="utf-8"><title>${esc(title)}</title><style>${css}</style></head><body dir="rtl">${titleHtml}${body}</body></html>`;
+}
+
 async function setRoot(dir) {
   root = path.resolve(dir);
   const s = await loadSettings();
@@ -155,6 +226,70 @@ async function setRoot(dir) {
 }
 
 function registerIpc() {
+  ipcMain.handle('vault-index', vaultIndex);
+
+  // העברת הערה או תיקייה לתיקייה אחרת (גרירה בעץ). הקישורים אל ההערות שעברו מתעדכנים.
+  ipcMain.handle('move', async (_e, p, destDir) => {
+    const from = safe(p);
+    const dir = safe(destDir);
+    if ((await fs.stat(dir)).isFile()) throw new Error('היעד אינו תיקייה');
+    if (dir === from || dir.startsWith(from + path.sep)) throw new Error('אי אפשר להעביר תיקייה לתוך עצמה');
+    const to = safe(path.join(dir, path.basename(from)));
+    if (to === from) return { to, changed: [] };
+    try { await fs.access(to); throw new Error('ביעד כבר יש קובץ או תיקייה בשם הזה'); }
+    catch (err) { if (err.code !== 'ENOENT') throw err; }
+    const isFile = (await fs.stat(from)).isFile();
+    const before = await walkFiles(root);
+    await fs.rename(from, to);
+    const changed = new Set();
+    if (isFile) {
+      for (const f of await updateLinksAfterRename(from, to, before)) changed.add(f);
+    } else {
+      // תיקייה: מעדכנים קישורים לכל הערה שבתוכה, אחת אחרי השנייה
+      let list = before;
+      for (const oldFile of before.filter((f) => f.startsWith(from + path.sep))) {
+        const newFile = to + oldFile.slice(from.length);
+        for (const f of await updateLinksAfterRename(oldFile, newFile, list)) changed.add(f);
+        list = list.map((f) => (f === oldFile ? newFile : f));
+      }
+    }
+    return { to, changed: [...changed] };
+  });
+
+  // ייצוא ההערה הפתוחה. html: התוכן כפי שהוא מוצג בעורך (אחרי ניקוי בממשק).
+  ipcMain.handle('export-note', async (e, format, title, html, css) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    const ext = format === 'pdf' ? 'pdf' : 'doc';
+    const r = await dialog.showSaveDialog(win, {
+      title: format === 'pdf' ? 'ייצוא ל־PDF' : 'ייצוא ל־Word',
+      defaultPath: path.join(app.getPath('documents'), `${String(title).replace(/[\\/:*?"<>|]/g, '') || 'מסמך'}.${ext}`),
+      filters: [format === 'pdf' ? { name: 'PDF', extensions: ['pdf'] } : { name: 'Word', extensions: ['doc'] }],
+    });
+    if (r.canceled || !r.filePath) return null;
+    const body = await inlineImages(String(html));
+    if (format === 'pdf') {
+      const tmp = path.join(os.tmpdir(), `tali-export-${Date.now()}.html`);
+      await fs.writeFile(tmp, exportDocument(title, body, css, false), 'utf8');
+      const pdfWin = new BrowserWindow({ show: false, webPreferences: { javascript: false, offscreen: false } });
+      try {
+        await pdfWin.loadFile(tmp);
+        const pdf = await pdfWin.webContents.printToPDF({ printBackground: true, pageSize: 'A4', margins: { marginType: 'default' } });
+        await fs.writeFile(r.filePath, pdf);
+      } finally { pdfWin.destroy(); fs.unlink(tmp).catch(() => {}); }
+    } else {
+      await fs.writeFile(r.filePath, '﻿' + exportDocument(title, body, css, true), 'utf8'); // BOM: Word reads UTF-8
+    }
+    lastExport = r.filePath;
+    return r.filePath;
+  });
+  // פתיחת הקובץ שיוצא עכשיו (מחוץ לתיקיית העבודה, ולכן רק הקובץ האחרון שיוצא)
+  ipcMain.handle('open-export', async (_e, p) => {
+    if (!lastExport || p !== lastExport) throw new Error('אפשר לפתוח רק את הקובץ שיוצא עכשיו');
+    const err = await shell.openPath(p);
+    if (err) throw new Error(err);
+    return true;
+  });
+
   ipcMain.handle('patch-notes', getPatchNotes);
   // שמירת טבלה מלאה ללוח בפורמט HTML ובפורמט טקסט לתאימות עם Word, Excel ועורכי פתקים.
   ipcMain.handle('copy-table', (_e, html, text) => {

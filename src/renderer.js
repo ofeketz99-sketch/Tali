@@ -9,6 +9,9 @@ import { fileUrl, bumpImage } from './embed.js';
 import { openPaint } from './paint.js';
 import { createPageOverlay } from './page-overlay.js';
 import { icon } from './icons.js';
+import { setupHoverPreview } from './hover-preview.js';
+import { openGraph, openGhosts, openTags, openTasks } from './vault-views.js';
+import { exportHtml, EXPORT_CSS } from './export.js';
 
 // אייקונים בכפתורים שב־index.html: <span data-icon="plus">
 for (const el of document.querySelectorAll('[data-icon]')) el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon, 18));
@@ -166,8 +169,13 @@ const editorApi = createEditor({
     onLinked: offerLinkHub,
     onEditDrawing: editDrawing,
     localSrc,
+    read: (p) => window.api.read(p),
+    onTag: (tag) => showTags(tag),
   },
   onImageFiles: saveDroppedImages,
+});
+const hoverPreview = setupHoverPreview({
+  resolve: resolveTarget, read: (p) => window.api.read(p), fileUrl, onOpen: openLink, isNote,
 });
 const pageOverlay = createPageOverlay({ page: $('page'), onChange: noteChanged });
 editorApi.setOverlayController(pageOverlay);
@@ -183,6 +191,7 @@ buildToolbar($('toolbar'), editorApi, {
   onImage: importImages,
   onDraw: newDrawing,
   onOverlayDraw: useOverlay,
+  onTaskSection: insertTaskSection,
 });
 
 // ===== צד ימין: פתוח, פס אייקונים, מוסתר =====
@@ -500,6 +509,8 @@ function drawTree() {
     },
     onContext: showContextMenu,
     onDelete: deleteNode,
+    onMove: moveNode,
+    root: state.root,
   });
   if (focusedPath) {
     const row = [...$('tree').querySelectorAll('.node')].find(n => n.dataset.path === focusedPath);
@@ -584,7 +595,7 @@ async function openLink(target) {
     const file = await window.api.createNote(dir, name);
     await refreshTree();
     await openNote(file);
-    setStatus(`נוצרה הערה חדשה: ${name}`);
+    setStatus(`נוצר מסמך חדש: ${name}`);
   } catch (err) { setStatus(err.message); }
 }
 
@@ -685,6 +696,120 @@ async function deleteNode(node) {
   } catch (err) { setStatus(err.message); }
 }
 
+// ===== העברה בגרירה לתיקייה אחרת =====
+async function moveNode(src, destDir) {
+  const sepIdx = Math.max(src.lastIndexOf('/'), src.lastIndexOf('\\'));
+  if (src.slice(0, sepIdx) === destDir) return; // כבר שם
+  try {
+    await flushSave();
+    const { to, changed } = await window.api.move(src, destDir);
+    const swap = (p) => (p === src ? to : p.startsWith(src + '\\') || p.startsWith(src + '/') ? to + p.slice(src.length) : p);
+    state.back = state.back.map(swap);
+    state.forward = state.forward.map(swap);
+    state.recent = state.recent.map(swap);
+    store.set('recent:' + state.root, state.recent);
+    if (state.currentPath) {
+      state.currentPath = swap(state.currentPath);
+      if (changed.includes(state.currentPath)) await reloadFromDisk();
+      else state.mtime = await window.api.mtime(state.currentPath);
+    }
+    state.collapsed.delete(destDir);
+    saveCollapsed();
+    await refreshTree();
+    const others = changed.filter((p) => p !== state.currentPath).length;
+    setStatus(`הועבר אל ${destDir === state.root ? 'התיקייה הראשית' : prettyPath(destDir)}` + (others ? ` · הקישורים עודכנו ב־${others} מסמכים` : ''));
+  } catch (err) { setStatus(err.message); }
+}
+
+// ===== תצוגות על כל הכספת: גרף, תגיות, משימות, הערות רפאים =====
+const vaultIndex = async () => { await flushSave(); return window.api.vaultIndex(); };
+async function showGraph() {
+  if (!state.root) return;
+  openGraph({
+    index: await vaultIndex(), current: state.currentPath, store,
+    onOpen: (t) => (t.path ? openNote(t.path) : openLink(t.create)),
+  });
+}
+async function showTags(initial) {
+  if (!state.root) return;
+  openTags({ index: await vaultIndex(), initial, onOpenNote: (p) => openNote(p) });
+}
+async function showGhosts() {
+  if (!state.root) return;
+  openGhosts({ index: await vaultIndex(), onOpenNote: (p) => openNote(p), onCreate: (name) => openLink(name) });
+}
+async function showTasks() {
+  if (!state.root) return;
+  openTasks({ index: await vaultIndex(), store, onOpenTask: openTask, onToggle: toggleTask });
+}
+// פתיחת מסמך במשימה מסוימת: הסמן עובר לטקסט שלה
+async function openTask(p, task) {
+  await openNote(p);
+  if (!task?.text) return;
+  const ed = editorApi.editor;
+  let found = null;
+  ed.state.doc.descendants((node, pos) => {
+    if (found != null || !node.isText) return;
+    const i = node.text.indexOf(task.text);
+    if (i >= 0) found = pos + i;
+  });
+  if (found != null) ed.chain().focus().setTextSelection(found).scrollIntoView().run();
+}
+// סימון משימה מחלון המשימות: משנים רק את [ ] / [x] בשורה הזו, ורק אם השורה עדיין אותה משימה
+async function toggleTask(p, task, done) {
+  if (p === state.currentPath) await flushSave();
+  const text = await window.api.read(p);
+  const lines = text.split('\n');
+  const line = lines[task.line] ?? '';
+  const re = /^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(\])/;
+  if (!re.test(line) || !line.includes(task.text)) throw new Error('המשימה השתנתה בינתיים');
+  lines[task.line] = line.replace(re, `$1${done ? 'x' : ' '}$3`);
+  await window.api.write(p, lines.join('\n'), null);
+  if (p === state.currentPath) await reloadFromDisk();
+  return window.api.vaultIndex();
+}
+// "משימות להמשך": כותרת ורשימת תיבות סימון בסוף המסמך. אם כבר יש כזו, הסמן עובר אליה.
+const TASK_SECTION = 'משימות להמשך';
+function insertTaskSection() {
+  if (!state.currentPath) { setStatus('קודם פותחים מסמך'); return; }
+  if (editorApi.isRaw()) { setStatus('עובד בתצוגה המעוצבת'); return; }
+  const ed = editorApi.editor;
+  let headingEnd = null;
+  ed.state.doc.forEach((node, offset) => {
+    if (node.type.name === 'heading' && node.textContent.trim() === TASK_SECTION) headingEnd = offset + node.nodeSize;
+  });
+  if (headingEnd != null) {
+    const after = ed.state.doc.nodeAt(headingEnd);
+    if (after?.type.name === 'taskList') {
+      const end = headingEnd + after.nodeSize - 2;
+      ed.chain().focus().setTextSelection(end).scrollIntoView().run();
+      return;
+    }
+  }
+  const end = ed.state.doc.content.size;
+  ed.chain().focus().insertContentAt(end, [
+    { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: TASK_SECTION }] },
+    { type: 'taskList', content: [{ type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph' }] }] },
+  ]).run();
+  ed.chain().focus().setTextSelection(ed.state.doc.content.size - 3).scrollIntoView().run();
+}
+
+// ===== ייצוא ל־PDF / Word =====
+async function exportNote(format, node = currentNode()) {
+  if (!node) return;
+  try {
+    if (node.path !== state.currentPath) await openNote(node.path);
+    if (editorApi.isRaw()) editorApi.toggleRaw();
+    await flushSave();
+    setStatus(format === 'pdf' ? 'מייצא ל־PDF…' : 'מייצא ל־Word…');
+    const html = exportHtml($('editor').querySelector('.ProseMirror'));
+    const out = await window.api.exportNote(format, noteName(state.currentPath), html, EXPORT_CSS);
+    if (!out) { setStatus('הייצוא בוטל'); return; }
+    showToast(`נשמר: ${out}`, 'פתיחה', () => window.api.openExternalFile(out));
+    setStatus('הייצוא הושלם');
+  } catch (err) { setStatus('שגיאה בייצוא: ' + err.message); }
+}
+
 // ===== תפריט ימני =====
 // רוחב אחיד, אייקון לכל פעולה, קו דהוי בין פעולות. נפתח לכיוון פנים החלון ולא נחתך.
 function showContextMenu(node, x, y) {
@@ -704,8 +829,10 @@ function showContextMenu(node, x, y) {
     add('edit', 'שינוי שם', () => renameNode(node), { keys: 'F2' });
     add('copy', 'שכפול', () => duplicateNode(node));
     add('link', 'קישור לפתקים אחרים…', () => pickLinksFor(node.path));
+    add('exportPdf', 'ייצוא ל־PDF', () => exportNote('pdf', node));
+    add('exportWord', 'ייצוא ל־Word', () => exportNote('doc', node));
   } else {
-    add('filePlus', 'הערה חדשה בתיקייה', () => { state.selectedDir = node.path; newNote(); });
+    add('filePlus', 'מסמך חדש בתיקייה', () => { state.selectedDir = node.path; newNote(); });
     add('edit', 'שינוי שם', () => renameNode(node), { keys: 'F2' });
   }
   add('trash', 'מחיקה (לסל המחזור)', () => deleteNode(node), { danger: true });
@@ -841,7 +968,7 @@ $('btnSettings').addEventListener('click', openSettings);
 
 async function newNote(presetName) {
   if (!state.root) return;
-  const name = presetName || await ask('שם ההערה:');
+  const name = presetName || await ask('שם המסמך:');
   if (!name) return;
   try {
     const file = await window.api.createNote(targetDir(), name);
@@ -867,6 +994,10 @@ $('btnNewBig').addEventListener('click', async () => {
   if (state.root) newNote();
 });
 $('btnFolder').addEventListener('click', newFolder);
+$('btnGraph').addEventListener('click', showGraph);
+$('btnTags').addEventListener('click', () => showTags());
+$('btnTasks').addEventListener('click', showTasks);
+$('btnGhosts').addEventListener('click', showGhosts);
 
 // הצגת Patch Notes מה־CHANGELOG המתוחזק בגיטהאב. תוכן ה־Markdown מוצג כטקסט בטוח.
 function appendPatchText(target, value) {
@@ -998,7 +1129,7 @@ function openSwitcher() {
         }
         list.sort((a, b) => b.score - a.score);
         if (!notes.some((n) => n.name.toLowerCase() === q.toLowerCase())) {
-          list.push({ title: `יצירת הערה חדשה: ${q}`, className: 'pal-create', run: () => newNote(q) });
+          list.push({ title: `יצירת מסמך חדש: ${q}`, className: 'pal-create', run: () => newNote(q) });
         }
       }
       return list;
@@ -1012,7 +1143,7 @@ const rawButton = () => $('btnRaw');
 const COMMANDS = [
   { title: 'מעבר מהיר להערה', keys: 'Ctrl+O', run: openSwitcher, needs: 'root' },
   { title: 'לוח פקודות', keys: 'Ctrl+P', run: openCommands },
-  { title: 'הערה חדשה', keys: 'Ctrl+N', run: () => newNote(), needs: 'root' },
+  { title: 'מסמך חדש', keys: 'Ctrl+N', run: () => newNote(), needs: 'root' },
   { title: 'תיקייה חדשה', keys: 'Ctrl+Shift+N', run: newFolder, needs: 'root' },
   { title: 'חיפוש בכל ההערות', keys: 'Ctrl+Shift+F', run: () => { $('search').focus(); $('search').select(); }, needs: 'root' },
   { title: 'שמירה', keys: 'Ctrl+S', run: flushSave, needs: 'note' },
@@ -1031,6 +1162,14 @@ const COMMANDS = [
   { title: 'הצגת ההערה בסייר הקבצים של Windows', run: () => window.api.reveal(state.currentPath), needs: 'note' },
   { title: 'הגדרות', keys: 'Ctrl+,', run: openSettings },
   { title: 'מה חדש (Patch Notes)', run: openPatchNotes },
+  { title: 'גרף הקישורים', keys: 'Ctrl+G', run: showGraph, needs: 'root' },
+  { title: 'תגיות', run: () => showTags(), needs: 'root' },
+  { title: 'משימות בכל המסמכים', keys: 'Ctrl+Shift+T', run: showTasks, needs: 'root' },
+  { title: 'הערות רפאים (קישורים להערות שלא נוצרו)', run: showGhosts, needs: 'root' },
+  { title: 'משימות להמשך בסוף המסמך', run: insertTaskSection, needs: 'note' },
+  { title: 'הוספת מאפיינים', run: () => editorApi.addProperties(), needs: 'note' },
+  { title: 'ייצוא ל־PDF', run: () => exportNote('pdf'), needs: 'note' },
+  { title: 'ייצוא ל־Word', run: () => exportNote('doc'), needs: 'note' },
   { title: 'החלפת תיקיית עבודה', run: async () => enterRoot(await window.api.pickFolder()) },
 ];
 const available = (c) => !c.needs || (c.needs === 'root' ? !!state.root : !!state.currentPath);

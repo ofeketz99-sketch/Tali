@@ -2,9 +2,30 @@
 import { icon as svg } from './icons.js';
 
 // opening: התיקייה שנפתחה עכשיו. הפריטים שלה נכנסים באנימציה, אחד אחרי השני.
-export function renderTree(container, tree, { activePath, collapsed, opening, onOpen, onToggleDir, onContext, onSelectDir, onDelete }) {
+// onMove(path, destDir): גרירת הערה או תיקייה אל תיקייה (או אל שטח ריק בעץ = התיקייה הראשית, root).
+const DRAG_TYPE = 'application/x-tali-path';
+export function renderTree(container, tree, { activePath, collapsed, opening, onOpen, onToggleDir, onContext, onSelectDir, onDelete, onMove, root }) {
   container.innerHTML = '';
   container.appendChild(buildLevel(tree));
+  if (onMove && !container.dataset.dropReady) {
+    // שטח ריק בעץ: העברה לתיקייה הראשית. מוגדר פעם אחת (העץ נבנה מחדש הרבה).
+    container.dataset.dropReady = '1';
+    container.addEventListener('dragover', (e) => {
+      if (!e.dataTransfer.types.includes(DRAG_TYPE) || e.target.closest('.node')) return;
+      e.preventDefault(); container.classList.add('drop-root');
+    });
+    container.addEventListener('dragleave', (e) => { if (e.target === container) container.classList.remove('drop-root'); });
+    container.addEventListener('drop', (e) => {
+      container.classList.remove('drop-root');
+      const src = e.dataTransfer.getData(DRAG_TYPE);
+      if (!src || e.target.closest('.node')) return;
+      e.preventDefault();
+      container._onMove?.(src, container._root);
+    });
+  }
+  container._onMove = onMove;
+  container._root = root;
+  const clearMarks = () => container.querySelectorAll('.drop-target').forEach((el) => el.classList.remove('drop-target'));
 
   function buildLevel(nodes) {
     const frag = document.createDocumentFragment();
@@ -20,6 +41,30 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
         event.stopPropagation();
         onDelete?.(n);
       });
+      if (onMove) {
+        row.draggable = true;
+        row.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData(DRAG_TYPE, n.path);
+          e.dataTransfer.effectAllowed = 'move';
+          row.classList.add('dragging');
+        });
+        row.addEventListener('dragend', () => { row.classList.remove('dragging'); clearMarks(); container.classList.remove('drop-root'); });
+        if (n.type === 'dir') {
+          row.addEventListener('dragover', (e) => {
+            if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (!row.classList.contains('drop-target')) { clearMarks(); row.classList.add('drop-target'); }
+          });
+          row.addEventListener('dragleave', (e) => { if (!row.contains(e.relatedTarget)) row.classList.remove('drop-target'); });
+          row.addEventListener('drop', (e) => {
+            e.preventDefault();
+            clearMarks();
+            const src = e.dataTransfer.getData(DRAG_TYPE);
+            if (src && src !== n.path) onMove(src, n.path);
+          });
+        }
+      }
       const icon = document.createElement('span');
       icon.className = 'icon';
       const label = document.createElement('span');

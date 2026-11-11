@@ -151,6 +151,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
         ['quote', 'תיבה בתוך הפסקה', 'תיבת טקסט רגילה שזזה עם הכתיבה', () => chain().insertContent({ type: 'blockquote', content: [ { type: 'paragraph', content: [{ type: 'text', text: '[!TALI-BOX]' }] }, { type: 'paragraph', content: [{ type: 'text', text: 'טקסט בתוך התיבה' }] } ] }).run()],
         ['code', 'בלוק קוד', '', () => chain().toggleCodeBlock().run()],
         ['rule', 'קו מפריד', '', () => chain().setHorizontalRule().run()],
+        ['taskSection', 'משימות להמשך', 'סקציית תיבות סימון בתחתית המסמך', () => actions.onTaskSection?.()],
       ];
       for (const [ic, name, hint, run] of items) {
         const it = document.createElement('button');
