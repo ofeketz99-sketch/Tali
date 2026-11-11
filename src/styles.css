@@ -756,3 +756,39 @@ dialog { border-radius: 18px; }
 #pageWrap { transition: padding .24s var(--ease); }
 #main.links-on #pageWrap { padding-top: 64px; }
 #main.links-open #pageWrap { padding-inline-end: 272px; }
+
+/* ===== Tali 1.6: embedded media sizing and text wrapping ===== */
+.ProseMirror .embed-image {
+  display: inline-block; position: relative; max-width: 100%;
+  vertical-align: middle; margin: 2px 4px;
+}
+.ProseMirror .embed-image > img { max-width: 100%; height: auto; }
+.ProseMirror .embed-image.wrap-left { float: left; clear: left; margin: 5px 14px 10px 0; }
+.ProseMirror .embed-image.wrap-right { float: right; clear: right; margin: 5px 0 10px 14px; }
+.ProseMirror .embed-tools {
+  position: absolute; z-index: 3; inset-block-start: -35px; inset-inline-start: 0;
+  display: flex; gap: 2px; padding: 3px;
+  border: 1px solid var(--border); border-radius: 9px;
+  background: var(--panel-bg); box-shadow: var(--shadow-soft);
+  opacity: 0; pointer-events: none; transform: translateY(3px);
+  transition: opacity .15s var(--ease), transform .15s var(--ease);
+  white-space: nowrap;
+}
+.ProseMirror .embed-image:hover .embed-tools,
+.ProseMirror .embed-image:focus-within .embed-tools,
+.ProseMirror .embed-image.ProseMirror-selectednode .embed-tools {
+  opacity: 1; pointer-events: auto; transform: none;
+}
+.ProseMirror .embed-tools button {
+  border: 0; border-radius: 6px; padding: 3px 8px; min-width: 27px;
+  background: transparent; color: var(--text); font: 12px var(--font-ui);
+}
+.ProseMirror .embed-tools button:hover,
+.ProseMirror .embed-tools button.chosen {
+  background: var(--accent-soft); color: var(--accent-strong);
+}
+@media (prefers-reduced-motion: reduce) {
+  #linksPanel .lk-body, #linksPanel, #pageWrap, .ProseMirror .embed-tools {
+    transition-duration: .01ms !important;
+  }
+}
