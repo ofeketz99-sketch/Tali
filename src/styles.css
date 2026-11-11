@@ -972,6 +972,10 @@ body[data-sidebar-mode="compact"] .side-head {
 }
 body[data-sidebar-mode="compact"] .side-head .vault { flex: none; justify-content: center; margin-bottom: 4px; }
 body[data-sidebar-mode="compact"] .side-head .app-logo { width: 32px; height: 32px; }
+/* בפס האייקונים: כפתור הצמצום ראשון מתחת לסמל, החלפת התיקייה אחרונה */
+body[data-sidebar-mode="compact"] #btnSidebarMin { order: 1; }
+body[data-sidebar-mode="compact"] #btnSettings { order: 2; }
+body[data-sidebar-mode="compact"] #btnPick { order: 3; }
 body[data-sidebar-mode="compact"] .side-head .brand-text,
 body[data-sidebar-mode="compact"] .side-note-label,
 body[data-sidebar-mode="compact"] .search-box,
