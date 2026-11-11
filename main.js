@@ -343,6 +343,8 @@ function registerIpc() {
   ipcMain.handle('attachments', async () => (root ? walkFiles(root, [], false) : []));
 
   // הגדרות התצוגה (גופן, צבעים וכו'), נשמרות לצד התיקייה האחרונה
+  // גזירה/העתקה/הדבקה מתפריט הלחיצה הימנית: אותה פקודה כמו Ctrl+X/C/V, על הרכיב שבפוקוס
+  ipcMain.handle('edit-command', (e, cmd) => { if (['cut', 'copy', 'paste', 'selectAll'].includes(cmd)) e.sender[cmd](); });
   ipcMain.handle('get-prefs', async () => (await loadSettings()).prefs || null);
   ipcMain.handle('set-prefs', async (_e, prefs) => {
     if (!prefs || typeof prefs !== 'object') return false;

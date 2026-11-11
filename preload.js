@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('api', {
   onSystemWake: (fn) => ipcRenderer.on('system-wake', () => fn()),
   init: call('init'),
   patchNotes: call('patch-notes'),
+  editCommand: call('edit-command'),
   pickFolder: call('pick-folder'),
   tree: call('tree'),
   read: call('read'),

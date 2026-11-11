@@ -3,6 +3,7 @@ import { createEditor } from './editor.js';
 import { buildToolbar } from './toolbar.js';
 import { renderTree, renderSearchResults } from './sidebar.js';
 import { createContextPanel, countWords } from './context-panel.js';
+import { setupContextMenus, closeContextMenu } from './context-menu.js';
 import { resolveLink, extractLinks, getFrontmatterLinks, setFrontmatterLinks } from '../links.js';
 import { openLinkPicker } from './linkpicker.js';
 import { showLinkHubOffer } from './linkhub.js';
@@ -202,6 +203,14 @@ const toolbarApi = buildToolbar($('toolbar'), editorApi, {
   onOverlayDraw: useOverlay,
   onTaskSection: insertTaskSection,
   onFocusMode: () => toggleFocusMode(),
+});
+
+// ===== תפריט הלחיצה הימנית על הדף ובשדות טקסט (context-menu.js). הפעולות: אותן של הסרגל (edit-actions.js) =====
+setupContextMenus({
+  editorApi,
+  edit: toolbarApi.edit,
+  isNoteOpen: () => !!state.currentPath,
+  clipboard: (cmd) => window.api.editCommand(cmd),
 });
 
 // ===== מצב מיקוד: רק הדף. הסרגלים, שורת המצב ולוח ההקשר מוסתרים. F11 או הכפתור בפינה יוצאים =====

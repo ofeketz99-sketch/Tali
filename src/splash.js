@@ -3,9 +3,11 @@
  * The book sequence is a pre-rendered video (splash.webm, 1920x1080 @ 60 fps, rendered by
  * tools/splash-render). Its first frame is the flat identity blue and its last frame is the
  * white emblem alone on that blue, so the overlay background matches both ends. When the
- * video ends a native emblem image, sized and centred exactly like the video's (object-fit:
- * cover), takes over for the hold, then the whole overlay fades out over the app, which has
- * been rendering underneath all along. */
+ * video ends its last frame simply stays on screen for the hold, then the whole overlay fades
+ * out over the app, which has been rendering underneath all along. (Until 3.8 a native emblem
+ * image replaced the last frame; it sat within a pixel, but it was thinner and lacked the
+ * rendered highlight, so the logo seemed to jump. The image is now only the fallback when
+ * there is no video: reduced motion, or a video error.) */
 (() => {
   const preview = document.body.hasAttribute('data-splash-preview');
   const key = 'tali:splash:seen';
@@ -75,9 +77,12 @@
   function holdAndFade() {
     if (ended || fading) return;
     fading = true;
-    if (video) matchDecodedBackground();
-    root.classList.add('is-logo');      // native emblem visible
-    if (video) video.hidden = true;
+    if (video && !video.error) {
+      matchDecodedBackground();         // the ended video keeps its last frame: no swap, no jump
+    } else {
+      root.classList.add('is-logo');    // no video (reduced motion or error): the native emblem
+      if (video) video.hidden = true;
+    }
     holdTimer = setTimeout(() => {
       if (ended) return;
       const fade = root.animate([{ opacity: 1 }, { opacity: 0 }], { duration: FADE_MS, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });

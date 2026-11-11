@@ -1,8 +1,8 @@
 // סרגל הכלים העליון. מחולק לקבוצות:
 // ביטול/חזרה · סגנון פסקה · B I U S · צבעים · רשימות וציטוט · יישור · הוספה (טבלה, תמונה, ציור...) · Markdown
 // כפתור חדש: מוסיפים אותו לקבוצה המתאימה ב־buildToolbar. tip הוא ההסבר שמופיע בריחוף.
-import { openTableGrid } from './table.js';
 import { icon } from './icons.js';
+import { createEditActions } from './edit-actions.js';
 
 const TEXT_COLORS = [
   [null, 'ברירת מחדל'], ['#d64545', 'אדום'], ['#e07b2a', 'כתום'], ['#b8860b', 'חרדל'], ['#2f9e6a', 'ירוק'],
@@ -51,6 +51,8 @@ export function buildToolbar(container, editorApi, actions = {}) {
   const { editor } = editorApi;
   const refreshers = [];
   const chain = () => editor.chain().focus();
+  // אותן פעולות משמשות גם את תפריט הלחיצה הימנית (context-menu.js)
+  const ed = createEditActions(editor, actions);
 
   const group = (cls = '') => { const g = document.createElement('div'); g.className = 'tb-group ' + cls; container.append(g); return g; };
   const button = (parent, { html, tip, run, active, cls }) => {
@@ -153,15 +155,18 @@ export function buildToolbar(container, editorApi, actions = {}) {
     html: `${icon('insert')}<span>הוספה</span>${icon('chevron', 14)}`, tip: 'הוספת טבלה, תמונה, ציור ועוד', cls: 'tb-select',
     run: (b) => openMenu(b, (m) => {
       const items = [
-        ['table', 'טבלה', () => openTableGrid(insertBtn, (rows, cols) => chain().insertTable({ rows, cols, withHeaderRow: true }).run())],
-        ['image', 'תמונה', () => actions.onImage?.()],
-        ['draw', 'ציור כתמונה', () => actions.onDraw?.()],
-        ['arrow', 'שרטוט על הדף', () => actions.onOverlayDraw?.()],
-        ['textBox', 'תיבת טקסט צפה', () => actions.onOverlayDraw?.('textbox')],
-        ['quote', 'תיבה בתוך הפסקה', () => chain().insertContent({ type: 'blockquote', content: [ { type: 'paragraph', content: [{ type: 'text', text: '[!TALI-BOX]' }] }, { type: 'paragraph', content: [{ type: 'text', text: 'טקסט בתוך התיבה' }] } ] }).run()],
-        ['code', 'בלוק קוד', () => chain().toggleCodeBlock().run()],
-        ['rule', 'קו מפריד', () => chain().setHorizontalRule().run()],
-        ['taskSection', 'משימות להמשך', () => actions.onTaskSection?.()],
+        ['table', 'טבלה', () => ed.pickTable(insertBtn)],
+        ['image', 'תמונה', ed.image],
+        ['math', 'נוסחה בשורה', ed.mathInline],
+        ['mathBlock', 'נוסחה בשורה נפרדת', ed.mathBlock],
+        ['link', 'קישור למסמך', ed.link],
+        ['draw', 'ציור כתמונה', ed.drawing],
+        ['arrow', 'שרטוט על הדף', ed.pageDrawing],
+        ['textBox', 'תיבת טקסט צפה', ed.floatingBox],
+        ['quote', 'תיבה בתוך הפסקה', ed.textBox],
+        ['code', 'בלוק קוד', ed.codeBlock],
+        ['rule', 'קו מפריד', ed.rule],
+        ['taskSection', 'משימות להמשך', ed.taskSection],
       ];
       for (const [ic, name, run] of items) {
         const it = document.createElement('button');
@@ -282,5 +287,5 @@ export function buildToolbar(container, editorApi, actions = {}) {
   editor.on('selectionUpdate', refresh);
   refresh();
   requestAnimationFrame(fit);
-  return { hideBubble: () => { bubble.hidden = true; }, fit };
+  return { hideBubble: () => { bubble.hidden = true; }, fit, edit: ed, closeMenu };
 }

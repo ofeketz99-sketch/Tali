@@ -1389,3 +1389,44 @@ body[data-focus] #page { animation: rise-spring .4s var(--spring); }
 .theme-preview { grid-template-columns: 72px 1fr; }
 .tp-side { grid-column: 1; border-inline-start: none; border-inline-end: 1px solid var(--border); }
 .tp-main { grid-column: 2; }
+
+/* =====================================================================
+   3.8: תפריט הלחיצה הימנית (context-menu.js)
+   ===================================================================== */
+.cm-layer { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+.cm-menu {
+  position: fixed; pointer-events: auto; min-width: 196px; max-width: 280px; padding: 5px;
+  display: flex; flex-direction: column; gap: 1px;
+  background: var(--panel-bg); color: var(--text); border: 1px solid var(--border); border-radius: 11px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .06), 0 12px 32px -8px rgba(0, 0, 0, .22);
+}
+:root[data-theme="dark"] .cm-menu { box-shadow: 0 2px 6px rgba(0, 0, 0, .3), 0 14px 34px -8px rgba(0, 0, 0, .55); }
+.cm-menu.cm-in { animation: cm-in .14s var(--ease) both; }
+.cm-layer .cm-menu + .cm-menu { animation: cm-in .12s var(--ease) both; }
+@keyframes cm-in { from { opacity: 0; transform: translateY(-3px) scale(.985); } }
+.cm-item {
+  display: flex; align-items: center; gap: 9px; width: 100%; min-height: 30px; padding: 4px 9px; margin: 0;
+  border: none; border-radius: 7px; background: none; color: var(--text); font-size: 13px; text-align: start;
+}
+.cm-item .ic { flex: none; color: var(--muted); }
+.cm-item .cm-label { flex: 1; white-space: nowrap; }
+.cm-item kbd { direction: ltr; font: 11px var(--font-ui); color: var(--faint); }
+.cm-item .ic:last-child:not(:first-child) { color: var(--faint); }
+.cm-item:hover:not(:disabled), .cm-item.kb, .cm-item.sub-open { background: var(--accent-soft); color: var(--accent-strong); transform: none; }
+.cm-item:hover:not(:disabled) .ic, .cm-item.kb .ic, .cm-item.sub-open .ic { color: var(--accent-strong); }
+.cm-item.kb { box-shadow: inset 0 0 0 1.5px var(--accent-line); }
+.cm-item.on .cm-label { font-weight: 600; }
+.cm-item.on > .ic:first-child { color: var(--accent-strong); }
+.cm-item:disabled { opacity: .45; cursor: default; }
+.cm-sep { height: 1px; margin: 4px 6px; background: color-mix(in srgb, var(--border) 80%, transparent); }
+.cm-row { display: flex; gap: 2px; padding: 2px; }
+.cm-chip { flex: 1; height: 30px; min-width: 0; padding: 0; display: grid; place-items: center; border: none; border-radius: 7px; background: none; color: var(--muted); }
+.cm-chip:hover, .cm-chip.kb { background: var(--accent-soft); color: var(--accent-strong); transform: none; }
+.cm-chip.kb { box-shadow: inset 0 0 0 1.5px var(--accent-line); }
+.cm-chip.on { background: var(--accent); color: var(--on-accent); }
+.cm-menu.cm-table { min-width: 0; padding: 8px; gap: 6px; }
+.cm-table-cells { display: grid; grid-template-columns: repeat(8, 18px); gap: 3px; direction: rtl; } /* כמו טבלה בעברית: מתחילים מימין */
+.cm-table-cells > div { width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); cursor: pointer; }
+.cm-table-cells > div.on { background: var(--accent-soft); border-color: var(--accent); }
+.cm-table-label { font-size: 12px; color: var(--muted); text-align: center; }
+@media (prefers-reduced-motion: reduce) { .cm-menu.cm-in, .cm-layer .cm-menu + .cm-menu { animation: none; } }
