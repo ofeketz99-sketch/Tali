@@ -9,6 +9,11 @@
 ## הרצה
 
 הפרויקט ב־`D:\PROJECTS\Tali`, עם Git. התלויות ב־`node_modules` שבתוכו, כמו בכל פרויקט רגיל.
+
+**Git ו־GitHub:** הקוד מגובה במאגר פרטי, https://github.com/ofeketz99-sketch/Tali (ענף `main`).
+- אחרי כל שינוי שעובד: `git add -A`, `git commit -m "..."`, `git push`.
+- כתובת המייל בשמירות היא הכתובת האנונימית של GitHub (`...@users.noreply.github.com`, מוגדרת ב־`git config` של המאגר). אין לשים כתובת מייל אמיתית: GitHub חוסם העלאה שחושפת מייל פרטי.
+- Git מותקן ב־`C:\Program Files\Git`. אם `git` לא מוכר בטרמינל, להשתמש בנתיב המלא `C:\Program Files\Git\cmd\git.exe`.
 (עד 11.11.2026 הוא היה ב־Google Drive, ושם npm לא הצליח לכתוב `node_modules`. לכן עבר לכאן.)
 
 - **הרצה רגילה:** `C:\Users\ofeke\.tali\Tali\Tali.exe`, או קיצור הדרך "Tali" בשולחן העבודה.
