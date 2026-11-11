@@ -147,6 +147,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
         ['image', 'תמונה', 'מהמחשב. אפשר גם להדביק או לגרור', () => actions.onImage?.()],
         ['draw', 'ציור', 'לחיצה כפולה על ציור עורכת אותו', () => actions.onDraw?.()],
         ['draw', 'שרטוט מהיר', 'חץ, קו, צורה או שרטוט חופשי עם רקע שקוף', () => actions.onQuickDraw?.()],
+        ['quote', 'תיבת טקסט', 'תיבה מעוצבת וניתנת לעריכה בתוך הפתק', () => chain().insertContent({ type: 'blockquote', content: [ { type: 'paragraph', content: [{ type: 'text', text: '[!TALI-BOX]' }] }, { type: 'paragraph', content: [{ type: 'text', text: 'טקסט בתוך התיבה' }] } ] }).run()],
         ['code', 'בלוק קוד', '', () => chain().toggleCodeBlock().run()],
         ['rule', 'קו מפריד', '', () => chain().setHorizontalRule().run()],
       ];
