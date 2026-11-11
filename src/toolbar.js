@@ -146,6 +146,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
         ['table', 'טבלה', 'בחירת גודל בריחוף', () => openTableGrid(insertBtn, (rows, cols) => chain().insertTable({ rows, cols, withHeaderRow: true }).run())],
         ['image', 'תמונה', 'מהמחשב. אפשר גם להדביק או לגרור', () => actions.onImage?.()],
         ['draw', 'ציור', 'לחיצה כפולה על ציור עורכת אותו', () => actions.onDraw?.()],
+        ['draw', 'שרטוט מהיר', 'חץ, קו, צורה או שרטוט חופשי עם רקע שקוף', () => actions.onQuickDraw?.()],
         ['code', 'בלוק קוד', '', () => chain().toggleCodeBlock().run()],
         ['rule', 'קו מפריד', '', () => chain().setHorizontalRule().run()],
       ];
