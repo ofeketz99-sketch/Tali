@@ -2,6 +2,13 @@
    כל הצבעים בקובץ מגיעים מכאן. ההגדרות (settings.js) משנות את המשתנים:
    data-theme (בהיר/כהה), data-paper (גוון הלבן), --accent, וגופן/גודל/רוחב הדף. */
 :root {
+  --splash-bg: #e7f1fa;
+  --splash-paper: #fffdf9;
+  --splash-edge: #d5e0e8;
+  --splash-ink: #527089;
+  --splash-cover: #8dbbe0;
+  --splash-cover-light: #b8d6ee;
+  --splash-shadow: #304d6926;
   --accent: #6cb8e6;                 /* תכלת */
   --bg: #f1eee8;                     /* מסביב לדף */
   --sidebar-bg: #f8f6f1;

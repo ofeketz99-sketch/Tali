@@ -1,3 +1,9 @@
+# 2.1 — Startup animation (2026-11-11)
+
+- Added a three-second book intro: close-up schematic handwriting, right-to-left page turns, closing blue cover with the unchanged original logo, then a logo dissolve into the application.
+- Uses local CSS 3D and Web Animations with no new dependencies. Application initialization runs concurrently; once per session, with skip/Escape, reduced-motion bypass, asset-error recovery and an independent timeout.
+- Includes `src/splash-preview.html` for repeat viewing. Verified desktop/mobile viewport frames, completion, skip, reduced motion, Electron startup and no replay on reload. Existing editor/vault validation limitations from 2.0 remain unchanged.
+
 # 2.0 — Local integration candidate (2026-11-11)
 
 - Integrates the 13 preserved local edits with upstream 15a5c54: Lucide icons and aligned grid layout alongside image controls, table copying/deletion and page annotations.
