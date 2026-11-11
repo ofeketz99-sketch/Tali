@@ -1,6 +1,6 @@
 // תהליך ראשי של Electron: חלון, וכל הגישה לקבצים במחשב.
 // כל פעולה על קבצים עוברת כאן ונבדקת שהיא בתוך התיקייה שנבחרה.
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
 const { resolveLink, extractLinks, replaceLinks } = require('./links');
@@ -112,6 +112,11 @@ async function setRoot(dir) {
 }
 
 function registerIpc() {
+  // שמירת טבלה מלאה ללוח בפורמט HTML ובפורמט טקסט לתאימות עם Word, Excel ועורכי פתקים.
+  ipcMain.handle('copy-table', (_e, html, text) => {
+    clipboard.write({ html: String(html || ''), text: String(text || '') });
+    return true;
+  });
   ipcMain.handle('init', async () => {
     const s = await loadSettings();
     if (s.lastRoot) {
