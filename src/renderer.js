@@ -706,7 +706,14 @@ function refreshLinksPanel() {
   head.className = 'lk-head';
   head.dataset.tip = linksOpen ? 'צמצום' : 'הצגת הקישורים של ההערה';
   head.innerHTML = `${icon('link', 16)}<span>קישורים</span><span class="lk-count">${targets.length}</span>${icon('chevron', 14)}`;
-  head.addEventListener('click', () => { linksOpen = !linksOpen; store.set('linksPanelOpen', linksOpen); refreshLinksPanel(); });
+  head.addEventListener('click', () => {
+    linksOpen = !linksOpen;
+    store.set('linksPanelOpen', linksOpen);
+    panel.classList.toggle('open', linksOpen);
+    $('main').classList.toggle('links-on', !linksOpen);
+    $('main').classList.toggle('links-open', linksOpen);
+    head.dataset.tip = linksOpen ? 'צמצום' : 'הצגת הקישורים של ההערה';
+  });
   panel.append(head);
   // משאירים את גוף החלונית ב-DOM גם בסגירה, כדי לאפשר אנימציית גובה/דהייה.
   const body = document.createElement('div');
