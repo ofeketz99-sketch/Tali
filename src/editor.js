@@ -6,6 +6,7 @@ import Underline from '@tiptap/extension-underline';
 import TextStyle from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import Highlight from '@tiptap/extension-highlight';
+import { HighlightInk } from './highlight-ink.js';
 import TextAlign from '@tiptap/extension-text-align';
 import TableRow from '@tiptap/extension-table-row';
 import { WordTable, WordTableCell, WordTableHeader, attachTableBar } from './table.js';
@@ -70,6 +71,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       TextStyle,
       Color,
       Highlight.configure({ multicolor: true }),
+      HighlightInk, // טקסט קריא על מרקר (תצוגה בלבד)
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       WordTable.configure({ resizable: true, lastColumnResizable: false }),
       TableRow,
@@ -147,6 +149,19 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
     // "הוספת מאפיינים" בהערה שאין בה: טופס עם שורה ריקה
     addProperties() { if (!raw) propsForm.addFirst(); },
     getMarkdown: () => (raw ? rawElement.value : richMarkdown()),
+    // שינוי של המאפיינים בלבד (למשל דגל) בלי לטעון מחדש את גוף המסמך: הסמן וההיסטוריה נשמרים.
+    // fn מקבל ומחזיר את הקובץ כולו; כאן מוחל רק החלק של המאפיינים.
+    updateFrontmatter(fn) {
+      if (raw) {
+        rawElement.value = fn(rawElement.value);
+        rawElement.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+      const next = splitFrontmatter(fn(joinFrontmatter(frontmatter, '')));
+      frontmatter = next.frontmatter;
+      showProps();
+      if (!loading) onChange();
+    },
     setMarkdown(md) {
       loading = true;
       loadRich(md || '');

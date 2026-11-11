@@ -337,28 +337,48 @@ export function openTags({ index, onOpenNote, initial }) {
 
 // ===================== משימות =====================
 // כל תיבות הסימון בכספת, לפי מסמך: כמה פתוחות בכל מסמך וכמה בסך הכול. סימון כאן נשמר בקובץ.
-export function openTasks({ index, onOpenTask, onToggle, store }) {
-  const { body, tools } = makeDialog('משימות', 'tasks-dialog', 'tasks');
+// שני ריכוזים נפרדים: משימות להמשך (תיבות בסעיף "משימות להמשך" של כל מסמך) ותיבות סימון (כל השאר)
+export function openTasks({ index, onOpenTask, onToggle, store, kind: initialKind }) {
+  const { body, tools } = makeDialog('משימות להמשך', 'tasks-dialog', 'taskSection');
+  let kind = initialKind || store.get('tali:tasks-kind', 'followUp');
+  if (!['followUp', 'checks'].includes(kind)) kind = 'followUp';
+  const titleEl = body.closest('dialog').querySelector('h2, .vd-title');
+  const kinds = document.createElement('div');
+  kinds.className = 'vd-seg';
+  for (const [id, name] of [['followUp', 'משימות להמשך'], ['checks', 'תיבות סימון']]) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = name;
+    b.dataset.kind = id;
+    b.addEventListener('click', () => { kind = id; store.set('tali:tasks-kind', id); draw(); });
+    kinds.append(b);
+  }
+  tools.prepend(kinds);
   let showDone = store.get('tali:tasks-show-done', false);
-  tools.append(toggle('כולל משימות שבוצעו', showDone, (v) => { showDone = v; store.set('tali:tasks-show-done', v); draw(); }));
+  tools.append(toggle('כולל מה שסומן', showDone, (v) => { showDone = v; store.set('tali:tasks-show-done', v); draw(); }));
   let data = index;
+  const tasksOf = (n) => n.tasks.filter((t) => (kind === 'followUp' ? t.followUp : !t.followUp));
 
   function draw() {
     body.innerHTML = '';
-    const withTasks = data.notes.filter((n) => n.tasks.length);
+    for (const b of kinds.children) b.classList.toggle('on', b.dataset.kind === kind);
+    if (titleEl) titleEl.textContent = kind === 'followUp' ? 'משימות להמשך' : 'תיבות סימון';
+    const withTasks = data.notes.map((n) => ({ ...n, tasks: tasksOf(n) })).filter((n) => n.tasks.length);
     const total = withTasks.reduce((s, n) => s + n.tasks.length, 0);
     const open = withTasks.reduce((s, n) => s + n.tasks.filter((t) => !t.done).length, 0);
     const summary = document.createElement('div');
     summary.className = 'tasks-summary';
     summary.innerHTML = '<div class="ts-numbers"><b></b><span></span></div><div class="ts-bar"><i></i></div>';
-    summary.querySelector('b').textContent = `${open} פתוחות`;
-    summary.querySelector('span').textContent = `מתוך ${total} משימות ב־${plural(withTasks.length, 'מסמך אחד', 'מסמכים')}`;
+    summary.querySelector('b').textContent = kind === 'followUp' ? `${open} פתוחות` : `${total - open} מסומנות`;
+    summary.querySelector('span').textContent = `מתוך ${total} ${kind === 'followUp' ? 'משימות' : 'תיבות'} ב־${plural(withTasks.length, 'מסמך אחד', 'מסמכים')}`;
     summary.querySelector('i').style.width = total ? `${Math.round((total - open) / total * 100)}%` : '0';
     body.append(summary);
     if (!total) {
       const p = document.createElement('p');
       p.className = 'vd-intro';
-      p.textContent = 'אין עדיין משימות. "- [ ] משימה" בכל מסמך תופיע כאן, וגם "הוספה ← משימות להמשך".';
+      p.textContent = kind === 'followUp'
+        ? 'אין עדיין משימות להמשך. הן נכתבות בסעיף "משימות להמשך" של מסמך: מלוח ההקשר (משימות להמשך), או "הוספה ← משימות להמשך".'
+        : 'אין תיבות סימון מחוץ לסעיפי "משימות להמשך". "- [ ] טקסט" בכל מסמך תופיע כאן.';
       body.append(p);
       return;
     }
@@ -373,7 +393,7 @@ export function openTasks({ index, onOpenTask, onToggle, store }) {
       head.className = 'tn-head';
       head.innerHTML = `${icon('file', 15)}<span class="tn-name"></span><span class="tn-count"></span><span class="tn-bar"><i></i></span>`;
       head.querySelector('.tn-name').textContent = n.rel.split('/').join(' › ');
-      head.querySelector('.tn-count').textContent = `${openHere} פתוחות מתוך ${n.tasks.length}`;
+      head.querySelector('.tn-count').textContent = kind === 'followUp' ? `${openHere} פתוחות מתוך ${n.tasks.length}` : `${n.tasks.length - openHere} מסומנות מתוך ${n.tasks.length}`;
       head.querySelector('i').style.width = `${Math.round((n.tasks.length - openHere) / n.tasks.length * 100)}%`;
       head.addEventListener('click', () => { body.closest('dialog').close(); onOpenTask(n.path, null); });
       sec.append(head);

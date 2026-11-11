@@ -50,15 +50,27 @@ function extractTags(text) {
   return out;
 }
 
+// הסעיף של המשימות להמשך: כותרת בשם הזה (בכל רמה), עד הכותרת הבאה באותה רמה או גבוהה ממנה.
+// תיבות סימון בתוכו הן "משימות להמשך" (followUp). כל השאר הן תיבות סימון רגילות של המסמך.
+const FOLLOW_UP = 'משימות להמשך';
+
 // משימות: "- [ ] טקסט" / "- [x] טקסט" (גם * ו־+, וגם ממוספרות "1. [ ]"), מחוץ לגושי קוד.
 function extractTasks(text) {
   const masked = maskNonText(text || '');
   const lines = masked.split('\n').map((l) => l.replace(/\r$/, ''));
   const orig = (text || '').split('\n');
   const out = [];
+  let section = 0; // רמת הכותרת של סעיף המשימות להמשך, או 0 מחוץ לו
   lines.forEach((line, i) => {
+    const h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+    if (h) {
+      const level = h[1].length;
+      if (h[2].trim() === FOLLOW_UP) section = level;
+      else if (section && level <= section) section = 0;
+      return;
+    }
     const m = /^(\s*)(?:[-*+]|\d+[.)])\s+\[([ xX])\]\s?(.*)$/.exec(line);
-    if (m) out.push({ line: i, done: m[2] !== ' ', text: (orig[i] || '').replace(/^\s*(?:[-*+]|\d+[.)])\s+\[[ xX]\]\s?/, '').replace(/\r$/, '').trim(), depth: m[1].length });
+    if (m) out.push({ line: i, done: m[2] !== ' ', text: (orig[i] || '').replace(/^\s*(?:[-*+]|\d+[.)])\s+\[[ xX]\]\s?/, '').replace(/\r$/, '').trim(), depth: m[1].length, followUp: section > 0 });
   });
   return out;
 }
@@ -70,4 +82,32 @@ function extractTargets(text) {
   return [...new Set([...body, ...getFrontmatterLinks(text || '')])];
 }
 
-module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter };
+// ----- דגלים: "flag: red" במאפיינים, כך שהדגל עובר עם הקובץ (שינוי שם, העברה, סנכרון) -----
+const FLAGS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
+
+function getFlag(text) {
+  const m = FM_RE.exec(text || '');
+  if (!m) return null;
+  const line = m[1].split(/\r?\n/).find((l) => /^flag\s*:/.test(l));
+  if (!line) return null;
+  const v = line.replace(/^flag\s*:\s*/, '').trim().replace(/^["']|["']$/g, '').toLowerCase();
+  return FLAGS.includes(v) ? v : null;
+}
+
+// color: אחד מ־FLAGS, או null להסרה. שאר המאפיינים נשארים כמו שהם. אם הדגל היה המאפיין היחיד, גם --- יורדות.
+function setFlag(text, color) {
+  const src = text || '';
+  const eol = /\r\n/.test(src) ? '\r\n' : '\n';
+  const m = FM_RE.exec(src);
+  if (!m) return color ? `---${eol}flag: ${color}${eol}---${eol}${src}` : src;
+  const lines = m[1].split(/\r?\n/);
+  const i = lines.findIndex((l) => /^flag\s*:/.test(l));
+  if (color) { if (i >= 0) lines[i] = `flag: ${color}`; else lines.push(`flag: ${color}`); }
+  else if (i >= 0) lines.splice(i, 1);
+  else return src;
+  const rest = src.slice(m[0].length);
+  if (!lines.some((l) => l.trim())) return rest;
+  return `---${eol}${lines.join(eol)}${eol}---${m[2] || eol}${rest}`;
+}
+
+module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, FLAGS, getFlag, setFlag };

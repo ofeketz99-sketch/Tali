@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { extractTags, extractTasks, extractTargets } = require('../vault-data.js');
+const { extractTags, extractTasks, extractTargets, getFlag, setFlag } = require('../vault-data.js');
 
 test('tags: Hebrew and English, nested, not headings, numbers, code or links', () => {
   const md = [
@@ -43,4 +43,21 @@ test('tasks keep CRLF-free text', () => {
 test('link targets from body and frontmatter, without duplicates or code', () => {
   const md = '---\nlinks:\n  - "[[A]]"\n---\nsee [[A]] and [[B|alias]] `[[C]]`';
   assert.deepEqual(extractTargets(md), ['A', 'B']);
+});
+
+test('follow-up tasks: only inside the "משימות להמשך" section, including its subsections', () => {
+  const t = extractTasks('- [ ] a\n## משימות להמשך\n- [ ] b\n  - [x] c\n### פירוט\n- [ ] d\n## אחר\n- [ ] e\n```\n- [ ] code\n```\n');
+  assert.deepEqual(t.map((x) => [x.text, x.followUp]), [['a', false], ['b', true], ['c', true], ['d', true], ['e', false]]);
+  assert.equal(extractTasks('# משימות להמשך\n- [ ] x\n## תת\n- [ ] y\n# הבא\n- [ ] z').filter((x) => x.followUp).length, 2);
+});
+
+test('flags: read, set, replace and remove without touching other properties', () => {
+  assert.equal(getFlag('---\ntitle: x\nflag: "Red"\n---\nb'), 'red');
+  assert.equal(getFlag('---\nflag: pink\n---\nb'), null);
+  assert.equal(setFlag('body', 'blue'), '---\nflag: blue\n---\nbody');
+  assert.equal(setFlag('---\ntitle: x\n---\nbody', 'red'), '---\ntitle: x\nflag: red\n---\nbody');
+  assert.equal(setFlag('---\ntitle: x\nflag: red\n---\nbody', 'green'), '---\ntitle: x\nflag: green\n---\nbody');
+  assert.equal(setFlag('---\nflag: red\n---\nbody', null), 'body');
+  assert.equal(setFlag('---\r\ntitle: x\r\nflag: red\r\n---\r\nb', null), '---\r\ntitle: x\r\n---\r\nb');
+  assert.equal(setFlag('plain', null), 'plain');
 });

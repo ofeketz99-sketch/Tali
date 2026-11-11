@@ -4,7 +4,7 @@ import { icon as svg } from './icons.js';
 // opening: התיקייה שנפתחה עכשיו. הפריטים שלה נכנסים באנימציה, אחד אחרי השני.
 // onMove(path, destDir): גרירת הערה או תיקייה אל תיקייה (או אל שטח ריק בעץ = התיקייה הראשית, root).
 const DRAG_TYPE = 'application/x-tali-path';
-export function renderTree(container, tree, { activePath, collapsed, opening, onOpen, onToggleDir, onContext, onSelectDir, onDelete, onMove, root }) {
+export function renderTree(container, tree, { activePath, collapsed, opening, onOpen, onToggleDir, onContext, onSelectDir, onDelete, onMove, root, flagOf }) {
   container.innerHTML = '';
   container.appendChild(buildLevel(tree));
   if (onMove && !container.dataset.dropReady) {
@@ -88,6 +88,9 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
         }
       } else {
         icon.innerHTML = svg('file', 15);
+        // דגל (flags.js): נקודה בצבע אחרי השם
+        const flag = flagOf?.(n.path);
+        if (flag) { const dot = document.createElement('span'); dot.className = 'flag-dot'; dot.dataset.flag = flag; row.append(dot); }
         row.addEventListener('click', () => onOpen(n.path));
         frag.appendChild(row);
       }

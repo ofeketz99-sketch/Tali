@@ -54,7 +54,7 @@ function openMenu(x, y, items, { onClose } = {}) {
       el.className = 'cm-item' + (it.sub ? ' has-sub' : '') + (it.active?.() ? ' on' : '');
       el.setAttribute('role', 'menuitem');
       el.disabled = !!it.disabled;
-      el.innerHTML = `${icon(it.icon || 'plus', 16)}<span class="cm-label"></span>${it.keys ? `<kbd>${it.keys}</kbd>` : ''}${it.sub ? icon('chevronLeft', 14) : ''}`;
+      el.innerHTML = `${it.dot !== undefined ? `<span class="flag-dot cm-dot"${it.dot ? ` data-flag="${it.dot}"` : ''}></span>` : icon(it.icon || 'plus', 16)}<span class="cm-label"></span>${it.keys ? `<kbd>${it.keys}</kbd>` : ''}${it.sub ? icon('chevronLeft', 14) : ''}`;
       el.querySelector('.cm-label').textContent = it.label;
       const entry = { it, el };
       el.addEventListener('mouseenter', () => {
@@ -178,7 +178,7 @@ function openMenu(x, y, items, { onClose } = {}) {
 }
 
 // ---------- חיבור לאפליקציה ----------
-export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard }) {
+export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, flag }) {
   const editor = editorApi.editor;
   const sel = () => editor.state.selection;
   const has = (name, attrs) => editor.isActive(name, attrs);
@@ -241,6 +241,10 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard }) {
         { label: 'תיבה בתוך הפסקה', icon: 'quote', disabled: inCode(), run: edit.textBox },
         { label: 'תיבה צפה על הדף', icon: 'textBox', run: edit.floatingBox },
       ] },
+      ...(flag ? [{ label: 'דגל', icon: 'flag', sub: [
+        ...flag.list.map((f) => ({ label: f.name, dot: f.id, run: () => flag.set(f.id), active: () => flag.get() === f.id })),
+        { label: 'ללא דגל', dot: null, disabled: !flag.get(), run: () => flag.set(null) },
+      ] }] : []),
       { label: 'ציור', icon: 'draw', sub: [
         { label: 'ציור כתמונה', icon: 'draw', run: edit.drawing },
         { label: 'שרטוט על הדף', icon: 'arrow', run: edit.pageDrawing },

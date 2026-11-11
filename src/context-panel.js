@@ -1,15 +1,20 @@
 // לוח ההקשר: פס אייקונים צר בצד השמאלי של הדף, ולוח שנפתח ממנו עם מידע על המסמך הפתוח.
-// לשוניות: קישורים (מהטקסט ומהמאפיינים), קישורים חוזרים, ראשי פרקים, משימות המסמך, מידע.
-// סגור: רק הפס, בלי שורה מעל הדף. פתוח: עמודה לצד הדף. בחלון צר הלוח נפתח מעל הדף ולא מזיז אותו.
+// לשוניות: קישורים החוצה (מהטקסט ומהמאפיינים), קישורים פנימה, ראשי פרקים, תיבות סימון, משימות להמשך, מידע.
+// תיבות סימון ומשימות להמשך הן שני ריכוזים נפרדים: משימה להמשך היא תיבת סימון בסעיף "משימות להמשך"
+// של המסמך (FOLLOW_UP ב־vault-data.js), וכל השאר הן תיבות סימון רגילות.
+// סגור: רק הפס. פתוח: עמודה לצד הדף. בחלון צר הלוח נפתח מעל הדף. בחלון רחב (dc-roomy) הלוח נפתח לבד
+// בלשונית האחרונה, והדף נשאר במרכז; אם המשתמש סגר אותו שם, הוא נשאר סגור.
 // תצוגה בלבד: הלוח לא כותב לקובץ, חוץ מסימון משימה (דרך העורך, כמו לחיצה על התיבה) והסרת קישור מהמאפיינים.
-import { extractTargets, extractTags, extractTasks } from '../vault-data.js';
+import { extractTargets, extractTags, extractTasks, FOLLOW_UP } from '../vault-data.js';
+import { FLAG_LIST } from './flags.js';
 import { getFrontmatterLinks } from '../links.js';
 
 const TABS = [
-  { id: 'links', icon: 'link', title: 'קישורים', tip: 'קישורים מהמסמך' },
-  { id: 'back', icon: 'backlinks', title: 'קישורים חוזרים', tip: 'מסמכים שמקשרים לכאן' },
+  { id: 'links', icon: 'link', title: 'קישורים החוצה', tip: 'קישורים החוצה: למסמכים אחרים' },
+  { id: 'back', icon: 'backlinks', title: 'קישורים פנימה', tip: 'קישורים פנימה: מסמכים שמקשרים לכאן' },
   { id: 'outline', icon: 'outline', title: 'ראשי פרקים', tip: 'ראשי פרקים' },
-  { id: 'tasks', icon: 'tasks', title: 'משימות במסמך', tip: 'משימות במסמך' },
+  { id: 'checks', icon: 'tasks', title: 'תיבות סימון', tip: 'תיבות סימון במסמך' },
+  { id: 'followups', icon: 'taskSection', title: 'משימות להמשך', tip: 'משימות להמשך' },
   { id: 'info', icon: 'info', title: 'מידע', tip: 'מידע על המסמך' },
 ];
 const PANEL_W = 280; // רוחב הלוח הפתוח, כמו ב־CSS (--dc-panel-w)
@@ -30,11 +35,16 @@ export function countWords(text) {
 
 // api: getPath, getMarkdown, isRaw, getEditor, resolve(target) → נתיב או null, openLink(target), openNote(path),
 // backlinks(path) → Promise<[{path, name, count, snippet}]>, pickLinks(), removeFrontLink(target), showTag(tag),
-// addTaskSection(), getMtime(), prettyPath(path)
+// addFollowUp(text), getMtime(), prettyPath(path), getFlag(), setFlag(color|null)
 export function createContextPanel({ root, wrap, icon, store, api }) {
-  let tab = store.get('tali:ctx-tab', null);
-  if (tab === null && store.get('linksPanelOpen', false)) tab = 'links'; // מצב הלוח הישן (עד 3.4)
-  if (tab && !TABS.some((t) => t.id === tab)) tab = null;
+  const valid = (t) => (t === 'tasks' ? 'checks' : TABS.some((x) => x.id === t) ? t : null); // 'tasks' עד 3.8
+  let chosen = valid(store.get('tali:ctx-tab', null)); // מה שהמשתמש פתח
+  if (chosen === null && store.get('linksPanelOpen', false)) chosen = 'links'; // מצב הלוח הישן (עד 3.4)
+  let lastTab = valid(store.get('tali:ctx-last-tab', null)) || chosen || 'outline';
+  let roomyClosed = store.get('tali:ctx-roomy-closed', false);
+  let roomy = false;
+  let tab = null; // הלשונית שמוצגת בפועל
+  const shownTab = () => chosen || (roomy && !roomyClosed ? lastTab : null);
   let backList = [];
   let backToken = 0;
   let refreshTimer = null;
@@ -72,10 +82,16 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
   root.append(panel, rail);
 
   // ----- פתיחה וסגירה -----
-  function setTab(next) {
-    const opening = !tab && next;
-    tab = next;
-    store.set('tali:ctx-tab', next);
+  // user: בחירה של המשתמש (לחיצה, פקודה). בלי: רק חישוב מחדש (למשל כשהחלון התרחב)
+  function setTab(next, { user = true } = {}) {
+    if (user) {
+      if (next) { chosen = next; lastTab = next; roomyClosed = false; store.set('tali:ctx-last-tab', next); }
+      else { chosen = null; if (roomy) roomyClosed = true; }
+      store.set('tali:ctx-tab', chosen);
+      store.set('tali:ctx-roomy-closed', roomyClosed);
+    }
+    const opening = !tab && shownTab();
+    tab = shownTab();
     layout();
     for (const t of TABS) {
       buttons[t.id].classList.toggle('on', t.id === tab);
@@ -95,9 +111,14 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
   }
 
   // פתוח, הדף מצטמצם כדי לפנות מקום ללוח. רק אם הוא היה יורד מתחת ל־MIN_PAGE, הלוח נפתח מעליו (dc-narrow).
+  // כשיש מקום ללוח משני צדי הדף (dc-roomy), הלוח פתוח והדף לא זז ממרכזו.
   const ro = new ResizeObserver(() => {
     const avail = wrap.clientWidth - 32; // הריווח של pageWrap
+    const pw = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--page-width')) || 820;
     wrap.classList.toggle('dc-narrow', avail < MIN_PAGE + PANEL_W + RAIL_W + 10 + 40);
+    const nowRoomy = pw < 5000 && avail >= pw + 2 * (PANEL_W + RAIL_W + 10) + 40;
+    wrap.classList.toggle('dc-roomy', nowRoomy);
+    if (nowRoomy !== roomy) { roomy = nowRoomy; setTab(null, { user: false }); }
   });
   ro.observe(wrap);
 
@@ -120,13 +141,20 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
   }
   function tasks() {
     const ed = api.getEditor();
-    if (!ed || api.isRaw()) return extractTasks(api.getMarkdown()).map((t) => ({ text: t.text, done: t.done, depth: t.depth }));
+    if (!ed || api.isRaw()) return extractTasks(api.getMarkdown()).map((t) => ({ text: t.text, done: t.done, depth: t.depth, followUp: t.followUp }));
     const out = [];
+    let section = 0; // כמו ב־extractTasks: מהכותרת "משימות להמשך" עד כותרת באותה רמה או גבוהה ממנה
     ed.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'heading') {
+        const level = node.attrs.level;
+        if (node.textContent.trim() === FOLLOW_UP) section = level;
+        else if (section && level <= section) section = 0;
+        return false;
+      }
       if (node.type.name === 'taskItem') {
         // הטקסט של הפריט עצמו, בלי רשימות מקוננות בתוכו
         const first = node.firstChild;
-        out.push({ text: first ? first.textContent : node.textContent, done: !!node.attrs.checked, pos });
+        out.push({ text: first ? first.textContent : node.textContent, done: !!node.attrs.checked, pos, followUp: section > 0 });
       }
       return true;
     });
@@ -148,8 +176,8 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
     badge('links', linkTargets(md).length);
     badge('back', backList.length);
     const ts = tasks();
-    const open = ts.filter((t) => !t.done).length;
-    badge('tasks', open || 0);
+    badge('checks', ts.filter((t) => !t.followUp && !t.done).length, true);
+    badge('followups', ts.filter((t) => t.followUp && !t.done).length);
   }
 
   // ----- תוכן הלוח -----
@@ -250,14 +278,18 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
     scrollRaf = requestAnimationFrame(() => { scrollRaf = 0; markCurrentHeading(); });
   }, { passive: true });
 
-  function renderTasks() {
-    const ts = tasks();
+  function renderTasks(followUp) {
+    const ts = tasks().filter((t) => !!t.followUp === followUp);
     if (!ts.length) {
-      empty('אין משימות במסמך.');
+      empty(followUp
+        ? 'אין משימות להמשך במסמך. משימה שכותבים למטה נכנסת לסעיף "משימות להמשך" בסוף המסמך.'
+        : 'אין תיבות סימון במסמך (מחוץ לסעיף "משימות להמשך").');
     } else {
       const open = ts.filter((t) => !t.done).length;
       const sum = el('div', 'dc-sum');
-      sum.append(el('span', '', open ? `${open === 1 ? 'פתוחה אחת' : open + ' פתוחות'} מתוך ${ts.length}` : (ts.length === 1 ? 'המשימה הושלמה' : `כל ${ts.length} המשימות הושלמו`)));
+      sum.append(el('span', '', followUp
+        ? (open ? `${open === 1 ? 'פתוחה אחת' : open + ' פתוחות'} מתוך ${ts.length}` : (ts.length === 1 ? 'המשימה הושלמה' : `כל ${ts.length} המשימות הושלמו`))
+        : `${ts.length - open} מסומנות מתוך ${ts.length}`));
       const bar = el('div', 'dc-progress');
       const fill = el('span');
       fill.style.width = `${Math.round(((ts.length - open) / ts.length) * 100)}%`;
@@ -278,11 +310,20 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
         body.append(r);
       });
     }
-    const add = el('button', 'dc-add');
-    add.type = 'button';
-    add.innerHTML = `${icon('plus', 15)}<span>משימות להמשך</span>`;
-    add.dataset.tip = 'מוסיף בסוף המסמך סעיף "משימות להמשך"';
-    add.addEventListener('click', () => api.addTaskSection());
+    if (!followUp) return;
+    // משימה חדשה להמשך: נכנסת לסוף הסעיף (או לסעיף חדש בסוף המסמך), והשדה נשאר פתוח להוספה נוספת
+    const add = el('input', 'dc-new-task');
+    add.type = 'text';
+    add.placeholder = 'משימה חדשה להמשך…';
+    add.setAttribute('aria-label', 'משימה חדשה להמשך');
+    add.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || !add.value.trim()) return;
+      e.preventDefault();
+      const text = add.value.trim();
+      add.value = '';
+      api.addFollowUp(text);
+      renderBody(true);
+    });
     body.append(add);
   }
   function toggleTask(pos) {
@@ -304,7 +345,8 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
     stat('תווים', chars.toLocaleString('he-IL'));
     stat('זמן קריאה', words ? `כ־${minutes} דק׳` : '—');
     stat('כותרות', String(headings().length));
-    stat('קישורים', String(linkTargets(md).length));
+    stat('קישורים החוצה', String(linkTargets(md).length));
+    stat('קישורים פנימה', String(backList.length));
     const mt = api.getMtime();
     if (mt) stat('שונה לאחרונה', new Date(mt).toLocaleString('he-IL', { dateStyle: 'medium', timeStyle: 'short' }));
     body.append(grid);
@@ -320,6 +362,20 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
       }
       body.append(chips);
     }
+    // דגל: נשמר במאפיינים (flag:), ומופיע בעץ וברשימת המסומנים
+    body.append(el('div', 'dc-label', 'דגל'));
+    const flags = el('div', 'dc-flags');
+    const current = api.getFlag();
+    for (const f of [{ id: null, name: 'ללא דגל' }, ...FLAG_LIST]) {
+      const b = el('button', 'dc-flag' + (f.id === current ? ' on' : '') + (f.id ? '' : ' none'));
+      b.type = 'button';
+      if (f.id) b.dataset.flag = f.id;
+      b.dataset.tip = f.name;
+      b.setAttribute('aria-label', f.name);
+      b.addEventListener('click', () => { api.setFlag(f.id); setTimeout(() => renderBody(true), 50); });
+      flags.append(b);
+    }
+    body.append(flags);
     body.append(el('div', 'dc-label', 'מיקום'));
     body.append(el('div', 'dc-path', api.prettyPath(api.getPath())));
   }
@@ -327,14 +383,18 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
   function renderBody(quiet = false) {
     if (!tab || !api.getPath()) return;
     const scroll = body.scrollTop;
+    // שדה המשימה החדשה: אם מקלידים בו, הפוקוס והטקסט נשמרים גם כשהלוח מתעדכן אחרי עריכה
+    const typing = document.activeElement?.classList.contains('dc-new-task') ? document.activeElement.value : null;
     body.innerHTML = '';
     const md = api.getMarkdown();
     if (tab === 'links') renderLinks(md);
     else if (tab === 'back') renderBack();
     else if (tab === 'outline') renderOutline();
-    else if (tab === 'tasks') renderTasks();
+    else if (tab === 'checks') renderTasks(false);
+    else if (tab === 'followups') renderTasks(true);
     else if (tab === 'info') renderInfo(md);
     body.scrollTop = scroll;
+    if (typing !== null) { const i = body.querySelector('.dc-new-task'); if (i) { i.value = typing; i.focus(); } }
     body.classList.toggle('quiet', quiet); // בעדכון אחרי עריכה: בלי אנימציית כניסה
   }
 
@@ -344,7 +404,7 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
     if (!api.getPath()) return;
     const md = api.getMarkdown();
     updateBadges(md);
-    setTab(tab);
+    setTab(null, { user: false });
   }
   // אחרי עריכה: עדכון שקט (בלי אנימציה), חצי שנייה אחרי שמפסיקים להקליד
   function scheduleRefresh() {
@@ -362,16 +422,17 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
     if (token !== backToken || p !== api.getPath()) return;
     backList = list;
     badge('back', backList.length);
-    if (tab === 'back') renderBody();
+    if (tab === 'back' || tab === 'info') renderBody(true);
   }
 
   // לחיצה מחוץ ללוח: כשהוא מעל הדף (חלון צר) כל לחיצה בחוץ סוגרת. כשהוא לצד הדף, רק לחיצה על הרקע הריק.
   function outsideClick(target) {
     if (!tab || root.contains(target)) return;
     if (target.closest?.('.tb-menu, dialog, #tip')) return;
-    if (wrap.classList.contains('dc-narrow') || target === wrap) setTab(null);
+    // בחלון רחב הלוח הוא חלק מהפריסה: לחיצה על הרקע לא סוגרת אותו
+    if (wrap.classList.contains('dc-narrow') || (target === wrap && !roomy)) setTab(null);
   }
 
-  setTab(tab);
-  return { refresh, scheduleRefresh, refreshBacklinks, open: (id) => setTab(id), layout, outsideClick };
+  setTab(null, { user: false });
+  return { refresh, scheduleRefresh, refreshBacklinks, open: (id) => setTab(id), layout, outsideClick, rerender: () => renderBody(true) };
 }

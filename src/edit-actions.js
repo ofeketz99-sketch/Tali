@@ -3,6 +3,7 @@
 // פעולה חדשה: מוסיפים כאן, ומשתמשים בה מכל המקומות. לא כותבים מימוש מקביל בתפריט אחר.
 import { TextSelection } from '@tiptap/pm/state';
 import { openTableGrid } from './table.js';
+import { FOLLOW_UP } from '../vault-data.js';
 
 export function createEditActions(editor, hooks = {}) {
   const chain = () => editor.chain().focus();
@@ -40,6 +41,35 @@ export function createEditActions(editor, hooks = {}) {
     drawing: () => hooks.onDraw?.(),
     image: () => hooks.onImage?.(),
     taskSection: () => hooks.onTaskSection?.(),
+
+    // משימה להמשך: נכנסת לסוף הסעיף "משימות להמשך" (עד הכותרת הבאה באותה רמה), או לסעיף חדש בסוף המסמך.
+    // לא מזיז את הסמן ולא לוקח פוקוס, כדי שאפשר יהיה להוסיף כמה ברצף מלוח ההקשר.
+    addFollowUp(text) {
+      const { state, view } = editor;
+      const { schema, doc } = state;
+      const item = schema.nodes.taskItem.create({ checked: false }, schema.nodes.paragraph.create(null, text ? schema.text(text) : null));
+      let head = null, end = null, lastList = null;
+      doc.forEach((node, offset) => {
+        if (head == null) {
+          if (node.type.name === 'heading' && node.textContent.trim() === FOLLOW_UP) head = { offset, level: node.attrs.level };
+        } else if (end == null) {
+          if (node.type.name === 'heading' && node.attrs.level <= head.level) end = offset;
+          else if (node.type.name === 'taskList') lastList = { offset, node };
+        }
+      });
+      let tr = state.tr;
+      if (head == null) {
+        tr = tr.insert(doc.content.size, [
+          schema.nodes.heading.create({ level: 2 }, schema.text(FOLLOW_UP)),
+          schema.nodes.taskList.create(null, item),
+        ]);
+      } else if (lastList) {
+        tr = tr.insert(lastList.offset + lastList.node.nodeSize - 1, item);
+      } else {
+        tr = tr.insert(end ?? doc.content.size, schema.nodes.taskList.create(null, item));
+      }
+      view.dispatch(tr);
+    },
 
     // נוסחה בשורה: $...$ כטקסט (כמו נוסחה שנכתבה ביד), והתוכן מסומן כדי להקליד מיד.
     // אם יש טקסט מסומן, הוא הופך לנוסחה.

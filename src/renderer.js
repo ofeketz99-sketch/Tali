@@ -4,6 +4,8 @@ import { buildToolbar } from './toolbar.js';
 import { renderTree, renderSearchResults } from './sidebar.js';
 import { createContextPanel, countWords } from './context-panel.js';
 import { setupContextMenus, closeContextMenu } from './context-menu.js';
+import { FLAG_LIST, flagName } from './flags.js';
+import { getFlag, setFlag } from '../vault-data.js';
 import { resolveLink, extractLinks, getFrontmatterLinks, setFrontmatterLinks } from '../links.js';
 import { openLinkPicker } from './linkpicker.js';
 import { showLinkHubOffer } from './linkhub.js';
@@ -118,6 +120,7 @@ const state = {
   mtime: null,  // זמן השינוי של ההערה הפתוחה כשנקראה, כדי לזהות שינוי מבחוץ
   diskText: null, // התוכן שבדיסק לפי מה שהאפליקציה יודעת (נקרא או נשמר אחרון)
   dirty: false, // יש שינויים שעוד לא נשמרו
+  flags: new Map(), // נתיב → צבע הדגל (flags.js)
   recent: [],   // הערות שנפתחו לאחרונה, החדשה ראשונה (למעבר המהיר)
 };
 
@@ -211,6 +214,7 @@ setupContextMenus({
   edit: toolbarApi.edit,
   isNoteOpen: () => !!state.currentPath,
   clipboard: (cmd) => window.api.editCommand(cmd),
+  flag: { list: FLAG_LIST, get: () => state.flags.get(state.currentPath) || null, set: (c) => setNoteFlag(state.currentPath, c) },
 });
 
 // ===== מצב מיקוד: רק הדף. הסרגלים, שורת המצב ולוח ההקשר מוסתרים. F11 או הכפתור בפינה יוצאים =====
@@ -463,6 +467,7 @@ async function saveNow() {
     state.diskText = content;
     if (!state.dirty) setSaveState('saved');
     refreshLinksPanel(); // ייתכן שהמאפיינים (links:) נערכו ידנית
+    noteFlagChanged(p, getFlag(content));
   } catch (err) {
     if (/CONFLICT/.test(err.message)) return saveDespiteOutsideChange(p, content);
     state.dirty = true;
@@ -592,6 +597,7 @@ function drawTree() {
     onDelete: deleteNode,
     onMove: moveNode,
     root: state.root,
+    flagOf: (p) => state.flags.get(p) || null,
   });
   if (focusedPath) {
     const row = [...$('tree').querySelectorAll('.node')].find(n => n.dataset.path === focusedPath);
@@ -605,6 +611,7 @@ async function refreshTree() {
   state.attachments = await window.api.attachments();
   notesCache = null;
   drawTree();
+  refreshFlags();
   editorApi.refreshLinks();
   refreshBacklinks();
   refreshLinksPanel();
@@ -722,6 +729,7 @@ async function enterRoot(r) {
   $('wordCount').textContent = '';
   setStatus('תיקיית המסמכים: ' + $('vaultName').textContent);
   drawTree();
+  refreshFlags();
 }
 
 // ===== שינוי שם ומחיקה (מהתפריט הימני, מהמקלדת או מלוח הפקודות) =====
@@ -816,10 +824,100 @@ async function showGhosts() {
   if (!state.root) return;
   openGhosts({ index: await vaultIndex(), onOpenNote: (p) => openNote(p), onCreate: (name) => openLink(name) });
 }
-async function showTasks() {
+// kind: 'followUp' (משימות להמשך) או 'checks' (תיבות סימון). בלי: מה שנבחר בפעם הקודמת
+async function showTasks(kind) {
   if (!state.root) return;
-  openTasks({ index: await vaultIndex(), store, onOpenTask: openTask, onToggle: toggleTask });
+  openTasks({ index: await vaultIndex(), store, kind, onOpenTask: openTask, onToggle: toggleTask });
 }
+
+// ===== דגלים (flags.js): נשמרים במאפייני המסמך, ומוצגים בעץ וברשימת המסומנים =====
+let flagsToken = 0;
+async function refreshFlags() {
+  if (!state.root) return;
+  const token = ++flagsToken;
+  const idx = await window.api.vaultIndex().catch(() => null);
+  if (!idx || token !== flagsToken) return;
+  state.flags = new Map(idx.notes.filter((n) => n.flag).map((n) => [n.path, n.flag]));
+  drawTree();
+  renderFlagged();
+}
+function noteFlagChanged(p, color) {
+  if ((state.flags.get(p) || null) === (color || null)) return;
+  if (color) state.flags.set(p, color); else state.flags.delete(p);
+  drawTree();
+  renderFlagged();
+  if (p === state.currentPath) docPanel?.rerender();
+}
+// במסמך הפתוח: דרך העורך (נשמר כמו כל עריכה, בלי לטעון מחדש). במסמך אחר: ישירות בקובץ.
+async function setNoteFlag(p, color) {
+  if (!p) return;
+  try {
+    if (p === state.currentPath) {
+      editorApi.updateFrontmatter((text) => setFlag(text, color));
+    } else {
+      const text = await window.api.read(p);
+      const next = setFlag(text, color);
+      if (next !== text) await window.api.write(p, next, null);
+    }
+    noteFlagChanged(p, color);
+    setStatus(color ? `סומן בדגל ${flagName(color)}: ${noteName(p)}` : `הדגל הוסר: ${noteName(p)}`);
+  } catch (err) { setStatus('שגיאה בשמירת הדגל: ' + err.message); }
+}
+// רשימת המסומנים בסרגל הימני (מוצגת או מוסתרת בכפתור הדגל שמתחת לחיפוש)
+let showFlagged = store.get('tali:show-flagged', false);
+let flaggedFilter = store.get('tali:flagged-filter', null);
+function renderFlagged() {
+  const box = $('flagged');
+  $('btnFlagged').classList.toggle('on', showFlagged);
+  $('btnFlagged').setAttribute('aria-pressed', showFlagged ? 'true' : 'false');
+  box.hidden = !showFlagged || !state.root;
+  if (box.hidden) return;
+  box.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'fl-head';
+  head.innerHTML = `${icon('flag', 14)}<span>מסומנים</span>`;
+  const chips = document.createElement('div');
+  chips.className = 'fl-filter';
+  const counts = {};
+  for (const c of state.flags.values()) counts[c] = (counts[c] || 0) + 1;
+  for (const fl of FLAG_LIST) {
+    if (!counts[fl.id]) continue;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'fl-chip' + (flaggedFilter === fl.id ? ' on' : '');
+    b.dataset.flag = fl.id;
+    b.dataset.tip = `${fl.name} (${counts[fl.id]})`;
+    b.setAttribute('aria-label', b.dataset.tip);
+    b.addEventListener('click', () => { flaggedFilter = flaggedFilter === fl.id ? null : fl.id; store.set('tali:flagged-filter', flaggedFilter); renderFlagged(); });
+    chips.append(b);
+  }
+  head.append(chips);
+  box.append(head);
+  const order = FLAG_LIST.map((x) => x.id);
+  const list = [...state.flags.entries()]
+    .filter(([, c]) => !flaggedFilter || c === flaggedFilter)
+    .sort((a, b) => order.indexOf(a[1]) - order.indexOf(b[1]) || noteName(a[0]).localeCompare(noteName(b[0]), 'he'));
+  if (!list.length) {
+    const e = document.createElement('div');
+    e.className = 'fl-empty';
+    e.textContent = state.flags.size ? 'אין מסמכים בצבע הזה.' : 'אין מסמכים מסומנים. לחיצה ימנית על מסמך ← דגל.';
+    box.append(e);
+    return;
+  }
+  for (const [p, c] of list) {
+    const row = document.createElement('div');
+    row.className = 'fl-row' + (p === state.currentPath ? ' active' : '');
+    row.tabIndex = 0;
+    row.innerHTML = `<span class="flag-dot" data-flag="${c}"></span><span class="fl-name"></span>`;
+    row.querySelector('.fl-name').textContent = noteName(p);
+    row.dataset.tip = prettyPath(p);
+    row.addEventListener('click', () => openNote(p));
+    row.addEventListener('keydown', (e) => { if (e.key === 'Enter') openNote(p); });
+    row.addEventListener('contextmenu', (e) => { e.preventDefault(); showContextMenu({ type: 'file', path: p, name: noteName(p) + '.md' }, e.clientX, e.clientY); });
+    box.append(row);
+  }
+}
+function toggleFlagged(on = !showFlagged) { showFlagged = on; store.set('tali:show-flagged', on); renderFlagged(); }
 // פתיחת מסמך במשימה מסוימת: הסמן עובר לטקסט שלה
 async function openTask(p, task) {
   await openNote(p);
@@ -909,6 +1007,22 @@ function showContextMenu(node, x, y) {
     add('link', 'קישור לפתקים אחרים…', () => pickLinksFor(node.path));
     add('exportPdf', 'ייצוא ל־PDF', () => exportNote('pdf', node));
     add('exportWord', 'ייצוא ל־Word', () => exportNote('doc', node));
+    // דגל: שורת צבעים (וללא)
+    const current = state.flags.get(node.path) || null;
+    const flags = document.createElement('div');
+    flags.className = 'ctx-flags';
+    flags.innerHTML = `${icon('flag', 16)}<span class="ctx-label">דגל</span>`;
+    for (const fl of [{ id: null, name: 'ללא דגל' }, ...FLAG_LIST]) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ctx-flag' + (fl.id === current ? ' on' : '') + (fl.id ? '' : ' none');
+      if (fl.id) b.dataset.flag = fl.id;
+      b.dataset.tip = fl.name;
+      b.setAttribute('aria-label', fl.name);
+      b.addEventListener('click', (e) => { e.stopPropagation(); hideMenu(); setNoteFlag(node.path, fl.id); });
+      flags.append(b);
+    }
+    menu.appendChild(flags);
   } else {
     add('filePlus', 'מסמך חדש בתיקייה', () => { state.selectedDir = node.path; newNote(); });
     add('edit', 'שינוי שם', () => renameNode(node), { keys: 'F2' });
@@ -999,6 +1113,9 @@ var docPanel = createContextPanel({
     },
     showTag: (t) => showTags(t),
     addTaskSection: () => insertTaskSection(),
+    addFollowUp: (t) => toolbarApi.edit.addFollowUp(t),
+    getFlag: () => state.flags.get(state.currentPath) || null,
+    setFlag: (c) => setNoteFlag(state.currentPath, c),
     getMtime: () => state.mtime,
     prettyPath: (p) => prettyPath(p),
   },
@@ -1036,8 +1153,9 @@ $('btnNote').addEventListener('click', () => newNote());
 $('btnFolder').addEventListener('click', newFolder);
 $('btnGraph').addEventListener('click', showGraph);
 $('btnTags').addEventListener('click', () => showTags());
-$('btnTasks').addEventListener('click', showTasks);
+$('btnTasks').addEventListener('click', () => showTasks());
 $('btnGhosts').addEventListener('click', showGhosts);
+$('btnFlagged').addEventListener('click', () => toggleFlagged());
 
 // הצגת Patch Notes מה־CHANGELOG המתוחזק בגיטהאב. תוכן ה־Markdown מוצג כטקסט בטוח.
 function appendPatchText(target, value) {
@@ -1204,14 +1322,19 @@ const COMMANDS = [
   { title: 'מה חדש (Patch Notes)', run: openPatchNotes },
   { title: 'גרף הקישורים', keys: 'Ctrl+G', run: showGraph, needs: 'root' },
   { title: 'תגיות', run: () => showTags(), needs: 'root' },
-  { title: 'משימות בכל המסמכים', keys: 'Ctrl+Shift+T', run: showTasks, needs: 'root' },
+  { title: 'משימות להמשך בכל המסמכים', keys: 'Ctrl+Shift+T', run: () => showTasks('followUp'), needs: 'root' },
+  { title: 'תיבות סימון בכל המסמכים', run: () => showTasks('checks'), needs: 'root' },
+  { title: 'הצגת המסומנים בסרגל הימני (או הסתרה)', run: () => toggleFlagged(), needs: 'root' },
+  ...FLAG_LIST.map((fl) => ({ title: `דגל ${fl.name} למסמך`, run: () => setNoteFlag(state.currentPath, fl.id), needs: 'note' })),
+  { title: 'הסרת הדגל מהמסמך', run: () => setNoteFlag(state.currentPath, null), needs: 'note' },
   { title: 'מסמכי רפאים (קישורים למסמכים שלא נוצרו)', run: showGhosts, needs: 'root' },
   { title: 'משימות להמשך בסוף המסמך', run: insertTaskSection, needs: 'note' },
   { title: 'מצב מיקוד (רק הדף)', keys: 'F11', run: () => toggleFocusMode(), needs: 'note' },
-  { title: 'לוח ההקשר: קישורים', run: () => docPanel.open('links'), needs: 'note' },
-  { title: 'לוח ההקשר: קישורים חוזרים', run: () => docPanel.open('back'), needs: 'note' },
+  { title: 'לוח ההקשר: קישורים החוצה', run: () => docPanel.open('links'), needs: 'note' },
+  { title: 'לוח ההקשר: קישורים פנימה', run: () => docPanel.open('back'), needs: 'note' },
   { title: 'לוח ההקשר: ראשי פרקים', run: () => docPanel.open('outline'), needs: 'note' },
-  { title: 'לוח ההקשר: משימות במסמך', run: () => docPanel.open('tasks'), needs: 'note' },
+  { title: 'לוח ההקשר: תיבות סימון במסמך', run: () => docPanel.open('checks'), needs: 'note' },
+  { title: 'לוח ההקשר: משימות להמשך במסמך', run: () => docPanel.open('followups'), needs: 'note' },
   { title: 'לוח ההקשר: מידע על המסמך', run: () => docPanel.open('info'), needs: 'note' },
   { title: 'סגירת לוח ההקשר', run: () => docPanel.open(null), needs: 'note' },
   { title: 'הוספת מאפיינים', run: () => editorApi.addProperties(), needs: 'note' },

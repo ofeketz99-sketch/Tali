@@ -99,11 +99,12 @@ export function buildThemeSection({ el, row, getPrefs, setPref }) {
   for (const key of BASE_KEYS) {
     const picker = el('input', { type: 'color', class: 'theme-swatch', 'aria-label': BASE_LABELS[key] });
     const hex = el('input', { type: 'text', class: 'theme-hex', maxlength: '7', spellcheck: 'false', 'aria-label': `${BASE_LABELS[key]} (HEX)` });
-    picker.addEventListener('input', () => { draft[target][key] = picker.value; changed({ skip: hex }); });
+    // בלי להעביר פוקוס: העברת פוקוס סגרה את בורר הצבע של Windows אחרי השינוי הראשון (באג עד 3.8)
+    picker.addEventListener('input', () => { draft[target][key] = picker.value; changed(); });
     hex.addEventListener('input', () => {
       const v = normalizeHex(hex.value);
       hex.classList.toggle('bad', !v);
-      if (v) { draft[target][key] = v; changed({ skip: hex }); }
+      if (v) { draft[target][key] = v; changed(); }
     });
     hex.addEventListener('blur', () => { hex.value = draft[target][key]; hex.classList.remove('bad'); });
     bind(() => {
@@ -179,11 +180,10 @@ export function buildThemeSection({ el, row, getPrefs, setPref }) {
     warnBox,
     el('div', { class: 'theme-actions' }, resetBtn, el('span', { class: 'theme-spacer' }), dirtyNote, cancelBtn, applyBtn));
 
-  function changed({ skip } = {}) {
+  function changed() {
     // הממשק עצמו מציג את הטיוטה רק אם עורכים את הערכה הפעילה; התצוגה המקדימה תמיד
     setThemePreview(isDirty() ? clone(draft) : null);
     for (const fn of refreshers) fn();
-    if (skip) skip.focus?.();
   }
   function commit() {
     setPref('themes', clone(draft));
