@@ -7,6 +7,7 @@ import {
   Palette, TableCellsMerge, TableCellsSplit, BetweenHorizontalStart, BetweenHorizontalEnd,
   BetweenVerticalStart, BetweenVerticalEnd, Heading, Pen, Slash, MoveUpRight, Square, Circle, Eraser,
   Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
+  PanelRightClose, PanelRightOpen,
 } from 'lucide';
 
 const ICONS = {
@@ -18,6 +19,7 @@ const ICONS = {
   // קבצים וסרגל צד
   file: FileText, fileBlank: File, folder: Folder, folderPlus: FolderPlus, vault: FolderOpen, plus: Plus,
   settings: SlidersHorizontal, search: Search, filePlus: FilePlus,
+  panelCollapse: PanelRightClose, panelExpand: PanelRightOpen,
   // פעולות
   check: Check, edit: Pencil, copy: Copy, link: Link, trash: Trash2, close: X, palette: Palette,
   paperclip: Paperclip, warning: TriangleAlert,

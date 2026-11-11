@@ -875,8 +875,7 @@ dialog { border-radius: 18px; }
 .tali-overlay-toolbar .tali-overlay-hint { font-size: 11px; color: var(--muted); white-space: nowrap; margin-inline: 4px; }
 @media (max-width: 670px) { .tali-overlay-toolbar .tali-overlay-hint { display: none; } }
 @media (prefers-reduced-motion: reduce) { .tali-overlay-toolbar { animation: none !important; } }
-/* =====================================================================
-   יישור: הסרגל העליון וראש הסרגל הצדדי באותו גובה, והדף ולוח הקישורים בפריסת grid.
+/* ==============================================================   יישור: הסרגל העליון וראש הסרגל הצדדי באותו גובה, והדף ולוח הקישורים בפריסת grid.
    ===================================================================== */
 :root { --bar-h: 52px; }
 #toolbar { min-height: var(--bar-h); padding-block: 0; box-sizing: border-box; }
@@ -913,3 +912,51 @@ dialog { border-radius: 18px; }
 .ProseMirror .embed-chip { vertical-align: middle; gap: 4px; }
 .table-bar button { height: 30px; padding: 0 8px; }
 .table-bar button:not(:has(span)) { width: 30px; padding: 0; }
+=======
+
+/* ===== Patch Notes (לוח פקודות) ===== */
+.patch-notes-dialog {
+  width: min(640px, calc(100vw - 32px)); max-height: min(82vh, 760px); padding: 0; overflow: hidden;
+  border-radius: 16px; border: 1px solid var(--border); background: var(--panel-bg); color: var(--text);
+}
+.patch-notes-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 20px 12px; }
+.patch-notes-header h2 { margin: 0; font: 700 19px var(--font-ui); }
+.patch-notes-source { margin: 0; padding: 0 20px 12px; color: var(--muted); font-size: 12px; }
+.patch-notes-content { overflow-y: auto; max-height: calc(82vh - 100px); padding: 2px 22px 20px; font-size: 13px; line-height: 1.75; }
+.patch-note-release { border-top: 1px solid var(--border); padding: 14px 0 6px; }
+.patch-note-release h3 { margin: 0 0 8px; font-size: 14px; color: var(--text); }
+.patch-note-release ul { margin: 0 0 8px; padding-inline-start: 23px; }
+.patch-note-release li { margin: 5px 0; }
+.patch-note-release code { direction: ltr; unicode-bidi: isolate; background: var(--code-bg); border-radius: 4px; padding: 1px 4px; font-size: .91em; }
+.patch-note-release p { margin: 6px 0; }
+
+/* ===== סרגל ימני: פתוח, פס אייקונים, מוסתר ===== */
+#sidebar { transition: width .22s var(--ease), min-width .22s var(--ease); overflow: hidden; }
+body[data-sidebar-mode="compact"] #sidebar { width: 52px; min-width: 52px; }
+body[data-sidebar-mode="compact"] .side-head {
+  flex-direction: column; align-items: center; gap: 4px; padding: 7px 5px 6px;
+}
+body[data-sidebar-mode="compact"] .side-head .vault { width: 100%; flex: none; justify-content: center; }
+body[data-sidebar-mode="compact"] .side-head .app-logo { width: 30px; height: 30px; }
+body[data-sidebar-mode="compact"] .side-head .brand-text,
+body[data-sidebar-mode="compact"] .side-note-label,
+body[data-sidebar-mode="compact"] .search-box,
+body[data-sidebar-mode="compact"] .side-hint,
+body[data-sidebar-mode="compact"] #tree { display: none; }
+body[data-sidebar-mode="compact"] .side-top {
+  flex-direction: column; align-items: center; padding: 8px 5px; gap: 7px;
+}
+body[data-sidebar-mode="compact"] .side-top #btnNote,
+body[data-sidebar-mode="compact"] .side-top #btnFolder {
+  flex: none; width: 34px; min-width: 34px; height: 34px; padding: 0; display: grid; place-items: center;
+}
+body[data-sidebar-mode="hidden"] #sidebar { display: none; }
+.sidebar-restore { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 32px; height: 32px; padding: 0; border: 1px solid var(--accent-line); background: var(--panel-bg); }
+.sidebar-restore[hidden] { display: none; }
+
+/* חלון הציור: מצבים ואייקונים */
+#paint .pt-presets { gap: 4px; }
+#paint .pt-presets button { font-size: 12px; white-space: nowrap; }
+#paint .pt-tools button { display: grid; place-items: center; }
+#paint .pt-tools .ic { margin: auto; }
+#paint .pt-presets button:disabled { opacity: .6; }

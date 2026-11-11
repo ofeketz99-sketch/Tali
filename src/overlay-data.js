@@ -17,6 +17,7 @@ export function cleanOverlayObjects(input) {
       y: bounded(object.y, 50, -10000, 100000),
       color: /^#[0-9a-f]{6}$/i.test(object.color || '') ? object.color : '#4b80bd',
       weight: bounded(object.weight, 2.4, 1, 20),
+      ...(object.kind !== 'textbox' && /^[a-z0-9_-]{1,80}$/i.test(object.group || '') ? { group: object.group } : {}),
     };
     if (object.kind === 'textbox') {
       result.push({
@@ -66,4 +67,14 @@ export function joinOverlay(markdown, objects) {
   const packed = encodeURIComponent(JSON.stringify({ version: 1, objects: safe }));
   const eol = base.includes('\r\n') ? '\r\n' : '\n';
   return base + eol + eol + '<!-- TALI-OVERLAY:v1:' + packed + ' -->' + eol;
+}
+
+// Selection is session-aware: legacy ungrouped strokes remain independently editable.
+// Text boxes are intentionally never grouped with strokes.
+export function groupedSelection(items, selectedId) {
+  if (!Array.isArray(items)) return [];
+  const chosen = items.find(item => item.id === selectedId);
+  if (!chosen) return [];
+  if (!chosen.group || chosen.kind === 'textbox') return [chosen];
+  return items.filter(item => item.kind !== 'textbox' && item.group === chosen.group);
 }

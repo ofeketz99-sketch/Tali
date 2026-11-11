@@ -1,3 +1,5 @@
+import { smoothStrokePoints } from './stroke-smoothing.js';
+
 // מיני צייר: חלון ציור שנשמר כתמונת PNG רגילה בתיקיית התמונות, ונכנס להערה כ־![[Drawing ...png]].
 // לחיצה כפולה על ציור בהערה פותחת אותו שוב לעריכה (ושומרת מעליו).
 //
@@ -25,6 +27,10 @@ function build() {
   d.id = 'paint';
   d.innerHTML = `
     <div class="pt-bar">
+      <div class="pt-group pt-presets" role="group" aria-label="סוג הציור">
+        <button type="button" data-preset="regular">ציור רגיל</button>
+        <button type="button" data-preset="quick">שרטוט מהיר</button>
+      </div><span class="sep"></span>
       <div class="pt-group pt-tools"></div><span class="sep"></span>
       <div class="pt-group pt-colors"></div><span class="sep"></span>
       <div class="pt-group pt-sizes"></div><span class="sep"></span>
@@ -55,6 +61,16 @@ function build() {
   let saveFn = null;
   let transparent = false;
   let dirty = false;
+  let preset = 'regular';
+  // Keep keyboard deletion scoped to the drawing canvas.
+  over.tabIndex = 0;
+  function markPreset() {
+    for (const button of d.querySelectorAll('[data-preset]')) {
+      button.classList.toggle('on', button.dataset.preset === preset);
+      button.disabled = dirty || !!editingImage;
+    }
+  }
+  let editingImage = false;
 
   // ===== סרגל =====
   const tools = d.querySelector('.pt-tools');
@@ -106,7 +122,7 @@ function build() {
 
   // ===== ביטול וחזרה =====
   const snapshot = () => mctx.getImageData(0, 0, main.width, main.height);
-  function pushUndo() { undo.push({ img: snapshot(), w: W, h: H }); if (undo.length > 40) undo.shift(); redo = []; dirty = true; }
+  function pushUndo() { undo.push({ img: snapshot(), w: W, h: H }); if (undo.length > 40) undo.shift(); redo = []; dirty = true; markPreset(); }
   function restore(s) { if (s.w !== W || s.h !== H) resize(s.w, s.h, false); mctx.putImageData(s.img, 0, 0); }
   function doUndo() { const s = undo.pop(); if (!s) return; redo.push({ img: snapshot(), w: W, h: H }); restore(s); }
   function doRedo() { const s = redo.pop(); if (!s) return; undo.push({ img: snapshot(), w: W, h: H }); restore(s); }
@@ -120,14 +136,17 @@ function build() {
   };
   // קו חלק דרך נקודות האמצע
   function strokePath(ctx, pts) {
+    if (!pts.length) return;
+    const smooth = smoothStrokePoints(pts.map(p => [p.x, p.y]));
     ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    if (pts.length === 1) ctx.lineTo(pts[0].x + 0.1, pts[0].y);
-    for (let i = 1; i < pts.length - 1; i++) {
-      const mx = (pts[i].x + pts[i + 1].x) / 2, my = (pts[i].y + pts[i + 1].y) / 2;
-      ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+    ctx.moveTo(smooth[0][0], smooth[0][1]);
+    if (smooth.length === 1) ctx.lineTo(smooth[0][0] + 0.1, smooth[0][1]);
+    for (let i = 1; i < smooth.length - 1; i++) {
+      const mx = (smooth[i][0] + smooth[i + 1][0]) / 2;
+      const my = (smooth[i][1] + smooth[i + 1][1]) / 2;
+      ctx.quadraticCurveTo(smooth[i][0], smooth[i][1], mx, my);
     }
-    if (pts.length > 1) ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+    if (smooth.length > 1) ctx.lineTo(smooth[smooth.length - 1][0], smooth[smooth.length - 1][1]);
     ctx.stroke();
   }
   function shape(ctx, a, b, shift) {
@@ -157,6 +176,7 @@ function build() {
 
   over.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
+    over.focus({ preventScroll: true });
     over.setPointerCapture(e.pointerId);
     pushUndo();
     const p = pos(e);
@@ -197,6 +217,18 @@ function build() {
 
   // ===== פעולות =====
   d.addEventListener('click', async (e) => {
+    const requestedPreset = e.target.closest('[data-preset]')?.dataset.preset;
+    if (requestedPreset) {
+      if (dirty || editingImage) return;
+      preset = requestedPreset;
+      transparent = preset === 'quick';
+      d.querySelector('[data-act="transparent"]').checked = transparent;
+      paper.classList.toggle('transparent', transparent);
+      resize(preset === 'quick' ? 480 : 900, preset === 'quick' ? 180 : 520, false);
+      mctx.clearRect(0, 0, W, H);
+      markPreset();
+      return;
+    }
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'undo') doUndo();
     else if (act === 'redo') doRedo();
@@ -209,6 +241,10 @@ function build() {
   d.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); }
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') { e.preventDefault(); doRedo(); }
+    if (e.key === 'Delete' && e.target === over && confirm('לנקות את כל הציור? ניתן לבטל בעזרת Ctrl+Z.')) {
+      e.preventDefault();
+      pushUndo(); mctx.clearRect(0, 0, W, H);
+    }
   });
   // Escape: לא לאבד ציור בטעות
   d.addEventListener('cancel', (e) => { e.preventDefault(); tryClose(); });
@@ -234,6 +270,8 @@ function build() {
   async function start(image, onSave, quick = false) {
     saveFn = onSave;
     undo = []; redo = []; dirty = false;
+    editingImage = !!image;
+    preset = quick ? 'quick' : 'regular';
     tool = 'pen'; color = COLORS[0]; size = SIZES[1][0];
     transparent = !!quick;
     d.querySelector('[data-act="transparent"]').checked = transparent;
@@ -251,6 +289,7 @@ function build() {
       }
     }
     mark();
+    markPreset();
     d.showModal();
   }
 

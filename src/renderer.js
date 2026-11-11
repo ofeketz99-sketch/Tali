@@ -13,6 +13,33 @@ import { icon } from './icons.js';
 // אייקונים בכפתורים שב־index.html: <span data-icon="plus">
 for (const el of document.querySelectorAll('[data-icon]')) el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon, 18));
 
+// Common dialog behavior: Escape or a click on the backdrop closes the top modal.
+// A cancelable "cancel" event lets the paint dialog guard unsaved artwork.
+function requestDialogDismiss(dialog) {
+  const request = new Event('cancel', { cancelable: true });
+  if (dialog.dispatchEvent(request)) dialog.close();
+}
+function topDialog() {
+  return [...document.querySelectorAll('dialog[open]')].at(-1) || null;
+}
+document.addEventListener('keydown', (event) => {
+  const dialog = topDialog();
+  if (!dialog || event.key !== 'Escape') return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  requestDialogDismiss(dialog);
+}, true);
+document.addEventListener('pointerdown', (event) => {
+  const dialog = topDialog();
+  if (!dialog || event.target !== dialog) return;
+  const rect = dialog.getBoundingClientRect();
+  if (event.clientX < rect.left || event.clientX > rect.right ||
+      event.clientY < rect.top || event.clientY > rect.bottom) {
+    event.preventDefault();
+    requestDialogDismiss(dialog);
+  }
+}, true);
+
 // ===== הסבר בריחוף (tooltip) לכל אלמנט עם data-tip =====
 {
   const tip = document.createElement('div');
@@ -148,15 +175,49 @@ const useOverlay = (tool) => {
   if (!state.currentPath) { setStatus('קודם פותחים פתק'); return; }
   if (editorApi.isRaw()) { setStatus('עבור לתצוגה המעוצבת כדי לשרטט על הדף'); return; }
   pageOverlay.setEnabled(true);
-  pageOverlay.setMode(tool);
-  setStatus('בחר כלי, ולאחר מכן צייר על הדף. Esc מסיים.');
+  if (tool === 'textbox') pageOverlay.setMode('textbox');
+  else pageOverlay.openDrawing();
+  setStatus('בחר כלי ושרטט על הדף. Esc מסיים את הקבוצה.');
 };
 buildToolbar($('toolbar'), editorApi, {
   onImage: importImages,
   onDraw: newDrawing,
-  onQuickDraw: () => newDrawing(true),
   onOverlayDraw: useOverlay,
 });
+
+// ===== צד ימין: פתוח, פס אייקונים, מוסתר =====
+const sidebarRestore = document.createElement('button');
+sidebarRestore.type = 'button';
+sidebarRestore.id = 'btnSidebarRestore';
+sidebarRestore.className = 'tb-btn sidebar-restore';
+sidebarRestore.innerHTML = icon('panelExpand', 19);
+sidebarRestore.setAttribute('aria-label', 'פתיחת הסרגל הימני');
+sidebarRestore.dataset.tip = 'פתיחת הסרגל הימני';
+$('toolbar').prepend(sidebarRestore);
+
+let sidebarMode = store.get('tali:sidebar-mode', 'expanded');
+if (!['expanded', 'compact', 'hidden'].includes(sidebarMode)) sidebarMode = 'expanded';
+let sidebarLastShown = store.get('tali:sidebar-last-shown', 'expanded');
+if (!['expanded', 'compact'].includes(sidebarLastShown)) sidebarLastShown = 'expanded';
+function setSidebarMode(next) {
+  sidebarMode = next;
+  if (next !== 'hidden') {
+    sidebarLastShown = next;
+    store.set('tali:sidebar-last-shown', next);
+  }
+  store.set('tali:sidebar-mode', next);
+  document.body.dataset.sidebarMode = next;
+  sidebarRestore.hidden = next !== 'hidden';
+  const min = $('btnSidebarMin');
+  min.innerHTML = icon(next === 'compact' ? 'panelExpand' : 'panelCollapse', 18);
+  min.dataset.tip = next === 'compact' ? 'הרחבת הסרגל הימני' : 'צמצום הסרגל הימני';
+  min.setAttribute('aria-label', min.dataset.tip);
+  min.setAttribute('aria-expanded', next === 'expanded' ? 'true' : 'false');
+}
+$('btnSidebarMin').addEventListener('click', () => setSidebarMode(sidebarMode === 'compact' ? 'expanded' : 'compact'));
+$('btnSidebarHide').addEventListener('click', () => setSidebarMode('hidden'));
+sidebarRestore.addEventListener('click', () => setSidebarMode(sidebarLastShown));
+setSidebarMode(sidebarMode);
 
 // ===== ציורים =====
 function drawingStamp() {
@@ -164,12 +225,11 @@ function drawingStamp() {
   const two = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}.${two(d.getMinutes())}.${two(d.getSeconds())}`;
 }
-function newDrawing(quick = false) {
+function newDrawing() {
   if (!state.currentPath) { setStatus('קודם פותחים הערה, ואז מוסיפים לה ציור'); return; }
   if (editorApi.isRaw()) { setStatus('ציור עובד בתצוגה המעוצבת'); return; }
   const at = editorApi.editor.state.selection.from;
   openPaint({
-    quick,
     onSave: async (bytes, width) => {
       const p = await window.api.saveAttachment(attachmentDir(), `Drawing ${drawingStamp()}.png`, bytes);
       state.attachments = await window.api.attachments();
@@ -424,6 +484,7 @@ function ask(label, defaultValue = '', { confirmOnly = false, okText = 'אישו
 
 // ===== עץ הקבצים =====
 function drawTree() {
+  const focusedPath = document.activeElement?.closest?.('#tree .node')?.dataset.path;
   renderTree($('tree'), state.tree, {
     activePath: state.currentPath,
     collapsed: state.collapsed,
@@ -438,7 +499,12 @@ function drawTree() {
       state.opening = null;
     },
     onContext: showContextMenu,
+    onDelete: deleteNode,
   });
+  if (focusedPath) {
+    const row = [...$('tree').querySelectorAll('.node')].find(n => n.dataset.path === focusedPath);
+    row?.focus({ preventScroll: true });
+  }
 }
 
 async function refreshTree() {
@@ -796,8 +862,78 @@ async function newFolder() {
 }
 
 $('btnNote').addEventListener('click', () => newNote());
-$('btnNewBig').addEventListener('click', () => newNote());
+$('btnNewBig').addEventListener('click', async () => {
+  if (!state.root) await enterRoot(await window.api.pickFolder());
+  if (state.root) newNote();
+});
 $('btnFolder').addEventListener('click', newFolder);
+
+// הצגת Patch Notes מה־CHANGELOG המתוחזק בגיטהאב. תוכן ה־Markdown מוצג כטקסט בטוח.
+function appendPatchText(target, value) {
+  for (const part of value.split(/(`[^`]+`|\*\*[^*]+\*\*)/g)) {
+    if (!part) continue;
+    if (part.startsWith('`') && part.endsWith('`')) {
+      const code = document.createElement('code');
+      code.textContent = part.slice(1, -1);
+      target.append(code);
+    } else if (part.startsWith('**') && part.endsWith('**')) {
+      const strong = document.createElement('strong');
+      strong.textContent = part.slice(2, -2);
+      target.append(strong);
+    } else {
+      target.append(document.createTextNode(part));
+    }
+  }
+}
+function renderPatchNotes(markdown) {
+  const box = $('patchNotesContent');
+  box.replaceChildren();
+  let group = null;
+  let list = null;
+  for (const originalLine of markdown.split(/\r?\n/)) {
+    const line = originalLine.trim();
+    const section = /^##\s+(.+)$/.exec(line);
+    if (section) {
+      if (/^טרם הושלם/.test(section[1])) break;
+      group = document.createElement('section');
+      group.className = 'patch-note-release';
+      const title = document.createElement('h3');
+      title.textContent = section[1];
+      group.append(title);
+      box.append(group);
+      list = null;
+    } else if (group && /^-\s+/.test(line)) {
+      if (!list) { list = document.createElement('ul'); group.append(list); }
+      const item = document.createElement('li');
+      appendPatchText(item, line.replace(/^-\s+/, ''));
+      list.append(item);
+    } else if (group && line && !line.startsWith('#')) {
+      const paragraph = document.createElement('p');
+      appendPatchText(paragraph, line);
+      group.append(paragraph);
+      list = null;
+    }
+  }
+  if (!box.children.length) box.textContent = 'עדיין אין הערות גרסה להצגה.';
+}
+async function openPatchNotes() {
+  const dialog = $('patchNotesDialog');
+  if (dialog.open) return;
+  $('patchNotesContent').textContent = 'טוען עדכונים…';
+  $('patchNotesSource').textContent = '';
+  dialog.showModal();
+  try {
+    const data = await window.api.patchNotes();
+    if (!dialog.open) return;
+    renderPatchNotes(data.content || '');
+    $('patchNotesSource').textContent = data.source === 'github'
+      ? 'העדכונים נמשכו מ־GitHub'
+      : 'מוצג עותק מקומי — לא ניתן כרגע לעדכן מ־GitHub';
+  } catch {
+    if (dialog.open) $('patchNotesContent').textContent = 'לא ניתן לטעון את עדכוני הגרסה כעת.';
+  }
+}
+$('btnClosePatchNotes').addEventListener('click', () => $('patchNotesDialog').close());
 
 // ===== חיפוש =====
 let searchTimer = null;
@@ -894,6 +1030,7 @@ const COMMANDS = [
   { title: 'פתיחת כל התיקיות', run: expandAll, needs: 'root' },
   { title: 'הצגת ההערה בסייר הקבצים של Windows', run: () => window.api.reveal(state.currentPath), needs: 'note' },
   { title: 'הגדרות', keys: 'Ctrl+,', run: openSettings },
+  { title: 'מה חדש (Patch Notes)', run: openPatchNotes },
   { title: 'החלפת תיקיית עבודה', run: async () => enterRoot(await window.api.pickFolder()) },
 ];
 const available = (c) => !c.needs || (c.needs === 'root' ? !!state.root : !!state.currentPath);
@@ -929,7 +1066,7 @@ function matchesKeys(e, keys) {
 // שלב הלכידה: הקיצורים של האפליקציה קודמים לעורך (למשל Ctrl+E)
 window.addEventListener('keydown', (e) => {
   // בזמן דיאלוג (שם, אישור, הגדרות) הקיצורים כבויים
-  if ($('dlg').open || document.getElementById('settings')?.open || document.getElementById('paint')?.open) return;
+  if (topDialog() && !isPaletteOpen()) return;
   for (const c of COMMANDS) {
     if (!c.keys || !matchesKeys(e, c.keys)) continue;
     // בתוך חלון החיפוש המהיר עובדים רק המעברים בינו לבין לוח הפקודות

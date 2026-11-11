@@ -3,6 +3,9 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+const execFileAsync = promisify(execFile);
 const { resolveLink, extractLinks, replaceLinks } = require('./links');
 
 // שם האפליקציה: Tali. ההגדרות נשארות בתיקייה המקורית (my-notes), כדי ששינוי השם לא ימחק אותן.
@@ -13,6 +16,46 @@ if (process.platform === 'win32') app.setAppUserModelId('app.tali.notes'); // א
 
 let root = null;
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
+
+// ה־CHANGELOG נמצא במאגר פרטי. מושכים אותו דרך Git של התהליך הראשי (בלי token בממשק).
+// git fetch לא נוגע בקבצי העבודה או בענף המקומי; אם אין חיבור נופלים לעותק המקומי.
+let patchNotesCache = null;
+async function gitCommand(args) {
+  const candidates = process.platform === 'win32'
+    ? ['git', 'C:\\Program Files\\Git\\cmd\\git.exe']
+    : ['git'];
+  let lastError;
+  for (const binary of candidates) {
+    try {
+      return await execFileAsync(binary, args, {
+        cwd: __dirname, timeout: 8000, maxBuffer: 192 * 1024,
+        windowsHide: true,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' },
+      });
+    } catch (err) {
+      lastError = err;
+      if (err.code !== 'ENOENT') break;
+    }
+  }
+  throw lastError;
+}
+async function getPatchNotes() {
+  const now = Date.now();
+  if (patchNotesCache && now - patchNotesCache.time < (patchNotesCache.data.source === 'github' ? 300000 : 30000)) {
+    return patchNotesCache.data;
+  }
+  let data;
+  try {
+    await gitCommand(['fetch', '--quiet', '--no-tags', 'origin', 'main']);
+    const { stdout } = await gitCommand(['show', 'FETCH_HEAD:CHANGELOG.md']);
+    if (!stdout.trim()) throw new Error('Empty changelog');
+    data = { content: stdout, source: 'github' };
+  } catch {
+    data = { content: await fs.readFile(path.join(__dirname, 'CHANGELOG.md'), 'utf8'), source: 'local' };
+  }
+  patchNotesCache = { time: now, data };
+  return data;
+}
 
 async function loadSettings() {
   try { return JSON.parse(await fs.readFile(settingsFile(), 'utf8')); } catch { return {}; }
@@ -112,6 +155,7 @@ async function setRoot(dir) {
 }
 
 function registerIpc() {
+  ipcMain.handle('patch-notes', getPatchNotes);
   // שמירת טבלה מלאה ללוח בפורמט HTML ובפורמט טקסט לתאימות עם Word, Excel ועורכי פתקים.
   ipcMain.handle('copy-table', (_e, html, text) => {
     clipboard.write({ html: String(html || ''), text: String(text || '') });

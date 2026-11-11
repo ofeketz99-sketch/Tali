@@ -1,7 +1,8 @@
 // Free-positioned page annotations. SVG vectors and movable text boxes are stored in
 // the Markdown trailer managed by overlay-data.js. Never draw over the user's actual text.
 import { icon } from './icons.js';
-import { cleanOverlayObjects } from './overlay-data.js';
+import { cleanOverlayObjects, groupedSelection } from './overlay-data.js';
+import { smoothSvgStroke } from './stroke-smoothing.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const shapeKinds = ['pen', 'line', 'arrow', 'rect', 'ellipse'];
@@ -24,6 +25,13 @@ const svgEl = (name, attrs = {}) => {
 export function createPageOverlay({ page, onChange }) {
   let objects = [], mode = null, enabled = false, selected = null, drawing = null;
   let color = '#4b80bd', weight = 2.5;
+  const lastToolKey = 'tali:last-page-drawing-tool';
+  let lastTool = 'pen';
+  try {
+    const saved = localStorage.getItem(lastToolKey);
+    if (shapeKinds.includes(saved)) lastTool = saved;
+  } catch { /* Storage can be disabled. */ }
+  let sessionId = null; // All vector strokes from one activation share a persistent ID.
   const root = document.createElement('div');
   root.className = 'tali-page-overlay';
   root.hidden = true;
@@ -50,6 +58,7 @@ export function createPageOverlay({ page, onChange }) {
   toolbar.dir = 'rtl';
   toolbar.setAttribute('role', 'toolbar');
   toolbar.setAttribute('aria-label', 'כלי שרטוט ותיבות טקסט');
+  toolbar.tabIndex = -1;
   document.body.append(toolbar);
 
   const notify = () => { if (enabled) onChange(); };
@@ -65,7 +74,14 @@ export function createPageOverlay({ page, onChange }) {
     if (deleteButton) deleteButton.disabled = !selected;
   };
   const select = (id) => { selected = id; drawShapes(); markBoxes(); updateToolbar(); };
-  const getObject = (id) => objects.find((object) => object.id === id);
+  const selectedObjects = () => groupedSelection(objects, selected);
+  function deleteSelection() {
+    if (!selected) return;
+    const ids = new Set(selectedObjects().map((item) => item.id));
+    objects = objects.filter((item) => !ids.has(item.id));
+    selected = null;
+    render(); notify();
+  }
 
   const addButton = (tool, label, iconName, action) => {
     const button = document.createElement('button');
@@ -93,15 +109,14 @@ export function createPageOverlay({ page, onChange }) {
   picker.setAttribute('aria-label', 'צבע שרטוט');
   picker.addEventListener('input', () => {
     color = picker.value;
-    const obj = getObject(selected);
-    if (obj) { obj.color = color; drawShapes(); notify(); }
+    const members = selectedObjects();
+    if (members.length) {
+      for (const object of members) object.color = color;
+      drawShapes(); notify();
+    }
   });
   toolbar.append(picker);
-  const deleteButton = addButton(null, 'מחיקת פריט מסומן', 'trash', () => {
-    if (!selected) return;
-    objects = objects.filter((object) => object.id !== selected);
-    selected = null; render(); notify();
-  });
+  const deleteButton = addButton(null, 'מחיקת שרטוט או קבוצה מסומנת (Del)', 'trash', deleteSelection);
   deleteButton.dataset.action = 'remove';
   addButton(null, 'סיום שרטוט וחזרה לכתיבה (Esc)', 'close', () => {
     setMode(null); select(null);
@@ -113,11 +128,23 @@ export function createPageOverlay({ page, onChange }) {
 
   function setMode(next) {
     if (!enabled) return;
+    if (!next || next === 'textbox') sessionId = null;
+    else if (shapeKinds.includes(next)) {
+      if (!sessionId) sessionId = makeId();
+      lastTool = next;
+      try { localStorage.setItem(lastToolKey, next); } catch { /* Nonessential preference. */ }
+    }
     mode = next;
     selected = null;
     drawShapes();
     markBoxes();
     updateToolbar();
+  }
+  function openDrawing() {
+    if (!enabled) return;
+    // Explicitly reopening starts a fresh group. Switching tools inside the bar does not.
+    sessionId = null;
+    setMode(lastTool);
   }
   const point = (event) => {
     const bounds = page.getBoundingClientRect();
@@ -125,9 +152,7 @@ export function createPageOverlay({ page, onChange }) {
   };
 
   const pathOf = (object) => {
-    if (object.kind === 'pen') {
-      return object.points.map((p, index) => (index ? 'L' : 'M') + p[0] + ' ' + p[1]).join(' ');
-    }
+    if (object.kind === 'pen') return smoothSvgStroke(object.points);
     const shaft = 'M0 0 L' + object.dx + ' ' + object.dy;
     if (object.kind !== 'arrow') return shaft;
     const angle = Math.atan2(object.dy, object.dx);
@@ -143,7 +168,8 @@ export function createPageOverlay({ page, onChange }) {
   function shapeElement(object) {
     const group = svgEl('g', { transform: 'translate(' + object.x + ' ' + object.y + ')' });
     group.classList.add('tali-overlay-shape');
-    if (selected === object.id) group.classList.add('selected');
+    if (selectedObjects().some((item) => item.id === object.id)) group.classList.add('selected');
+    group.dataset.id = object.id;
     let geometry;
     if (object.kind === 'rect') {
       geometry = svgEl('rect', {
@@ -181,6 +207,7 @@ export function createPageOverlay({ page, onChange }) {
       event.preventDefault();
       event.stopPropagation();
       select(object.id);
+      toolbar.focus({ preventScroll: true });
       drag(object, event, 'move', shapes.querySelector('.tali-overlay-shape.selected'));
     });
     return group;
@@ -202,6 +229,9 @@ export function createPageOverlay({ page, onChange }) {
   function drag(object, event, operation, element) {
     const start = { x: event.clientX, y: event.clientY,
       left: object.x, top: object.y, width: object.width, height: object.height };
+    const members = operation === 'move' && object.kind !== 'textbox'
+      ? groupedSelection(objects, object.id) : [object];
+    const origins = members.map((item) => ({ item, x: item.x, y: item.y }));
     const move = (e) => {
       if (e.pointerId !== event.pointerId) return;
       const dx = e.clientX - start.x, dy = e.clientY - start.y;
@@ -210,10 +240,15 @@ export function createPageOverlay({ page, onChange }) {
         object.height = limit(start.height + dy, 60, 600);
         placeBox(object, element);
       } else {
-        object.x = Math.round(start.left + dx);
-        object.y = Math.round(start.top + dy);
-        if (object.kind === 'textbox') placeBox(object, element);
-        else element.setAttribute('transform', 'translate(' + object.x + ' ' + object.y + ')');
+        for (const p of origins) {
+          p.item.x = Math.round(p.x + dx);
+          p.item.y = Math.round(p.y + dy);
+          if (p.item.kind === 'textbox') placeBox(p.item, element);
+          else {
+            const drawn = Array.from(shapes.children).find((child) => child.dataset.id === p.item.id);
+            drawn?.setAttribute('transform', 'translate(' + p.item.x + ' ' + p.item.y + ')');
+          }
+        }
       }
     };
     const stop = (e) => {
@@ -221,7 +256,7 @@ export function createPageOverlay({ page, onChange }) {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', stop);
       window.removeEventListener('pointercancel', stop);
-      if (object.x !== start.left || object.y !== start.top ||
+      if (origins.some((p) => p.item.x !== p.x || p.item.y !== p.y) ||
           object.width !== start.width || object.height !== start.height) notify();
     };
     window.addEventListener('pointermove', move);
@@ -237,13 +272,16 @@ export function createPageOverlay({ page, onChange }) {
       placeBox(object, element);
       const head = document.createElement('div');
       head.className = 'tali-overlay-grip';
+      head.tabIndex = 0;
       head.innerHTML = icon('move', 15) + '<span>תיבת טקסט</span>';
       head.title = 'גרור כדי להזיז את התיבה';
       head.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
-        select(object.id); drag(object, event, 'move', element);
+        select(object.id);
+        head.focus({ preventScroll: true });
+        drag(object, event, 'move', element);
       });
       const field = document.createElement('textarea');
       field.className = 'tali-overlay-text';
@@ -286,7 +324,7 @@ export function createPageOverlay({ page, onChange }) {
       return;
     }
     const object = { id: makeId(), kind: mode, x: Math.round(p.x), y: Math.round(p.y),
-      color, weight };
+      color, weight, group: sessionId };
     if (mode === 'pen') object.points = [[0, 0], [0, 0]];
     else { object.dx = 0; object.dy = 0; }
     objects.push(object);
@@ -296,16 +334,20 @@ export function createPageOverlay({ page, onChange }) {
   });
   svg.addEventListener('pointermove', (event) => {
     if (!drawing || drawing.pointerId !== event.pointerId) return;
-    const p = point(event);
-    const x = Math.round(p.x - drawing.start.x);
-    const y = Math.round(p.y - drawing.start.y);
-    if (drawing.object.kind === 'pen') {
-      const points = drawing.object.points;
-      const prev = points[points.length - 1];
-      if ((x - prev[0]) ** 2 + (y - prev[1]) ** 2 >= 3 && points.length < 2500) points.push([x, y]);
-    } else {
-      drawing.object.dx = x;
-      drawing.object.dy = y;
+    const events = drawing.object.kind === 'pen' && event.getCoalescedEvents
+      ? event.getCoalescedEvents() : [event];
+    for (const ev of events.length ? events : [event]) {
+      const p = point(ev);
+      const x = Math.round(p.x - drawing.start.x);
+      const y = Math.round(p.y - drawing.start.y);
+      if (drawing.object.kind === 'pen') {
+        const points = drawing.object.points;
+        const prev = points[points.length - 1];
+        if ((x - prev[0]) ** 2 + (y - prev[1]) ** 2 >= 4 && points.length < 2500) points.push([x, y]);
+      } else {
+        drawing.object.dx = x;
+        drawing.object.dy = y;
+      }
     }
     drawShapes();
   });
@@ -313,6 +355,10 @@ export function createPageOverlay({ page, onChange }) {
     if (!drawing || drawing.pointerId !== event.pointerId) return;
     const object = drawing.object;
     if (object.kind === 'pen') {
+      const p = point(event);
+      const end = [Math.round(p.x - drawing.start.x), Math.round(p.y - drawing.start.y)];
+      const prev = object.points[object.points.length - 1];
+      if (Math.hypot(end[0] - prev[0], end[1] - prev[1]) >= 1 && object.points.length < 2500) object.points.push(end);
       if (object.points.length < 3) object.points.push([object.points[1][0] + 1, object.points[1][1] + 1]);
     } else if (Math.abs(object.dx) + Math.abs(object.dy) < 4) {
       object.dx = 45; object.dy = object.kind === 'line' ? 0 : 30;
@@ -324,6 +370,15 @@ export function createPageOverlay({ page, onChange }) {
   svg.addEventListener('pointerup', finish);
   svg.addEventListener('pointercancel', finish);
 
+  // Clicking outside the drawing canvas and its tools exits the active session.
+  // Clicks on the page itself are reserved for adding strokes or selecting objects.
+  window.addEventListener('pointerdown', (event) => {
+    if (!enabled || (!mode && !selected)) return;
+    if (page.contains(event.target) || toolbar.contains(event.target) || document.querySelector('dialog[open]')) return;
+    setMode(null);
+    select(null);
+  }, true);
+
   window.addEventListener('keydown', (event) => {
     if (!enabled) return;
     if (event.key === 'Escape' && (mode || selected)) {
@@ -331,9 +386,9 @@ export function createPageOverlay({ page, onChange }) {
     }
     if ((event.key === 'Delete' || event.key === 'Backspace') && selected &&
       !event.target.closest?.('textarea, input, [contenteditable="true"]') &&
-      !mode) {
-      objects = objects.filter((object) => object.id !== selected);
-      selected = null; render(); notify(); event.preventDefault(); event.stopPropagation();
+      !document.querySelector('dialog[open]') && !mode) {
+      deleteSelection();
+      event.preventDefault(); event.stopPropagation();
     }
   }, true);
 
@@ -341,14 +396,15 @@ export function createPageOverlay({ page, onChange }) {
     getItems: () => cleanOverlayObjects(objects),
     setItems: (items) => {
       objects = cleanOverlayObjects(items);
-      selected = null; mode = null; drawing = null; render();
+      selected = null; mode = null; drawing = null; sessionId = null; render();
     },
     setEnabled: (value) => {
       enabled = !!value;
       root.hidden = !enabled;
-      if (!enabled) { mode = null; selected = null; }
+      if (!enabled) { mode = null; selected = null; drawing = null; sessionId = null; }
       render();
     },
     setMode: (next) => setMode(next),
+    openDrawing,
   };
 }

@@ -18,9 +18,11 @@
       </div>
       <button id="btnPick" class="icon-btn" data-tip="החלפת תיקיית ההערות" data-icon="vault"></button>
       <button id="btnSettings" class="icon-btn" data-tip="הגדרות (Ctrl+,)" data-icon="settings"></button>
+      <button id="btnSidebarMin" class="icon-btn" data-tip="צמצום הסרגל הימני" data-icon="panelCollapse" aria-label="צמצום הסרגל הימני"></button>
+      <button id="btnSidebarHide" class="icon-btn" data-tip="הסתרת הסרגל הימני" data-icon="close" aria-label="הסתרת הסרגל הימני"></button>
     </div>
     <div class="side-top">
-      <button id="btnNote" class="primary" data-tip="הערה חדשה (Ctrl+N)"><span data-icon="plus"></span>הערה חדשה</button>
+      <button id="btnNote" class="primary" data-tip="הערה חדשה (Ctrl+N)"><span data-icon="plus"></span><span class="side-note-label">הערה חדשה</span></button>
       <button id="btnFolder" class="icon-btn" data-tip="תיקייה חדשה (Ctrl+Shift+N)" data-icon="folderPlus"></button>
     </div>
     <div class="search-box">
@@ -34,7 +36,7 @@
   <main id="main">
     <div id="toolbar"></div>
     <div id="pageWrap">
-      <div id="empty" class="empty">
+      <div id="empty" class="empty" aria-label="מסך הבית">
         <button id="btnPickBig" class="primary">בחירת תיקייה</button>
         <button id="btnNewBig" class="primary" hidden>הערה חדשה</button>
       </div>
@@ -58,6 +60,15 @@
         <button value="ok" class="primary">אישור</button>
       </menu>
     </form>
+  </dialog>
+
+  <dialog id="patchNotesDialog" class="patch-notes-dialog" aria-labelledby="patchNotesTitle" dir="rtl">
+    <div class="patch-notes-header">
+      <h2 id="patchNotesTitle" dir="ltr">Patch Notes</h2>
+      <button type="button" id="btnClosePatchNotes" class="icon-btn" data-icon="close" aria-label="סגירה"></button>
+    </div>
+    <p id="patchNotesSource" class="patch-notes-source"></p>
+    <div id="patchNotesContent" class="patch-notes-content" aria-live="polite"></div>
   </dialog>
 
   <div id="ctx" hidden></div>
