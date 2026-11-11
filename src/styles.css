@@ -192,8 +192,10 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { border-colo
 /* הגדרה "מראה דף" כבויה: בלי דף מודפס, הטקסט ישירות על הרקע */
 :root[data-page="flat"] #pageWrap { background: var(--page-bg); }
 :root[data-page="flat"] #page { box-shadow: none; min-height: 0; padding: 24px 48px; border-top: none; }
-.empty { text-align: center; margin-top: 20vh; color: var(--muted); animation: page-in .32s var(--ease); }
-.empty p { font-size: 16px; }
+/* מסך פתיחה: רק הכפתור (הערה חדשה, או בחירת תיקייה בהפעלה הראשונה), במרכז */
+.empty { display: grid; place-items: center; min-height: 60vh; animation: page-in .32s var(--ease); }
+.empty[hidden] { display: none; }
+.empty .primary { font-size: 16px; padding: 10px 26px; }
 
 /* ===== שורת מצב ===== */
 #statusBar { display: flex; align-items: center; gap: 8px; padding: 4px 14px; background: var(--accent-tint); border-top: 1px solid var(--accent-line); }
@@ -631,8 +633,6 @@ dialog { border-radius: 18px; }
 .brand-text { min-width: 0; line-height: 1.15; }
 .brand { font-family: var(--font-heading); font-weight: 700; font-size: 17px; letter-spacing: .2px; color: color-mix(in srgb, var(--text) 80%, var(--accent)); }
 #vaultName { font-size: 12px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
-.empty-logo { width: 104px; height: 104px; display: block; margin: 0 auto 6px; filter: drop-shadow(0 12px 22px color-mix(in srgb, var(--accent) 45%, transparent)); animation: float 3.2s ease-in-out infinite; }
-.empty-title { font-family: var(--font-heading); font-size: 30px; margin: 6px 0 4px; color: color-mix(in srgb, var(--text) 80%, var(--accent)); letter-spacing: .5px; }
 
 /* ----- מצב ריק ----- */
 .empty-art {

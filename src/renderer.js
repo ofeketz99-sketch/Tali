@@ -563,7 +563,6 @@ async function enterRoot(r) {
   state.collapsed = new Set(store.get('collapsed:' + r.root, []));
   $('page').hidden = true;
   $('empty').hidden = false;
-  $('empty').querySelector('p').textContent = 'בחר הערה מהרשימה, או צור הערה חדשה.';
   $('btnPickBig').hidden = true;
   $('btnNewBig').hidden = false;
   setStatus('תיקיית ההערות: ' + $('vaultName').textContent);

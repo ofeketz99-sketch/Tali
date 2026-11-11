@@ -20,7 +20,7 @@ export const EMBLEM_FRACTION = 0.56;     // emblem image size / frame height in 
 const W = 1920, H = 1080, FPS = 60;
 // PRE: an opening settle on the macro page (rack focus + slight drift) before anything turns.
 // The runtime fades the video in over it, starting on the first decoded frame.
-const PRE = 0.4;
+const PRE = 0.9;
 const DURATION = 4.3 + PRE;              // the video; the native logo hold + fade follows
 const FOV = 30;
 
@@ -463,7 +463,7 @@ export async function run(args, { emblem, ROOT }) {
 
   async function renderFrame(vt, N) {
     const t = vt - PRE; // scene time; everything before 0 holds the opening pose
-    const settle = 1 - smoother(lin(vt, 0, PRE + 0.55));
+    const settle = 1 - smoother(lin(vt, 0, PRE + 0.5));
     renderer.setRenderTarget(rtAccum); renderer.setClearColor(0x000000, 0); renderer.clear();
     const shutter = 0.5 / FPS;
     for (let k = 0; k < N; k++) {

@@ -13,7 +13,7 @@
 
   // Must match tools/splash-render/scene.mjs.
   const VIDEO_W = 1920, VIDEO_H = 1080, EMBLEM_FRACTION = 0.56;
-  const HOLD_MS = 280, FADE_MS = 520, FADE_IN_MS = 900, START_MAX_WAIT_MS = 1400, WATCHDOG_MS = 9500;
+  const HOLD_MS = 280, FADE_MS = 520, FADE_IN_MS = 1400, START_MAX_WAIT_MS = 1400, WATCHDOG_MS = 9500;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const root = document.createElement('div');
@@ -120,7 +120,18 @@
       if (started || ended) return;
       started = true;
       video.play().then(() => {
-        const fadeIn = () => { if (!ended) video.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_IN_MS, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'forwards' }); };
+        const fadeIn = () => {
+          if (ended) return;
+          // Slow, sine-like start so the white page never "switches on" against the blue,
+          // with a slight settle of scale. Opacity and transform stay on the compositor.
+          video.animate([
+            { opacity: 0, transform: 'scale(1.035)' },
+            { opacity: .1, offset: .25 },
+            { opacity: .42, offset: .5 },
+            { opacity: .82, offset: .75 },
+            { opacity: 1, transform: 'scale(1)' },
+          ], { duration: FADE_IN_MS, easing: 'cubic-bezier(.37,0,.63,1)', fill: 'forwards' });
+        };
         if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(fadeIn); else fadeIn();
       }, finish);
     };
