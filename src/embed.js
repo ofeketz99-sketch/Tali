@@ -73,36 +73,80 @@ export const Embed = Node.create({
   },
 
   addNodeView() {
-    return ({ node }) => {
-      // ![[שם|300]] או ![[שם|300x200]]: רוחב בפיקסלים, כמו באובסידיאן
-      const [name, size] = node.attrs.target.split('|');
-      const path = this.options.resolve(name);
+    return ({ node, editor, getPos }) => {
+      // ![[image.png|300|wrap-left]]: width stays compatible with Obsidian.
+      // The optional wrapping flag is Tali-specific and safely remains plain Markdown.
+      let current = node;
+      const parse = () => {
+        const parts = current.attrs.target.split('|');
+        const width = /^\\d+$/.test(parts[1] || '') ? Number(parts[1]) : null;
+        const wrap = ['wrap-left', 'wrap-right'].includes(parts[2]) ? parts[2] : 'none';
+        return { name: parts[0], width, wrap };
+      };
       const dom = document.createElement('span');
       dom.className = 'embed';
+      const initial = parse();
+      const path = this.options.resolve(initial.name);
       if (path && IMAGE_EXT.test(path)) {
+        dom.classList.add('embed-image');
+        dom.contentEditable = 'false';
         const img = document.createElement('img');
         img.src = fileUrl(path);
-        img.alt = name;
+        img.alt = initial.name;
         img.draggable = false;
-        const w = /^(\d+)/.exec(size || '');
-        if (w) img.style.width = w[1] + 'px';
-        dom.appendChild(img);
+        const tools = document.createElement('span');
+        tools.className = 'embed-tools';
+        const change = (width, wrap) => {
+          const { name } = parse();
+          const target = [name, String(Math.max(60, Math.min(1400, Math.round(width)))), ...(wrap === 'none' ? [] : [wrap])].join('|');
+          const pos = typeof getPos === 'function' ? getPos() : null;
+          if (typeof pos === 'number') editor.commands.command(({ tr, dispatch }) => {
+            if (dispatch) dispatch(tr.setNodeMarkup(pos, undefined, { ...current.attrs, target }));
+            return true;
+          });
+        };
+        const control = (label, hint, onClick) => {
+          const b = document.createElement('button');
+          b.type = 'button'; b.textContent = label; b.title = hint;
+          b.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation(); });
+          b.addEventListener('click', (event) => { event.stopPropagation(); onClick(); });
+          tools.append(b);
+          return b;
+        };
+        control('−', 'הקטנת תמונה', () => { const a = parse(); change((a.width || img.offsetWidth || 300) - 40, a.wrap); });
+        control('+', 'הגדלת תמונה', () => { const a = parse(); change((a.width || img.offsetWidth || 300) + 40, a.wrap); });
+        control('רגיל', 'טקסט לפני התמונה ואחריה', () => { const a = parse(); change(a.width || img.offsetWidth || 300, 'none'); });
+        control('↤', 'טקסט עוטף מצד ימין', () => { const a = parse(); change(a.width || img.offsetWidth || 300, 'wrap-left'); });
+        control('↦', 'טקסט עוטף מצד שמאל', () => { const a = parse(); change(a.width || img.offsetWidth || 300, 'wrap-right'); });
+        dom.append(img, tools);
+        const render = () => {
+          const a = parse();
+          img.style.width = a.width ? a.width + 'px' : '';
+          dom.classList.toggle('wrap-left', a.wrap === 'wrap-left');
+          dom.classList.toggle('wrap-right', a.wrap === 'wrap-right');
+          dom.classList.toggle('drawing', isDrawing(path));
+          for (const b of tools.children) b.classList.remove('chosen');
+          tools.children[a.wrap === 'none' ? 2 : a.wrap === 'wrap-left' ? 3 : 4]?.classList.add('chosen');
+        };
+        render();
         if (isDrawing(path)) {
-          dom.classList.add('drawing');
           dom.title = 'לחיצה כפולה לעריכת הציור';
-          dom.addEventListener('dblclick', (e) => { e.preventDefault(); this.options.onEditDrawing(path); });
+          img.addEventListener('dblclick', (event) => { event.preventDefault(); this.options.onEditDrawing(path); });
         }
-      } else {
-        dom.classList.add('embed-chip');
-        if (!path) dom.classList.add('unresolved');
-        dom.textContent = (path ? '📎 ' : '⚠ ') + name;
-        dom.title = path ? 'לחיצה לפתיחה' : 'הקובץ לא נמצא';
-        dom.addEventListener('mousedown', (e) => { if (e.button === 0) e.preventDefault(); });
-        dom.addEventListener('click', () => this.options.onOpen(name));
+        return { dom, update: (updated) => {
+          if (updated.type.name !== 'embed' || updated.attrs.target.split('|')[0] !== initial.name) return false;
+          current = updated; render(); return true;
+        }, stopEvent: (event) => !!event.target.closest?.('.embed-tools') };
       }
+      dom.classList.add('embed-chip');
+      if (!path) dom.classList.add('unresolved');
+      dom.textContent = (path ? '📎 ' : '⚠ ') + initial.name;
+      dom.title = path ? 'לחיצה לפתיחה' : 'הקובץ לא נמצא';
+      dom.addEventListener('mousedown', (event) => { if (event.button === 0) event.preventDefault(); });
+      dom.addEventListener('click', () => this.options.onOpen(initial.name));
       return { dom };
     };
-  },
+  }
 });
 
 // ![תיאור](נתיב): הנתיב נשמר כמו שהוא, ומוצג יחסית לתיקיית ההערה (ואם לא נמצא, לתיקייה הראשית)
