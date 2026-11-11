@@ -484,6 +484,7 @@ function ask(label, defaultValue = '', { confirmOnly = false, okText = 'אישו
 
 // ===== עץ הקבצים =====
 function drawTree() {
+  const focusedPath = document.activeElement?.closest?.('#tree .node')?.dataset.path;
   renderTree($('tree'), state.tree, {
     activePath: state.currentPath,
     collapsed: state.collapsed,
@@ -500,6 +501,10 @@ function drawTree() {
     onContext: showContextMenu,
     onDelete: deleteNode,
   });
+  if (focusedPath) {
+    const row = [...$('tree').querySelectorAll('.node')].find(n => n.dataset.path === focusedPath);
+    row?.focus({ preventScroll: true });
+  }
 }
 
 async function refreshTree() {
@@ -1060,7 +1065,7 @@ function matchesKeys(e, keys) {
 // שלב הלכידה: הקיצורים של האפליקציה קודמים לעורך (למשל Ctrl+E)
 window.addEventListener('keydown', (e) => {
   // בזמן דיאלוג (שם, אישור, הגדרות) הקיצורים כבויים
-  if ($('dlg').open || $('patchNotesDialog').open || document.getElementById('settings')?.open || document.getElementById('paint')?.open) return;
+  if (topDialog() && !isPaletteOpen()) return;
   for (const c of COMMANDS) {
     if (!c.keys || !matchesKeys(e, c.keys)) continue;
     // בתוך חלון החיפוש המהיר עובדים רק המעברים בינו לבין לוח הפקודות
