@@ -792,3 +792,20 @@ dialog { border-radius: 18px; }
     transition-duration: .01ms !important;
   }
 }
+
+/* Editable text box: ordinary Markdown callout, editable in Tali and readable in Obsidian. */
+.ProseMirror blockquote.callout[data-callout="tali-box"] {
+  border: 1px solid var(--accent-line);
+  border-inline-start: 3px solid var(--accent);
+  border-radius: 12px;
+  background: var(--accent-tint);
+  box-shadow: var(--shadow-soft);
+  padding: 13px 16px;
+  margin: 14px 0;
+}
+.ProseMirror blockquote.callout[data-callout="tali-box"] > p:first-child {
+  height: 0; margin: 0; overflow: hidden;
+}
+.ProseMirror blockquote.callout[data-callout="tali-box"] > p:not(:first-child) {
+  margin: 0 0 .4em;
+}
