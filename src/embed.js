@@ -150,20 +150,115 @@ export const Embed = Node.create({
 });
 
 // ![תיאור](נתיב): הנתיב נשמר כמו שהוא, ומוצג יחסית לתיקיית ההערה (ואם לא נמצא, לתיקייה הראשית)
+// Normal Markdown images remain ordinary ![alt](path) until explicitly resized/wrapped.
+// After styling, they are saved as a standard HTML <img> tag with Tali-specific data
+// attributes. This is valid Markdown HTML, not a file URL or renamed attachment.
 export const LocalImage = Image.extend({
   addOptions() {
     return { ...this.parent?.(), inline: true, localSrc: () => [] };
   },
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (el) => {
+          const n = Number.parseInt(el.getAttribute('width') || '', 10);
+          return Number.isFinite(n) && n > 0 ? n : null;
+        },
+        renderHTML: (a) => a.width ? { width: String(a.width) } : {},
+      },
+      wrap: {
+        default: 'none',
+        parseHTML: (el) => ['left', 'right'].includes(el.getAttribute('data-tali-wrap')) ? el.getAttribute('data-tali-wrap') : 'none',
+        renderHTML: (a) => a.wrap !== 'none' ? { 'data-tali-wrap': a.wrap } : {},
+      },
+    };
+  },
+  addStorage() {
+    const escapeAttr = (value) => String(value || '').replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return {
+      markdown: {
+        serialize(state, node) {
+          const a = node.attrs;
+          if (a.width || (a.wrap && a.wrap !== 'none')) {
+            const attrs = ' src="' + escapeAttr(a.src) + '" alt="' + escapeAttr(a.alt) +
+              '"' + (a.title ? ' title="' + escapeAttr(a.title) + '"' : '') +
+              (a.width ? ' width="' + Math.max(60, Math.round(a.width)) + '"' : '') +
+              ' data-tali-image="1"' +
+              (a.wrap && a.wrap !== 'none' ? ' data-tali-wrap="' + a.wrap + '"' : '');
+            state.write('<img' + attrs + '>');
+          } else {
+            const alt = String(a.alt || '').replace(/([\\\[\]])/g, '\\$1');
+            const src = String(a.src || '').replace(/([()])/g, '\\$1').replace(/ /g, '%20');
+            const title = a.title ? ' "' + String(a.title).replace(/"/g, '\\"') + '"' : '';
+            state.write('![' + alt + '](' + src + title + ')');
+          }
+        },
+        parse: {},
+      },
+    };
+  },
   addNodeView() {
-    return ({ node }) => {
+    return ({ node, editor, getPos }) => {
+      let current = node;
+      const source = node.attrs.src;
+      const dom = document.createElement('span');
+      dom.className = 'embed embed-image native-image';
+      dom.contentEditable = 'false';
       const img = document.createElement('img');
-      img.alt = node.attrs.alt || '';
-      if (node.attrs.title) img.title = node.attrs.title;
-      const candidates = this.options.localSrc(node.attrs.src || '');
+      img.draggable = false;
+      const candidates = this.options.localSrc(source || '');
       let i = 0;
       img.src = candidates[0] || '';
-      img.addEventListener('error', () => { if (++i < candidates.length) img.src = candidates[i]; else img.classList.add('broken'); });
-      return { dom: img };
+      img.addEventListener('error', () => {
+        if (++i < candidates.length) img.src = candidates[i];
+        else img.classList.add('broken');
+      });
+      const tools = document.createElement('span');
+      tools.className = 'embed-tools';
+      function change(width, wrap) {
+        const at = typeof getPos === 'function' ? getPos() : null;
+        if (typeof at !== 'number') return;
+        editor.commands.command(({ tr, dispatch }) => {
+          if (dispatch) dispatch(tr.setNodeMarkup(at, undefined, { ...current.attrs,
+            width: Math.max(60, Math.min(1400, Math.round(width))), wrap }));
+          return true;
+        });
+      }
+      function button(label, hint, action) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.textContent = label; b.title = hint;
+        b.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation(); });
+        b.addEventListener('click', (event) => { event.stopPropagation(); action(); });
+        tools.append(b);
+      }
+      button('−', 'הקטנה', () => change((current.attrs.width || img.offsetWidth || 300) - 40, current.attrs.wrap || 'none'));
+      button('+', 'הגדלה', () => change((current.attrs.width || img.offsetWidth || 300) + 40, current.attrs.wrap || 'none'));
+      button('רגיל', 'ללא ציפת טקסט', () => change(current.attrs.width || img.offsetWidth || 300, 'none'));
+      button('↤', 'טקסט עוטף מצד ימין', () => change(current.attrs.width || img.offsetWidth || 300, 'left'));
+      button('↦', 'טקסט עוטף מצד שמאל', () => change(current.attrs.width || img.offsetWidth || 300, 'right'));
+      dom.append(img, tools);
+      const render = () => {
+        const a = current.attrs;
+        img.alt = a.alt || '';
+        img.title = a.title || '';
+        img.style.width = a.width ? a.width + 'px' : '';
+        dom.classList.toggle('wrap-left', a.wrap === 'left');
+        dom.classList.toggle('wrap-right', a.wrap === 'right');
+        for (const control of tools.children) control.classList.remove('chosen');
+        tools.children[a.wrap === 'left' ? 3 : a.wrap === 'right' ? 4 : 2]?.classList.add('chosen');
+      };
+      render();
+      return {
+        dom,
+        update(updated) {
+          if (updated.type.name !== current.type.name || updated.attrs.src !== source) return false;
+          current = updated; render(); return true;
+        },
+        stopEvent: (event) => !!event.target.closest?.('.embed-tools'),
+      };
     };
   },
 });
