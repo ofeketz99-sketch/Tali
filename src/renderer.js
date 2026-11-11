@@ -140,7 +140,7 @@ const editorApi = createEditor({
   },
   onImageFiles: saveDroppedImages,
 });
-buildToolbar($('toolbar'), editorApi, { onImage: importImages, onDraw: newDrawing });
+buildToolbar($('toolbar'), editorApi, { onImage: importImages, onDraw: newDrawing, onQuickDraw: () => newDrawing(true) });
 
 // ===== ציורים =====
 function drawingStamp() {
@@ -148,11 +148,12 @@ function drawingStamp() {
   const two = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}.${two(d.getMinutes())}.${two(d.getSeconds())}`;
 }
-function newDrawing() {
+function newDrawing(quick = false) {
   if (!state.currentPath) { setStatus('קודם פותחים הערה, ואז מוסיפים לה ציור'); return; }
   if (editorApi.isRaw()) { setStatus('ציור עובד בתצוגה המעוצבת'); return; }
   const at = editorApi.editor.state.selection.from;
   openPaint({
+    quick,
     onSave: async (bytes, width) => {
       const p = await window.api.saveAttachment(attachmentDir(), `Drawing ${drawingStamp()}.png`, bytes);
       state.attachments = await window.api.attachments();
