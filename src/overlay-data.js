@@ -1,6 +1,6 @@
 // Floating annotation metadata lives in one trailing HTML comment, invisible in Obsidian.
 // An unrecognized or invalid comment is NEVER removed (to avoid losing user data).
-const TRAILER = /\n\n<!-- TALI-OVERLAY:v1:([^\r\n]*?) -->[ \t]*(?:\r?\n)?$/;
+const TRAILER = /(?:\r?\n){2}<!-- TALI-OVERLAY:v1:([^\r\n]*?) -->[ \t]*(?:\r?\n)?$/;
 const TYPES = new Set(['pen', 'line', 'arrow', 'rect', 'ellipse', 'textbox']);
 const finite = (n) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 100000;
 const bounded = (v, def, min, max) => finite(v) ? Math.min(max, Math.max(min, v)) : def;
@@ -49,9 +49,9 @@ export function splitOverlay(markdown) {
     if (!decoded || decoded.version !== 1 || !Array.isArray(decoded.objects)) {
       return { markdown: source, objects: [] };
     }
-    // Preserve an ordinary trailing newline if the document had one.
+    // Remove only the two delimiters that were added when saving; preserve all original newlines.
     return {
-      markdown: source.slice(0, match.index) + (source.endsWith('\n') ? '\n' : ''),
+      markdown: source.slice(0, match.index),
       objects: cleanOverlayObjects(decoded.objects),
     };
   } catch {
@@ -64,6 +64,6 @@ export function joinOverlay(markdown, objects) {
   const safe = cleanOverlayObjects(objects);
   if (!safe.length) return base;
   const packed = encodeURIComponent(JSON.stringify({ version: 1, objects: safe }));
-  const suffix = base.endsWith('\n') ? '\n' : '';
-  return base.replace(/\n+$/, '') + '\n\n<!-- TALI-OVERLAY:v1:' + packed + ' -->' + suffix;
+  const eol = base.includes('\r\n') ? '\r\n' : '\n';
+  return base + eol + eol + '<!-- TALI-OVERLAY:v1:' + packed + ' -->' + eol;
 }
