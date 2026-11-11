@@ -31,12 +31,18 @@
   <main id="main">
     <div id="toolbar"></div>
     <div id="pageWrap">
-      <div id="empty" class="empty">
-        <img class="empty-logo" src="logo.png" alt="Tali" />
-        <h1 class="empty-title">Tali</h1>
-        <p>בחר תיקיית עבודה כדי להתחיל.</p>
-        <button id="btnPickBig" class="primary">בחירת תיקייה</button>
-        <button id="btnNewBig" class="primary" hidden>הערה חדשה</button>
+      <div id="empty" class="empty" aria-label="מסך הבית">
+        <div class="home-actions">
+          <button type="button" id="btnNewBig" class="home-action" data-tip="פתק חדש (Ctrl+N)">
+            <span data-icon="filePlus"></span>
+            <span class="home-action-label">פתק חדש</span>
+            <kbd>Ctrl+N</kbd>
+          </button>
+          <button type="button" id="btnPatchNotes" class="home-action" aria-haspopup="dialog">
+            <span data-icon="file"></span>
+            <span class="home-action-label" dir="ltr">Patch Notes</span>
+          </button>
+        </div>
       </div>
       <div id="page" hidden>
         <textarea id="props" hidden spellcheck="false" title="מאפיינים (frontmatter)"></textarea>
@@ -58,6 +64,15 @@
         <button value="ok" class="primary">אישור</button>
       </menu>
     </form>
+  </dialog>
+
+  <dialog id="patchNotesDialog" class="patch-notes-dialog" aria-labelledby="patchNotesTitle" dir="rtl">
+    <div class="patch-notes-header">
+      <h2 id="patchNotesTitle" dir="ltr">Patch Notes</h2>
+      <button type="button" id="btnClosePatchNotes" class="icon-btn" data-icon="close" aria-label="סגירה"></button>
+    </div>
+    <p id="patchNotesSource" class="patch-notes-source"></p>
+    <div id="patchNotesContent" class="patch-notes-content" aria-live="polite"></div>
   </dialog>
 
   <div id="ctx" hidden></div>
