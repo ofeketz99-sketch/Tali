@@ -1,7 +1,7 @@
 // Offline renderer for the Tali splash. Usage (from the repo root):
-//   node_modules\electron\dist\electron.exe tools/splash-render/main.js -- emblem
-//   node_modules\electron\dist\electron.exe tools/splash-render/main.js -- preview <outDir> <samples> <t1,t2,...>
-//   node_modules\electron\dist\electron.exe tools/splash-render/main.js -- video <out.webm> <samples>
+//   npm run splash:emblem                                   rebuild src/splash-emblem.png
+//   npm run splash:preview -- <outDir> <samples> <t1,t2,...> [scale]   review stills
+//   npm run splash:render                                   render + encode src/splash.webm
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';

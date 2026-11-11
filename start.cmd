@@ -11,7 +11,7 @@ start "" "node_modules\electron\dist\electron.exe" "%~dp0."
 exit /b 0
 
 :missing
-echo Dependencies are missing. Run "npm install" in this folder (see CLAUDE.md).
+echo Dependencies are missing. Run "npm install" in this folder (see AGENTS.md).
 pause
 exit /b 1
 

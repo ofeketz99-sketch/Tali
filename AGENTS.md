@@ -6,24 +6,43 @@
 אפליקציית הערות אישית על `Electron`, שעובדת מול תיקייה רגילה של קבצי `.md`.
 המטרה: להיות אובסידיאן עם עורך עשיר כמו וורד, שאפשר לשנות לגמרי באמצעות AI.
 
+מסמכים נוספים: `README.md` (סקירה קצרה), `CHANGELOG.md` (מה השתנה בכל גרסה), `ROADMAP.md` (רעיונות להמשך, פערים ידועים ובדיקות שעוד חסרות).
+
 ## הרצה
 
 הפרויקט ב־`D:\PROJECTS\Tali`, עם Git. התלויות ב־`node_modules` שבתוכו, כמו בכל פרויקט רגיל.
-
-**Git ו־GitHub:** הקוד מגובה במאגר פרטי, https://github.com/ofeketz99-sketch/Tali (ענף `main`).
-- אחרי כל שינוי שעובד: `git add -A`, `git commit -m "..."`, `git push`.
-- כתובת המייל בשמירות היא הכתובת האנונימית של GitHub (`...@users.noreply.github.com`, מוגדרת ב־`git config` של המאגר). אין לשים כתובת מייל אמיתית: GitHub חוסם העלאה שחושפת מייל פרטי.
-- Git מותקן ב־`C:\Program Files\Git`. אם `git` לא מוכר בטרמינל, להשתמש בנתיב המלא `C:\Program Files\Git\cmd\git.exe`.
 (עד 11.11.2026 הוא היה ב־Google Drive, ושם npm לא הצליח לכתוב `node_modules`. לכן עבר לכאן.)
 
 - **הרצה רגילה:** `C:\Users\ofeke\.tali\Tali\Tali.exe`, או קיצור הדרך "Tali" בשולחן העבודה.
   זה עותק של `electron.exe` בשם Tali, עם הסמל ופרטי התוכנה (נקבעו עם `rcedit`). בתוכו, ב־`resources\app`, יש משגר קטן (המקור: `launcher/`) שמריץ את `main.js` ישירות מ־`D:\PROJECTS\Tali`, ובונה מחדש לבד אם קובץ ב־`src` חדש יותר מ־`dist/renderer.js`. לכן שינויים בקוד נכנסים בפתיחה הבאה, בלי לארוז מחדש.
   שינוי ב־`launcher/`: להעתיק את הקבצים שוב ל־`C:\Users\ofeke\.tali\Tali\resources\app`. עדכון גרסת Electron: להעתיק מחדש את `node_modules\electron\dist`, לשנות את שם `electron.exe` ל־`Tali.exe`, למחוק `resources\default_app.asar`, ולהריץ `node_modules\rcedit\bin\rcedit-x64.exe` שוב (סמל ושם).
 - **בנייה:** `npm run build`. **הרצה עם בנייה:** `npm start` או `start.cmd`. **פיתוח:** `npm run watch`, ורענון החלון עם Ctrl+R.
+- **בדיקות:** `npm test` (בדיקות יחידה). `npm run check` מריץ בדיקת תחביר לקבצי התהליך הראשי, בנייה ובדיקות. להריץ לפני כל שמירה ב־Git.
+- האפליקציה רצה בעותק אחד. אם Tali פתוח, הפעלה נוספת רק מביאה אותו לחזית. לבדיקות אוטומטיות בזמן ש־Tali פתוח צריך לעקוף את `requestSingleInstanceLock` בסקריפט הבדיקה, לא בקוד.
 
 התקנה במחשב חדש: `npm install`. אם `node_modules\electron\dist\electron.exe` חסר אחרי ההתקנה (קורה עם Node 26), פורסים ידנית את ה־zip של Electron מתיקיית ה־Cache שלו לתוך `node_modules\electron\dist` וכותבים `electron.exe` לקובץ `node_modules\electron\path.txt`.
 
 **זהירות מתוך Claude:** אפליקציית Claude לשולחן העבודה מפנה את `%LOCALAPPDATA%` ו־`%APPDATA%` לתיקייה פרטית שלה. קבצים שנכתבים לשם מתוך סשן של Claude לא קיימים מבחינת המשתמש. לכן Tali.exe ב־`C:\Users\ofeke\.tali` ולא ב־AppData.
+
+## Git ו־GitHub
+
+- המאגר פרטי: https://github.com/ofeketz99-sketch/Tali. הענף הראשי הוא `main`, וזה מה ש־Tali.exe מריץ.
+- **בתחילת עבודה:** `git pull`. המשתמש עורך לפעמים את `AGENTS.md` ו־`ROADMAP.md` ישירות ב־GitHub.
+- **אחרי כל שינוי שעובד:** `npm run check`, ואז `git add -A`, `git commit`, `git push`.
+- הודעת commit: שורה ראשונה קצרה באנגלית, בצורת ציווי, עם מספר הגרסה בסוגריים כשיש שחרור, למשל `Smooth intro opening (2.5)`. מתחת: מה ולמה, בנקודות.
+- עבודה גדולה או ניסיונית: בענף נפרד (`feat/...`, `fix/...`) שמתמזג ל־`main` רק אחרי בדיקה ב־Electron. לא משאירים ענפים ישנים פתוחים בלי סיבה.
+- כתובת המייל בשמירות היא הכתובת האנונימית של GitHub (`...@users.noreply.github.com`, מוגדרת ב־`git config` של המאגר). אין לשים כתובת מייל אמיתית: GitHub חוסם העלאה שחושפת מייל פרטי.
+- Git מותקן ב־`C:\Program Files\Git`. אם `git` לא מוכר בטרמינל, להשתמש בנתיב המלא `C:\Program Files\Git\cmd\git.exe`.
+- כלי העריכה של GitHub משנים רק את המאגר. כדי שהשינוי יגיע ל־`D:\PROJECTS\Tali` ול־Tali.exe צריך `git pull` מקומי.
+
+## גרסאות ותיעוד
+
+- כל עדכון קטן שנמסר מעלה את הספרה העשרונית ב־1: 2.5, 2.6, וכו'. אחרי x.9 באה הגרסה השלמה הבאה. ב־`package.json` הגרסה בצורה מלאה (`2.6.0` לגרסה 2.6).
+- כל שינוי בהתנהגות, במראה, בשמירה או בפורמט הקבצים נרשם ב־`CHANGELOG.md`: כותרת `## <גרסה> — <שם> (<תאריך>)`, ונקודות קצרות של מה השתנה, איך נבדק, ומה עוד לא.
+- שינוי בתוסף של העורך, בארכיטקטורה, בכלל שמירה או בתהליך עבודה מתועד גם כאן.
+- כותבים בדיוק מה הושלם ומה רק חלקי. אין לסמן תכונה כגמורה בלי בדיקה ב־Electron.
+- בדיקת שמירה נאמנה (ראו למטה) על הערות מייצגות: עברית ואנגלית, קוד, נוסחאות, תמונות וטבלאות. לא לדרוס קבצים מקוריים.
+- רעיונות ובקשות חדשות נכנסים ל־`ROADMAP.md`, לא לכאן.
 
 ## מבנה הפרויקט
 
@@ -31,25 +50,49 @@
 | --- | --- |
 | `main.js` | תהליך ראשי. כל הגישה לדיסק (קריאה, כתיבה, חיפוש, מחיקה לסל) |
 | `preload.js` | גשר בין הממשק ל־`main.js`. כל פעולה חדשה בדיסק מוסיפים גם כאן |
+| `links.js` | זיהוי ופענוח של `[[קישורים]]`. משותף ל־`main.js` ולממשק |
 | `src/index.html` | מבנה הדף |
 | `src/styles.css` | כל העיצוב. צבעים וגופנים במשתנים בראש הקובץ |
+| `src/renderer.js` | חיווט כללי: מצב האפליקציה, דיאלוגים, תפריט ימני, שמירה אוטומטית, היסטוריית ניווט, `COMMANDS` |
 | `src/editor.js` | העורך (`TipTap`), טעינה ושמירה כ־Markdown, מעבר לתצוגה גולמית |
+| `src/obsidian-md.js` | שמירה נאמנה של תחביר אובסידיאן: בריחה, ירידות שורה, HTML, נוסחאות, callouts, מאפיינים |
+| `src/wikilink.js` | קישורי `[[הערה]]` בעורך: הצומת, קריאה ושמירה כ־Markdown, השלמה אוטומטית |
+| `src/embed.js` | תמונות: `![[תמונה.png]]` ו־`![תיאור](נתיב)`, גודל וציפה |
+| `src/table.js` | טבלאות: בחירת גודל, סרגל צף, צבע תאים, העתקה, ושמירה כ־Markdown או HTML |
+| `src/paint.js` | מיני צייר ושרטוט מהיר. הציור נשמר כ־PNG בתיקיית התמונות |
+| `src/page-overlay.js` | שכבת שרטוט ותיבות טקסט צפות מעל הדף |
+| `src/overlay-data.js` | קריאה וכתיבה של נתוני השכבה בתוך קובץ ההערה (פונקציות טהורות, עם בדיקות) |
 | `src/toolbar.js` | סרגל הכלים העליון, בקבוצות: ביטול · סגנון פסקה · B I U S · צבעים · רשימות · יישור · הוספה · Markdown |
 | `src/icons.js` | כל האייקונים מ־Lucide (חבילת `lucide`, רישיון ISC). אין להשתמש באימוג'י או בסימני טקסט בממשק |
 | `src/sidebar.js` | עץ הקבצים ותוצאות חיפוש |
-| `src/renderer.js` | חיווט כללי: מצב האפליקציה, דיאלוגים, תפריט ימני, שמירה אוטומטית, היסטוריית ניווט |
-| `src/wikilink.js` | קישורי `[[הערה]]` בעורך: הצומת, קריאה ושמירה כ־Markdown, השלמה אוטומטית |
-| `src/obsidian-md.js` | שמירה נאמנה של תחביר אובסידיאן: בריחה, ירידות שורה, HTML, נוסחאות, callouts, מאפיינים |
-| `src/embed.js` | תמונות: `![[תמונה.png]]` ו־`![תיאור](נתיב)` |
 | `src/settings.js` | חלון ההגדרות, שמירתן והחלתן כמשתני CSS |
 | `src/palette.js` | חלון החיפוש המהיר (מעבר להערה ולוח פקודות) והתאמה גמישה (`fuzzy`) |
 | `src/linkhub.js` | הצעת "פתק קישור" אחרי שמקשרים בין שתי הערות |
 | `src/linkpicker.js` | בורר פתקים לקישור: חיפוש + בחירה מרובה |
-| `src/table.js` | טבלאות: בחירת גודל, סרגל צף, צבע תאים, ושמירה כ־Markdown או HTML |
-| `src/paint.js` | מיני צייר. הציור נשמר כ־PNG בתיקיית התמונות |
-| `links.js` | זיהוי ופענוח של `[[קישורים]]`. משותף ל־`main.js` ולממשק |
+| `src/splash.js`, `src/splash.css` | הפתיח בהפעלה |
+| `src/splash.webm`, `src/splash-emblem.png` | הסרטון המרונדר של הפתיח והסמל בלי הריבוע (נוצרים ב־`tools/splash-render`) |
+| `src/splash-preview.html` | צפייה חוזרת בפתיח בלי לפתוח תיקיית הערות |
+| `tools/splash-render/` | הרינדור של הפתיח (Three.js בתוך Electron). לא נטען באפליקציה |
+| `tests/` | בדיקות יחידה (`node --test`) |
 | `launcher/` | המשגר של Tali.exe (מועתק ל־`C:\Users\ofeke\.tali\Tali\resources\app`) |
 | `start.cmd` | בנייה והפעלה מהתיקייה (לפיתוח) |
+
+`dist/` נוצר על ידי `esbuild` ואין לערוך אותו ידנית.
+
+## כללים חשובים לשינויים
+
+- הקבצים נשמרים כ־Markdown רגיל כדי שיהיו נקיים וניתנים לפתיחה באובסידיאן. עיצוב שאין לו תחביר Markdown (צבע, יישור) נשמר כ־HTML בתוך הקובץ.
+- כיוון הטקסט הוא הגדרה (`textDir`): ברירת המחדל ימין לשמאל לכל המסמך, ואפשר לבחור "אוטומטי" (כל פסקה לפי השפה שלה, `unicode-bidi: plaintext`) או שמאל לימין. הכללים ב־`styles.css` תחת `data-textdir`.
+- אין לתת לממשק גישה ישירה לדיסק. כל פעולה עוברת דרך `preload.js` ו־`main.js`, וה־`safe()` ב־`main.js` מוודא שהנתיב בתוך תיקיית העבודה.
+- אחרי שינוי ב־`src/` צריך לבנות מחדש (`start.cmd` ו־Tali.exe עושים זאת לבד).
+- אסור לשמור הערה שלא נערכה, ואסור לדרוס קובץ שהשתנה בדיסק בלי לשאול.
+
+## תכונות ואיך הן בנויות
+
+### מסך הפתיחה (בלי הערה פתוחה)
+
+- רק כפתור אחד במרכז: "הערה חדשה". בהפעלה הראשונה, כשעוד לא נבחרה תיקייה, במקומו "בחירת תיקייה".
+- בלי לוגו, כותרת או טקסט הסבר. הלוגו כבר מופיע בפתיח ובסרגל הצדדי.
 
 ### פתק קישור
 
@@ -70,19 +113,53 @@
   ```
   לכן הם מופיעים גם בקישורים החוזרים של ההערות המקושרות, ושינוי שם מעדכן אותם. העזרים ב־`links.js` (`getFrontmatterLinks`, `setFrontmatterLinks`) שומרים את שאר המאפיינים כמו שהם.
 - לוח "קישורים" לצד הדף (`#linksPanel`): מצומצם כברירת מחדל, נפתח בלחיצה (נזכר ב־`localStorage`). פתוח, הדף זז הצידה כדי שהלוח לא יסתיר אותו. בלוח: פתיחת הערה, הסרת קישור (✕), והוספה.
+- הלוח יושב בתוך `#pageWrap`. גם הרענון וגם הלחיצה מחליפים את `links-open` על `#pageWrap`. לא לחזור למיקום לפי `#main`.
 - תיבת המאפיינים לא מציגה את שורות `links:` (הן בלוח), ומחזירה אותן לאותו מקום בשמירה (`splitLinksLines`/`mergeLinksLines`).
 - שורה ריקה בסוף הקובץ נשמרת גם אחרי עריכה.
 
+### קישורים בין הערות
+
+- התחביר כמו באובסידיאן: `[[שם]]`, `[[תיקייה/שם]]`, `[[שם#כותרת]]`, `[[שם|כינוי]]`. בקובץ נשמר בדיוק כך.
+- פענוח שם להערה: התאמה לנתיב היחסי, ואם אין, ההערה בעלת הנתיב הקצר ביותר שמסתיים בשם (`resolveLink` ב־`links.js`).
+- לחיצה על קישור להערה שלא קיימת יוצרת אותה. קישור כזה מוצג באפור עם קו מקווקו.
+- שינוי שם של הערה מעדכן את כל הקישורים אליה בשאר ההערות (`updateLinksAfterRename` ב־`main.js`).
+- קישורים חוזרים מוצגים מתחת לדף, ומחושבים מחדש בכל פתיחת הערה.
+- Alt+חץ שמאלה/ימינה, או כפתורי העכבר, חוזרים אחורה וקדימה בין הערות.
+
 ### טבלאות
 
-- כפתור "טבלה" פותח בחירת גודל בריחוף. כשהסמן בטבלה מופיע מעליה סרגל: שורות, עמודות, מחיקה, מיזוג/פיצול, שורת כותרת, צבע תא, מחיקת טבלה. Tab עובר לתא הבא, ובתא האחרון מוסיף שורה.
+- כפתור "טבלה" פותח בחירת גודל בריחוף. כשהסמן בטבלה מופיע מעליה סרגל: שורות, עמודות, מחיקה, מיזוג/פיצול, שורת כותרת, צבע תא, העתקת טבלה, מחיקת טבלה. Tab עובר לתא הבא, ובתא האחרון מוסיף שורה.
+- העתקה: HTML וגם טקסט מופרד בטאבים, דרך לוח המערכת.
 - טבלה פשוטה נשמרת כטבלת Markdown. טבלה עם צבע, מיזוג או רוחב עמודות שהשתנה נשמרת כ־HTML (`isPlain` ב־`table.js`), כי ל־Markdown אין דרך לשמור אותם. באובסידיאן היא תוצג אבל תהיה פחות נוחה לעריכה שם.
+
+### תמונות
+
+- כפתור "תמונה" בסרגל, הדבקה (Ctrl+V) וגרירה לתוך ההערה. בכל המקרים התמונה מועתקת לתיקיית העבודה ונכנס `![[שם]]`.
+- המיקום לפי ההגדרות: תיקייה קבועה (ברירת מחדל `attachments`) או ליד ההערה. שם תפוס מקבל מספר (`תמונה 1.png`).
+- תמונה מהלוח נקראת `Pasted image <תאריך ושעה>.png`, כמו באובסידיאן.
+- גודל וציפה: לשני סוגי התמונות יש הגדלה, הקטנה, ציפה שמאלה או ימינה, ואיפוס.
+  - `![[תמונה.png|300]]`: הרוחב בשדה הראשון, כמו באובסידיאן. ציפה בשדה שלישי שרק Tali מכירה: `![[תמונה.png|300|wrap-left]]` או `wrap-right`. בעורכים אחרים הציפה לא תופיע.
+  - `![תיאור](נתיב)`: כל עוד לא שונתה נשארת Markdown רגיל. אחרי שינוי נשמרת כ־`<img ... data-tali-image="1" data-tali-wrap="left|right">`. ב־`obsidian-md.js` יש חריג ממוקד שמזהה רק את התגיות האלה כצומת תמונה. איפוס מחזיר ל־Markdown רגיל.
 
 ### ציור
 
 - כפתור "ציור": עט, מרקר, קו, חץ, מלבן, עיגול, מחק, צבעים, עוביים, ביטול/חזרה, הגדלת הדף, רקע שקוף.
 - נשמר כ־`Drawing <תאריך ושעה>.png` בתיקיית התמונות, ונכנס להערה כ־`![[Drawing ...png|900]]` (הרוחב שבו צויר).
+- "שרטוט מהיר": משטח קטן (480×180) עם רקע שקוף. גם הוא נשמר כ־PNG בתוך הטקסט.
 - לחיצה כפולה על ציור (קובץ שמתחיל ב־`Drawing`) פותחת אותו לעריכה ושומרת מעליו (`write-image` ב־`main.js`). תמונות אחרות לא נערכות, כדי לא לדרוס תמונה מקורית.
+
+### שרטוט ותיבות טקסט מעל הדף
+
+- `src/page-overlay.js`: עט, חץ, קו, מלבן ואליפסה ב־SVG, ותיבות טקסט צפות שזזות בגרירת הכותרת ומשנות גודל בפינה. הכלים בתפריט "הוספה" ובסרגל צף זמני. Escape חוזר לכתיבה. אפשר לבחור צורה, לגרור, לצבוע ולמחוק.
+- `src/overlay-data.js`: הפונקציות הטהורות `splitOverlay` / `joinOverlay`, עם רשימה מותרת של שדות והגבלת ערכים. הנתונים נשמרים בהערת HTML אחת בסוף אותו קובץ: `<!-- TALI-OVERLAY:v1:<JSON מקודד URL> -->`. הטקסט עצמו, כולל LF/CRLF ושורות ריקות בסוף, נשמר בית אחרי בית. קידוד URL **אינו הצפנה**.
+- `editor.js` מוציא את ההערה לפני שהעורך מפענח את ה־Markdown, ומחזיר אותה בשמירה. בתצוגה הגולמית ההערה גלויה וניתנת לעריכה. הערה פגומה או לא מוכרת נשארת כמו שהיא. מעבר בין הערות טוען את השכבה הנכונה. השכבה כבויה כשאין הערה פתוחה ובתצוגה הגולמית.
+- המיקומים הם פיקסלים יחסית לדף, **לא עוגן למילה או לפסקה**. שינוי טקסט, גופן או רוחב דף יכול לדרוש הזזה ידנית. לא לתאר את זה כעיגון לתוכן.
+- השכבה לא מחליפה ציורי PNG, תיבות בתוך הפסקה או הטמעות.
+
+### תיבות טקסט בתוך הפסקה
+
+- "הוספה ← תיבת טקסט" מכניס callout עם הסימון `[!TALI-BOX]` ופסקה ניתנת לעריכה. הקישוט של ה־callout מציג אותו כתיבה.
+- זו תיבה בזרימת הטקסט (ציטוט בקובץ), שונה מהתיבה הצפה של השכבה. שתיהן נשארות. הסימון חייב להישמר בשמירה, וציטוטים רגילים לא משתנים.
 
 ### מקלדת ופקודות
 
@@ -104,27 +181,20 @@
 | Alt+חצים | אחורה וקדימה |
 | Ctrl+, | הגדרות |
 
-- האפליקציה רצה בעותק אחד: הפעלה נוספת מביאה לחזית את החלון הפתוח (`requestSingleInstanceLock` ב־`main.js`).
-
 ### עיצוב והגדרות
 
 - כל הצבעים ב־`styles.css` הם משתנים בראש הקובץ. אין לכתוב צבע קבוע (כמו `#fff`) בשום מקום אחר, אחרת הוא ישבר במצב כהה ובשינוי צבעים.
 - ברירת המחדל: לבן פסטלי חמים, צבע מודגש תכלת (`#6cb8e6`), גופן Calibri, ימין לשמאל.
-- משטחים בגוון המודגש: `--accent-tint` (סרגל עליון, ראש הסרגל הצדדי, שורת מצב, קישורים חוזרים), `--accent-line` (קווי מסגרת), ו־`--accent` מלא עם `--on-accent` לכפתור הראשי ולכפתור פעיל.
+- משטחים בגוון המודגש: `--accent-tint` (סרגל עליון, ראש הסרגל הצדדי, שורת מצב, קישורים חוזרים), `--accent-line` (קווי מסגרת), ו־`--accent` מלא עם `--on-accent` לכפתור הראשי ולכפתור פעיל. גוונים נגזרים (`--accent-soft`, `--accent-strong`) מחושבים מ־`--accent` עם `color-mix`, כך שכל צבע שנבחר עובד.
 - גופן הממשק והכותרות: Rubik (מעוגל, עם עברית). הקבצים ב־`src/fonts` (רישיון OFL, `Rubik-OFL-LICENSE.txt`), כך שלא צריך אינטרנט. גופן הכותרות בהערות הוא הגדרה (`fontHeading`, או "כמו הטקסט").
-- תנועה "ג'לי": `--spring` (עובר מעט את היעד וחוזר). כפתורים מתרוממים בריחוף, נמעכים בלחיצה, וכל לחיצה מפעילה את אנימציית `jelly` (מאזין אחד ב־`renderer.js`). חלונות ותפריטים נכנסים ב־`pop-spring`, הדף ב־`rise-spring`, פריטים ברשימות נכנסים אחד אחרי השני לפי `--i`.
+- תנועה "ג'לי", מעודנת (ראו 1.2 ב־`CHANGELOG.md`): `--spring` עובר מעט את היעד וחוזר. כפתורים מתרוממים בריחוף, נמעכים בלחיצה, וכל לחיצה מפעילה את אנימציית `jelly` (מאזין אחד ב־`renderer.js`). חלונות ותפריטים נכנסים ב־`pop-spring`, הדף ב־`rise-spring`, פריטים ברשימות נכנסים אחד אחרי השני לפי `--i`.
+- מעברים של 0.12–0.3 שניות עם `--ease`. מי שביקש ב־Windows פחות אנימציות מקבל בלי (`prefers-reduced-motion`).
 - קטע "ליטוש" בסוף `styles.css` דורס בכוונה הגדרות קודמות (כותרות, מסגרות, תנועה). שינוי עיצובי חדש: עדיף שם.
-- תנועה: מעברים של 0.12–0.3 שניות עם `--ease`. חלונות ותפריטים נכנסים באנימציית `pop`/`dialog-in`, הדף ב־`page-in`. מי שביקש ב־Windows פחות אנימציות מקבל בלי (`prefers-reduced-motion`).
 - הסבר בריחוף: כל אלמנט עם `data-tip` מקבל אותו אוטומטית (ב־`renderer.js`). לא להשתמש ב־`title` לכפתורים.
-- כפתור חדש בסרגל העליון: לקבוצה המתאימה ב־`buildToolbar`, עם אייקון מ־`icons.js` ו־`tip`. אם הסרגל כבר לא נכנס בשורה אחת, להוסיף לתפריט "הוספה" במקום כפתור. גוונים נגזרים (`--accent-soft`, `--accent-strong`) מחושבים מ־`--accent` עם `color-mix`, כך שכל צבע שנבחר עובד.
+- כפתור חדש בסרגל העליון: לקבוצה המתאימה ב־`buildToolbar`, עם אייקון מ־`icons.js` ו־`tip`. אם הסרגל כבר לא נכנס בשורה אחת, להוסיף לתפריט "הוספה" במקום כפתור.
+- אייקונים: רק מ־Lucide דרך `icons.js`. לשמור על המזהים ש־`page-overlay.js` וסרגל הכלים משתמשים בהם.
 - ההגדרות נשמרות במפתח `prefs` בקובץ `settings.json` של האפליקציה (לא בתיקיית ההערות).
 - הגדרה חדשה: ערך ב־`DEFAULTS`, החלה ב־`applyPrefs`, ושורה ב־`buildDialog` (כולם ב־`settings.js`).
-
-### תמונות
-
-- כפתור "תמונה" בסרגל, הדבקה (Ctrl+V) וגרירה לתוך ההערה. בכל המקרים התמונה מועתקת לתיקיית העבודה ונכנס `![[שם]]`.
-- המיקום לפי ההגדרות: תיקייה קבועה (ברירת מחדל `attachments`) או ליד ההערה. שם תפוס מקבל מספר (`תמונה 1.png`).
-- תמונה מהלוח נקראת `Pasted image <תאריך ושעה>.png`, כמו באובסידיאן.
 
 ### שמירה נאמנה לאובסידיאן
 
@@ -141,6 +211,7 @@
 | `> [!NOTE]` | ציטוט רגיל בקובץ. העיצוב הוא קישוט תצוגה בלבד |
 | `----`, כותרת עם `===` מתחת | הצורה המקורית נשמרת כמאפיין של הצומת |
 | `* _ [ ] #` בטקסט | בריחה רק אם בלעדיה הטקסט ייקרא אחרת (`isPlainInline`) |
+| `<!-- TALI-OVERLAY:v1:... -->` בסוף הקובץ | נתוני שכבת השרטוט, מוצאים לפני הפענוח ומוחזרים בשמירה |
 
 בבדיקה על כספת אמיתית של 370 הערות, 367 נשארו זהות בתצוגה אחרי טעינה ושמירה. ההבדלים שנשארו: שורה ריקה בין שני גושי `$$` צמודים, ורשימה בתוך פריט רשימה (`- - טקסט`).
 
@@ -155,84 +226,17 @@
 - אין לשאול את המשתמש באמצע כתיבה. חלון שאלה על "איזו גרסה" בלבל אותו והופיע בגלל Drive בלי שינוי אמיתי.
 - בחזרה לחלון, הערה פתוחה בלי שינויים נטענת מחדש רק אם התוכן שלה באמת השתנה.
 
-### קישורים בין הערות
+### הפתיח בהפעלה
 
-- התחביר כמו באובסידיאן: `[[שם]]`, `[[תיקייה/שם]]`, `[[שם#כותרת]]`, `[[שם|כינוי]]`. בקובץ נשמר בדיוק כך.
-- פענוח שם להערה: התאמה לנתיב היחסי, ואם אין, ההערה בעלת הנתיב הקצר ביותר שמסתיים בשם (`resolveLink` ב־`links.js`).
-- לחיצה על קישור להערה שלא קיימת יוצרת אותה. קישור כזה מוצג באפור עם קו מקווקו.
-- שינוי שם של הערה מעדכן את כל הקישורים אליה בשאר ההערות (`updateLinksAfterRename` ב־`main.js`).
-- קישורים חוזרים מוצגים מתחת לדף, ומחושבים מחדש בכל פתיחת הערה.
-- Alt+חץ שמאלה/ימינה, או כפתורי העכבר, חוזרים אחורה וקדימה בין הערות.
-
-`dist/` נוצר על ידי `esbuild` ואין לערוך אותו ידנית.
-
-## כללים חשובים לשינויים
-
-- הקבצים נשמרים כ־Markdown רגיל כדי שיהיו נקיים וניתנים לפתיחה באובסידיאן. עיצוב שאין לו תחביר Markdown (צבע, יישור) נשמר כ־HTML בתוך הקובץ.
-- כיוון הטקסט הוא הגדרה (`textDir`): ברירת המחדל ימין לשמאל לכל המסמך, ואפשר לבחור "אוטומטי" (כל פסקה לפי השפה שלה, `unicode-bidi: plaintext`) או שמאל לימין. הכללים ב־`styles.css` תחת `data-textdir`.
-- אין לתת לממשק גישה ישירה לדיסק. כל פעולה עוברת דרך `preload.js` ו־`main.js`, וה־`safe()` ב־`main.js` מוודא שהנתיב בתוך תיקיית העבודה.
-- אחרי שינוי ב־`src/` צריך לבנות מחדש (`start.cmd` עושה זאת).
-- אסור לשמור הערה שלא נערכה, ואסור לדרוס קובץ שהשתנה בדיסק בלי לשאול.
-
-## רעיונות להמשך
-
-- תצוגת גרף של הקישורים בין ההערות
-- תצוגה מקדימה של הערה במעבר עכבר על קישור
-- הטמעת תוכן של הערה אחרת עם `![[הערה]]` (היום מוצג רק כשבב)
-- תצוגת נוסחאות `LaTeX` בעזרת `KaTeX` (היום נשמרות נכון אבל מוצגות כטקסט)
-- תגיות `#תג` לחיצות, ורשימת תגיות כולל ספירת תיוגים
-- ממשק GHOST NOTES - שקושרו אבל לא נוצרו, כולל פירוט של מאיפה הם מגיעים
-- אופציה לאפשר סקציה של משימות להמשך בתחתית דף או מצידו של רשימת תיבות סימון. גם להם צריך להיות מאגר נפרד שמרכז את כולם לפי איזה פתק הם מופיעות בו וכמה יש בכל פתק וכמה יש סהכ
-- עורך מאפיינים נוח במקום תיבת הטקסט
-- העברת הערות בין תיקיות בגרירה
-- ייצוא למסמך Word או PDF
-- תבניות להערות סיכום מהלימודים (תאריך, קורס, נושא)
-- כרטיסיות לימוד שנוצרות מכותרות בהערה
-- שינוי גודל תמונה בגרירה (נשמר כ־`![[שם|300]]`)
-
-
-## Versioning and change documentation (effective 2026-11-11)
-
-- Baseline release is 1.1. Each small delivered update increments the tenths digit by one: 1.2, 1.3, etc.; after 1.9 use 2.0. The package version uses the corresponding semantic form (1.9.0 for release 1.9).
-- Every change to app behavior, appearance, persistence or file format requires a CHANGELOG.md entry. Update AGENTS.md when adding/changing an editor extension, architecture, serialization rule, or workflow.
-- State precisely what is delivered vs. partially supported or pending. Do not mark features as complete without testing on the Electron desktop build.
-- Check syntax/build before committing changes when a local Node environment is available. Test Markdown round-trips on representative notes, including Hebrew/English, code, math, images and tables. Keep the existing originals and avoid unintended rewrites.
-- The GitHub connector can edit the Git repository, not the user's running D:\\PROJECTS\\Tali or installed Tali.exe; a pull/restart/build is required locally.
-
-### Image and drawing conventions
-- Embeds `![[image.png|300]]` support width in pixels. Tali optionally adds a wrapping flag `![[image.png|300|wrap-left]]` / `wrap-right` while retaining the filename and first width field.
-- The first width field is Obsidian-compatible. The third wrapping field is Tali-specific and may not produce the same wrapping in other Markdown editors.
-- Ordinary and quick drawings are still PNG attachments (regular 900×520, quick 480×180 transparent); these live inline in the Markdown text. **New:** the separate page overlay supports editable vector strokes positioned anywhere on the page without creating a PNG attachment.
-- Both Obsidian embeds `![[...]]` and ordinary Markdown `![alt](url)` images have size and wrapping controls; each offers reset. Styled ordinary images are serialized as HTML `<img ... data-tali-image="1" data-tali-wrap="left|right">` and plain, unstyled images remain Markdown. ObsidianMarkdown has a narrowly targeted exception to interpret these styled tags as image nodes.
-
-### Editable text boxes
-- `Insert > תיבת טקסט` inserts a Markdown callout with a `[!TALI-BOX]` marker and editable inner paragraph. The callout decoration styles this as a box.
-- The in-flow text box is a blockquote, distinct from the new draggable **floating text box** saved by page-overlay.js. Keep both; preserve the marker in Markdown serialization and avoid changing ordinary blockquotes.
-
-
-### Page overlay (v1.8+)
-- `src/page-overlay.js`: SVG pen, arrow, line, rectangle and ellipse, plus text boxes moved by dragging their header and resized via a grip. Tool buttons are under Insert and in a temporary floating toolbar. Escape exits drawing mode; shapes can be selected, dragged, recolored and deleted.
-- `src/overlay-data.js`: pure `splitOverlay` / `joinOverlay` plus whitelisting and bounding. Annotation geometry is stored in exactly one trailing HTML comment, `<!-- TALI-OVERLAY:v1:<URL-encoded JSON> -->`, within the same note. The body text and its LF/CRLF/trailing blank lines must be byte-for-byte preserved by these helpers. URL encoding is **not encryption**.
-- `editor.js` must extract the marker before invoking the TipTap Markdown parser and append it on rich serialization. In raw Markdown view the comment is visible and editable. An invalid/unrecognized marker must remain untouched. Changing notes must reload the correct annotation list. Disable the overlay when there is no open note or when raw Markdown mode is active.
-- Shape coordinates are pixel offsets relative to the note page, **not anchored to a particular word or ProseMirror position**. Text reflow, font changes and page-width changes can require manual repositioning; do not describe it as semantic anchoring.
-- Annotations do not replace PNG drawings, in-flow callouts or Obsidian embeds.
-- Use SVG paths, no emoji-only interface icons. Existing icon identifiers are in `src/icons.js`.
-- Use `npm test` for pure metadata persistence checks. Always build with `npm run build` and test editing, raw/rich switching, image-style roundtrips and page-overlay interactions in Electron on a copy of a representative Markdown vault before deeming a release stable.
-
-### Local integration candidate (2026-11-11)
-- Icons use Lucide; preserve identifiers used by page-overlay.js as well as local toolbar icons.
-- The links panel lives inside #pageWrap. Both refresh and click handlers toggle links-open on #pageWrap; do not reintroduce #main-based panel positioning.
-- Release 2.0 is an integration candidate pending Electron UI and representative-vault round-trip checks.
-
-### Startup splash (2.4+): pre-rendered 3D intro
-- Hybrid. The book sequence is a **pre-rendered video**, `src/splash.webm` (VP9, 1920×1080, 60 fps, 4.3 s), produced by the offline renderer in `tools/splash-render/`. The hold and fade use a native image, `src/splash-emblem.png`. `src/splash.js` owns the runtime; `src/splash.css` styles it; `--splash-bg` in `styles.css` is the identity blue.
-- The video's first frame is flat `--splash-bg` and its last frame is the emblem alone on `--splash-bg`, so the overlay matches both ends. `main.js` sets the window `backgroundColor` to the same blue so launch never flashes white. On `ended`, the runtime samples the decoded colour, shows the native emblem at exactly the video's size (`EMBLEM_FRACTION` × video height under `object-fit: cover`), holds 280 ms and fades 520 ms over the already-rendered app.
-- Once per window session (`sessionStorage`). Escape, click or the focus-only skip button skip it. Video error, emblem error, hidden window and a 7.5 s watchdog all fail open. Reduced motion: no video, the emblem only, then a fade. Never gate application initialization on the intro.
-- **Re-rendering** (needs the dev dependencies `three` and `webm-muxer`, and a GPU):
-  - `node_moduleselectrondistelectron.exe tools/splash-render/main.js -- emblem` rebuilds `src/splash-emblem.png` from `build/icon.png`. The emblem is unmatted against the icon's own blue (minimal-alpha per pixel), so over the same blue it reproduces the icon. `src/logo.png` and `build/icon.png` stay unmodified.
-  - `... -- preview <dir> <samples> <t1,t2,...> [scale]` writes stills for review. `... -- video src/splash.webm 48 [checkDir]` renders and encodes the full video (about 3 minutes on an RTX 4070).
-- Renderer design (`scene.mjs`): Three.js scene with CPU-deformed leaves (each z-strip blends from the right rest profile to the mirrored left profile with an edge lag, so leaves bend, twist and overlap), curved page blocks, bevelled rounded boards, a hinged half-tube spine, and the emblem printed opaque on the cover material. Each frame averages N sub-frames, each jittering shutter time (motion blur), key-light position (soft shadows), one shadowed sky direction (ambient occlusion), lens position (depth of field) and sub-pixel offset (anti-aliasing). The composite tone-maps (Khronos PBR Neutral), then runs the book-to-logo flood in sRGB using a homography of the cover's decal, so the flat emblem sits exactly on the rendered one.
-- Constants shared between `scene.mjs` and `splash.js` (`FINAL_BG`/`--splash-bg`, `EMBLEM_FRACTION`, 1920×1080) must change together, followed by a re-render.
-- Pages turn **right to left**. Video timeline: opening settle 0–0.4 s (rack focus; scene time = video time − `PRE`), then in scene time: macro 0–0.4 s, nine leaves 0.4–2.7 s with an even pull-back, cover closes 2.8–3.45 s, thickness and flood 3.45–4.12 s. The video ends at 4.7 s.
-- Start-up: the window is `show: false` until `ready-to-show` (with a 3 s fallback). The video plays after window `load` + `canplaythrough` (max 1.4 s wait) and is faded in by `splash.js` over 0.9 s from its first presented frame. Don't start playback during the app's start-up work: it stalls the first frames.
-
+- **מבנה:** רצף הספר הוא סרטון מרונדר מראש, `src/splash.webm` (VP9, 1920×1080, 60 פריימים לשנייה, 5.2 שניות), שנוצר ב־`tools/splash-render/`. ההחזקה של הסמל והיציאה הן תמונה רגילה, `src/splash-emblem.png`. `src/splash.js` מריץ את הפתיח, `src/splash.css` מעצב אותו, ו־`--splash-bg` ב־`styles.css` הוא הכחול.
+- **רציפות:** הפריים הראשון של הסרטון הוא כחול `--splash-bg` נקי, והאחרון הוא הסמל לבד על אותו כחול, כך שאין תפר בשני הקצוות.
+- **פתיחה:** החלון נפתח מוסתר (`show: false`) ומוצג ב־`ready-to-show`, כשהפריים הראשון שלו כבר כחול. יש גיבוי של 3 שניות. הסרטון מתחיל רק אחרי `load` של החלון ו־`canplaythrough`, ולכל היותר 1.4 שניות אחרי ההפעלה. הוא נכנס בפייד של 1.4 שניות מהפריים הראשון שמוצג בפועל (`requestVideoFrameCallback`). אין להתחיל לנגן בזמן עבודת ההפעלה של האפליקציה: הפריימים הראשונים נתקעים וקופצים.
+- **סיום:** ב־`ended` נדגם הצבע המפוענח, הסמל מוצג בדיוק בגודל שלו בסרטון (`EMBLEM_FRACTION` × גובה הסרטון, לפי `object-fit: cover`), מוחזק 280ms ונעלם ב־520ms מעל האפליקציה שכבר מוכנה מתחת.
+- **התנהגות:** פעם אחת לכל חלון (`sessionStorage`). Escape, לחיצה, או כפתור דילוג שמופיע רק בניווט מקלדת. שגיאת סרטון או תמונה, חלון מוסתר ו־watchdog של 9.5 שניות סוגרים את הפתיח ולא חוסמים את האפליקציה. עם `prefers-reduced-motion`: בלי סרטון, רק הסמל ופייד. אסור שאתחול האפליקציה יחכה לפתיח.
+- **סדר תסריט** (זמן הסרטון): 0–0.9 שניות התייצבות על הדף (פוקוס שנכנס, זמן הסצנה = זמן הסרטון פחות `PRE`). בזמן הסצנה: תשעה דפים מתהפכים **מימין לשמאל** בין 0.4 ל־2.7 שניות, עם התרחקות אחידה של המצלמה. הכריכה נסגרת בין 2.8 ל־3.45, ובין 3.45 ל־4.12 העובי נעלם והכחול מציף את המסך.
+- **רינדור מחדש** (דורש GPU ואת התלויות לפיתוח `three` ו־`webm-muxer`):
+  - `npm run splash:emblem`: בונה מחדש את `src/splash-emblem.png` מ־`build/icon.png`. הסמל מופרד מהכחול של הסמל עצמו (אלפא מינימלי לכל פיקסל), כך שעל אותו כחול הוא נראה זהה למקור. `src/logo.png` ו־`build/icon.png` לא משתנים.
+  - `npm run splash:preview -- <תיקייה> <דגימות> <t1,t2,...> [קנה מידה]`: תמונות סטילס לבדיקה.
+  - `npm run splash:render`: מרנדר ומקודד את הסרטון כולו (כ־3 דקות על RTX 4070).
+- **איך הרינדור בנוי** (`scene.mjs`): סצנת Three.js. כל דף הוא משטח גמיש שמעוצב מחדש בכל פריים, כשהקצה מפגר אחרי הצד שליד השדרה, ולכן הדפים מתכופפים, מתפתלים וחופפים. יש גושי דפים מעוגלים לכיוון השדרה, כריכות מעוגלות, שדרה שמתעגלת בסגירה, והסמל מודפס אטום על חומר הכריכה. כל פריים הוא ממוצע של 48 תת־פריימים, שמזיזים זמן (טשטוש תנועה), מיקום אור (צללים רכים), כיוון שמיים (הצללה בפינות), עדשה (עומק שדה) ותת־פיקסל (החלקת קצוות). השלב האחרון ממפה גוונים (Khronos PBR Neutral), ומריץ את הצפת הכחול ב־sRGB לפי מיפוי מדויק של מדבקת הכריכה, כך שהסמל השטוח יושב בדיוק על הסמל המרונדר.
+- **קבועים משותפים** ל־`scene.mjs` ול־`splash.js`: `FINAL_BG` / `--splash-bg` / `backgroundColor` ב־`main.js`, `EMBLEM_FRACTION`, 1920×1080. משנים יחד, ואז מרנדרים מחדש.

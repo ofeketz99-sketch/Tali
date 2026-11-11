@@ -1,7 +1,7 @@
 // המשגר של Tali.exe (נמצא ב־C:\Users\ofeke\.tali\Tali\resources\app). הפרויקט: D:\PROJECTS\Tali.
 // מריץ את הקוד ישירות מתיקיית הפרויקט, כך שכל שינוי בקוד נכנס בלי לארוז מחדש.
 // אם קובץ ב־src חדש יותר מ־dist/renderer.js, בונה קודם (esbuild), כמו start.cmd.
-// עדכון של הקובץ הזה: להעתיק אותו שוב ל־resources\app (ראו "הרצה" ב־CLAUDE.md).
+// עדכון של הקובץ הזה: להעתיק אותו שוב ל־resources\app (ראו "הרצה" ב־AGENTS.md).
 const { app, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
