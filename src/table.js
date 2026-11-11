@@ -156,7 +156,7 @@ export function attachTableBar(editor, scroller) {
   btn('העתקת טבלה', 'העתקת הטבלה השלמה, כולל תוכן ועיצוב, ללוח', async () => {
     const table = tableElement();
     if (!table) return;
-    const rows = [...table.rows].map((row) => [...row.cells].map((cell) => cell.innerText.replace(/\\s*\\n\\s*/g, ' ').trim()).join('\\t')).join('\\n');
+    const rows = [...table.rows].map((row) => [...row.cells].map((cell) => cell.innerText.replace(/\s*\n\s*/g, ' ').trim()).join('\t')).join('\n');
     try { await window.api.copyTable(table.outerHTML, rows); }
     catch (err) { console.error('Failed to copy table', err); }
   });
