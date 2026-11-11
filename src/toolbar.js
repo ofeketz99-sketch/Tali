@@ -145,9 +145,8 @@ export function buildToolbar(container, editorApi, actions = {}) {
       const items = [
         ['table', 'טבלה', 'בחירת גודל בריחוף', () => openTableGrid(insertBtn, (rows, cols) => chain().insertTable({ rows, cols, withHeaderRow: true }).run())],
         ['image', 'תמונה', 'מהמחשב. אפשר גם להדביק או לגרור', () => actions.onImage?.()],
-        ['draw', 'ציור', 'לחיצה כפולה על ציור עורכת אותו', () => actions.onDraw?.()],
-        ['draw', 'שרטוט מהיר', 'חץ, קו, צורה או שרטוט חופשי עם רקע שקוף', () => actions.onQuickDraw?.()],
-        ['arrow', 'שרטוט ישירות על הדף', 'חץ בין משפטים, קו, צורה או עט שאפשר להזיז', () => actions.onOverlayDraw?.('arrow')],
+        ['draw', 'ציור כתמונה', 'חלון אחד לציור רגיל או מהיר עם רקע שקוף', () => actions.onDraw?.()],
+        ['arrow', 'שרטוט על הדף', 'ציור חופשי, חץ או צורה שאפשר לערוך ולהזיז כקבוצה', () => actions.onOverlayDraw?.()],
         ['textBox', 'תיבת טקסט צפה', 'תיבה שאפשר לגרור ולשנות לה גודל בכל מקום על הדף', () => actions.onOverlayDraw?.('textbox')],
         ['quote', 'תיבה בתוך הפסקה', 'תיבת טקסט רגילה שזזה עם הכתיבה', () => chain().insertContent({ type: 'blockquote', content: [ { type: 'paragraph', content: [{ type: 'text', text: '[!TALI-BOX]' }] }, { type: 'paragraph', content: [{ type: 'text', text: 'טקסט בתוך התיבה' }] } ] }).run()],
         ['code', 'בלוק קוד', '', () => chain().toggleCodeBlock().run()],
