@@ -3,9 +3,12 @@
 //
 // openPaint({ image?: url, onSave: (bytes: Uint8Array, width: number) => Promise })
 
+import { icon } from './icons.js';
+
+// [כלי, אייקון, הסבר]
 const TOOLS = [
-  ['pen', '✎', 'עט'], ['marker', '▮', 'מרקר (שקוף למחצה)'], ['line', '╱', 'קו (Shift: ישר)'],
-  ['arrow', '➚', 'חץ'], ['rect', '▭', 'מלבן (Shift: ריבוע)'], ['ellipse', '◯', 'עיגול (Shift: מעגל)'], ['eraser', '⌫', 'מחק'],
+  ['pen', 'pen', 'עט'], ['marker', 'highlight', 'מרקר (שקוף למחצה)'], ['line', 'line', 'קו (Shift: ישר)'],
+  ['arrow', 'arrow', 'חץ'], ['rect', 'rect', 'מלבן (Shift: ריבוע)'], ['ellipse', 'ellipse', 'עיגול (Shift: מעגל)'], ['eraser', 'eraser', 'מחק'],
 ];
 const COLORS = ['#1f2328', '#e5484d', '#f2994a', '#f2c94c', '#3fb27f', '#4a9ee0', '#8e6fd8', '#ffffff'];
 const SIZES = [[2, 'דק'], [5, 'בינוני'], [12, 'עבה']];
@@ -26,10 +29,10 @@ function build() {
       <div class="pt-group pt-colors"></div><span class="sep"></span>
       <div class="pt-group pt-sizes"></div><span class="sep"></span>
       <div class="pt-group">
-        <button type="button" data-act="undo" title="ביטול (Ctrl+Z)">↶</button>
-        <button type="button" data-act="redo" title="חזרה (Ctrl+Y)">↷</button>
-        <button type="button" data-act="clear" title="ניקוי הכל">🗑</button>
-        <button type="button" data-act="taller" title="הגדלת הדף למטה">⇩ עוד מקום</button>
+        <button type="button" data-act="undo" data-tip="ביטול (Ctrl+Z)">${icon('undo', 17)}</button>
+        <button type="button" data-act="redo" data-tip="חזרה (Ctrl+Y)">${icon('redo', 17)}</button>
+        <button type="button" data-act="clear" data-tip="ניקוי הכל">${icon('trash', 17)}</button>
+        <button type="button" data-act="taller" data-tip="הגדלת הדף למטה">${icon('taller', 17)}<span>עוד מקום</span></button>
         <label class="pt-check"><input type="checkbox" data-act="transparent"> רקע שקוף</label>
       </div>
       <div class="pt-end">
@@ -55,9 +58,9 @@ function build() {
 
   // ===== סרגל =====
   const tools = d.querySelector('.pt-tools');
-  for (const [id, icon, title] of TOOLS) {
+  for (const [id, ic, title] of TOOLS) {
     const b = document.createElement('button');
-    b.type = 'button'; b.textContent = icon; b.title = title; b.dataset.tool = id;
+    b.type = 'button'; b.innerHTML = icon(ic, 18); b.dataset.tip = title; b.setAttribute('aria-label', title); b.dataset.tool = id;
     b.addEventListener('click', () => { tool = id; mark(); });
     tools.append(b);
   }

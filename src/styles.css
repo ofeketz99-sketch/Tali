@@ -713,9 +713,8 @@ dialog { border-radius: 18px; }
 #linkPicker .lp-actions { display: flex; gap: 8px; }
 
 /* ----- לוח "קישורים" לצד הדף ----- */
-#main { position: relative; }
 #linksPanel {
-  position: absolute; top: 62px; inset-inline-end: 22px; z-index: 12; width: 230px;
+  grid-area: links; justify-self: end; align-self: start; z-index: 12; width: auto;
   background: var(--panel-bg); border: 1px solid var(--accent-line); border-radius: 14px;
   box-shadow: var(--shadow-soft); overflow: hidden; transition: width .24s var(--ease), box-shadow .2s;
 }
@@ -754,8 +753,6 @@ dialog { border-radius: 18px; }
 #linksPanel .lk-add:hover { background: var(--accent-hover); border-style: solid; }
 /* מקום ללוח הקישורים, כדי שלא יסתיר את הדף */
 #pageWrap { transition: padding .24s var(--ease); }
-#main.links-on #pageWrap { padding-top: 64px; }
-#main.links-open #pageWrap { padding-inline-end: 272px; }
 
 /* ===== Tali 1.6: embedded media sizing and text wrapping ===== */
 .ProseMirror .embed-image {
@@ -874,3 +871,41 @@ dialog { border-radius: 18px; }
 .tali-overlay-toolbar .tali-overlay-hint { font-size: 11px; color: var(--muted); white-space: nowrap; margin-inline: 4px; }
 @media (max-width: 670px) { .tali-overlay-toolbar .tali-overlay-hint { display: none; } }
 @media (prefers-reduced-motion: reduce) { .tali-overlay-toolbar { animation: none !important; } }
+/* =====================================================================
+   יישור: הסרגל העליון וראש הסרגל הצדדי באותו גובה, והדף ולוח הקישורים בפריסת grid.
+   ===================================================================== */
+:root { --bar-h: 52px; }
+#toolbar { min-height: var(--bar-h); padding-block: 0; box-sizing: border-box; }
+.side-head { height: var(--bar-h); padding-block: 0; box-sizing: border-box; }
+
+/* הדף, הקישורים החוזרים ולוח "קישורים". מימין לשמאל, העמודה הראשונה היא מימין. */
+#pageWrap {
+  display: grid; justify-content: center; align-content: start; column-gap: 20px; row-gap: 14px;
+  grid-template-columns: minmax(0, var(--page-width));
+  grid-template-areas: "links" "page" "back";
+}
+#pageWrap.links-open {
+  grid-template-columns: minmax(0, var(--page-width)) 240px;
+  grid-template-areas: "page links" "back links";
+}
+#empty { grid-column: 1 / -1; }
+#page { grid-area: page; width: 100%; max-width: none; margin: 0; }
+#backlinks { grid-area: back; max-width: none; margin: 0; }
+/* מצומצם: כפתור קטן מעל הדף, צמוד לקצה השמאלי שלו. פתוח: עמודה שראשה בגובה ראש הדף, ונשארת בגלילה */
+#linksPanel { position: relative; }
+#pageWrap.links-open #linksPanel { justify-self: stretch; position: sticky; top: 0; }
+/* בלי overflow: hidden: בפריט grid הוא מאפס את הגובה המינימלי, והשורה של הלוח מתכווצת לאפס. הפינות מעוגלות בחלקים שבפנים. */
+#linksPanel { overflow: visible; }
+#linksPanel .lk-head { border-radius: 13px; }
+#linksPanel.open .lk-head { border-radius: 13px 13px 0 0; }
+#linksPanel .lk-body { border-radius: 0 0 13px 13px; }
+
+/* אייקונים בתוך כפתורים: תמיד במרכז ובאותו קו עם הטקסט */
+#paint .pt-bar button, .table-bar button, #toast button, .link-offer .offer-btn, .ProseMirror .embed-chip {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.link-offer .offer-btn span { flex: 1; text-align: start; }
+.link-offer .offer-head { display: flex; align-items: center; gap: 6px; }
+.ProseMirror .embed-chip { vertical-align: middle; gap: 4px; }
+.table-bar button { height: 30px; padding: 0 8px; }
+.table-bar button:not(:has(span)) { width: 30px; padding: 0; }

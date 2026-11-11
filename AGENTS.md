@@ -35,7 +35,7 @@
 | `src/styles.css` | כל העיצוב. צבעים וגופנים במשתנים בראש הקובץ |
 | `src/editor.js` | העורך (`TipTap`), טעינה ושמירה כ־Markdown, מעבר לתצוגה גולמית |
 | `src/toolbar.js` | סרגל הכלים העליון, בקבוצות: ביטול · סגנון פסקה · B I U S · צבעים · רשימות · יישור · הוספה · Markdown |
-| `src/icons.js` | סט האייקונים (SVG). אין להשתמש באימוג'י בממשק |
+| `src/icons.js` | כל האייקונים מ־Lucide (חבילת `lucide`, רישיון ISC). אין להשתמש באימוג'י או בסימני טקסט בממשק |
 | `src/sidebar.js` | עץ הקבצים ותוצאות חיפוש |
 | `src/renderer.js` | חיווט כללי: מצב האפליקציה, דיאלוגים, תפריט ימני, שמירה אוטומטית, היסטוריית ניווט |
 | `src/wikilink.js` | קישורי `[[הערה]]` בעורך: הצומת, קריאה ושמירה כ־Markdown, השלמה אוטומטית |
@@ -216,3 +216,8 @@
 - Annotations do not replace PNG drawings, in-flow callouts or Obsidian embeds.
 - Use SVG paths, no emoji-only interface icons. Existing icon identifiers are in `src/icons.js`.
 - Use `npm test` for pure metadata persistence checks. Always build with `npm run build` and test editing, raw/rich switching, image-style roundtrips and page-overlay interactions in Electron on a copy of a representative Markdown vault before deeming a release stable.
+
+### Local integration candidate (2026-11-11)
+- Icons use Lucide; preserve identifiers used by page-overlay.js as well as local toolbar icons.
+- The links panel lives inside #pageWrap. Both refresh and click handlers toggle links-open on #pageWrap; do not reintroduce #main-based panel positioning.
+- Release 2.0 is an integration candidate pending Electron UI and representative-vault round-trip checks.

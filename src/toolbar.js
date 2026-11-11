@@ -85,10 +85,10 @@ export function buildToolbar(container, editorApi, actions = {}) {
 
   // ===== עיצוב תווים =====
   const g3 = group();
-  button(g3, { html: '<b>B</b>', tip: 'מודגש (Ctrl+B)', run: () => chain().toggleBold().run(), active: () => editor.isActive('bold') });
-  button(g3, { html: '<i style="font-family:Georgia,serif">I</i>', tip: 'נטוי (Ctrl+I)', run: () => chain().toggleItalic().run(), active: () => editor.isActive('italic') });
-  button(g3, { html: '<u>U</u>', tip: 'קו תחתון (Ctrl+U)', run: () => chain().toggleUnderline().run(), active: () => editor.isActive('underline') });
-  button(g3, { html: '<s>S</s>', tip: 'קו חוצה', run: () => chain().toggleStrike().run(), active: () => editor.isActive('strike') });
+  button(g3, { html: icon('bold'), tip: 'מודגש (Ctrl+B)', run: () => chain().toggleBold().run(), active: () => editor.isActive('bold') });
+  button(g3, { html: icon('italic'), tip: 'נטוי (Ctrl+I)', run: () => chain().toggleItalic().run(), active: () => editor.isActive('italic') });
+  button(g3, { html: icon('underline'), tip: 'קו תחתון (Ctrl+U)', run: () => chain().toggleUnderline().run(), active: () => editor.isActive('underline') });
+  button(g3, { html: icon('strike'), tip: 'קו חוצה', run: () => chain().toggleStrike().run(), active: () => editor.isActive('strike') });
 
   // ===== צבעים =====
   const g4 = group();
@@ -112,7 +112,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
     m.append(grid, custom);
   });
   const colorBtn = button(g4, {
-    html: '<span class="tb-a">A<span class="tb-bar"></span></span>', tip: 'צבע טקסט',
+    html: `<span class="tb-a">${icon('textColor', 17)}<span class="tb-bar"></span></span>`, tip: 'צבע טקסט',
     run: (b) => swatchMenu(b, TEXT_COLORS, (c) => (c ? chain().setColor(c).run() : chain().unsetColor().run()), () => editor.getAttributes('textStyle').color),
   });
   const hlBtn = button(g4, {

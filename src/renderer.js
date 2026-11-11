@@ -388,7 +388,7 @@ function showToast(text, actionText, action) {
     t.append(b);
   }
   const x = document.createElement('button');
-  x.textContent = '✕';
+  x.innerHTML = icon('close', 15);
   x.title = 'סגירה';
   x.className = 'toast-close';
   x.addEventListener('click', () => { t.hidden = true; });
@@ -711,9 +711,8 @@ async function applyNoteLinks(target, paths) {
 let linksOpen = store.get('linksPanelOpen', false);
 function refreshLinksPanel() {
   const panel = $('linksPanel');
-  // מקום לפאנל: מצומצם הוא יושב מעל פינת הדף, פתוח הדף זז הצידה כדי שלא יוסתר
-  $('main').classList.toggle('links-on', !!state.currentPath && !linksOpen);
-  $('main').classList.toggle('links-open', !!state.currentPath && linksOpen);
+  // פריסה (ב־CSS, grid): מצומצם הלוח יושב מעל הדף, צמוד לקצה שלו. פתוח הוא עמודה לצד הדף, מיושר לראש הדף.
+  $('pageWrap').classList.toggle('links-open', !!state.currentPath && linksOpen);
   if (!state.currentPath) { panel.hidden = true; return; }
   const files = allNotes().map((n) => n.path);
   const targets = getFrontmatterLinks(editorApi.getMarkdown());
@@ -730,8 +729,7 @@ function refreshLinksPanel() {
     linksOpen = !linksOpen;
     store.set('linksPanelOpen', linksOpen);
     panel.classList.toggle('open', linksOpen);
-    $('main').classList.toggle('links-on', !linksOpen);
-    $('main').classList.toggle('links-open', linksOpen);
+    $('pageWrap').classList.toggle('links-open', linksOpen);
     head.dataset.tip = linksOpen ? 'צמצום' : 'הצגת הקישורים של ההערה';
   });
   panel.append(head);

@@ -8,6 +8,7 @@ import { Fragment } from '@tiptap/pm/model';
 import Table from '@tiptap/extension-table';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
+import { icon } from './icons.js';
 
 // צבע רקע לתא, נשמר כ־style
 const bgAttr = {
@@ -134,7 +135,8 @@ export function attachTableBar(editor, scroller) {
     const b = document.createElement('button');
     b.type = 'button';
     b.innerHTML = label;
-    b.title = title;
+    b.dataset.tip = title;
+    b.setAttribute('aria-label', title);
     if (extra) b.className = extra;
     b.addEventListener('mousedown', (e) => e.preventDefault()); // לא לאבד את הסמן בטבלה
     b.addEventListener('click', () => { run(); update(); });
@@ -144,16 +146,17 @@ export function attachTableBar(editor, scroller) {
   const sep = () => { const s = document.createElement('span'); s.className = 'sep'; bar.append(s); };
   const chain = () => editor.chain().focus();
 
-  btn('↑ שורה', 'הוספת שורה מעל', () => chain().addRowBefore().run());
-  btn('↓ שורה', 'הוספת שורה מתחת', () => chain().addRowAfter().run());
+  const lbl = (ic, text) => `${icon(ic, 15)}${text ? `<span>${text}</span>` : ''}`;
+  btn(lbl('rowBefore'), 'הוספת שורה מעל', () => chain().addRowBefore().run());
+  btn(lbl('rowAfter'), 'הוספת שורה מתחת', () => chain().addRowAfter().run());
   // הטבלה מימין לשמאל: "לפני" בסדר העמודות הוא מימין
-  btn('→ עמודה', 'הוספת עמודה מימין', () => chain().addColumnBefore().run());
-  btn('← עמודה', 'הוספת עמודה משמאל', () => chain().addColumnAfter().run());
+  btn(lbl('colBefore'), 'הוספת עמודה מימין', () => chain().addColumnBefore().run());
+  btn(lbl('colAfter'), 'הוספת עמודה משמאל', () => chain().addColumnAfter().run());
   sep();
-  const deleteRowBtn = btn('✕ שורה', 'מחיקת השורה הנוכחית', () => chain().deleteRow().run());
-  const deleteColBtn = btn('✕ עמודה', 'מחיקת העמודה הנוכחית', () => chain().deleteColumn().run());
+  const deleteRowBtn = btn(lbl('deleteRow', 'שורה'), 'מחיקת השורה הנוכחית', () => chain().deleteRow().run());
+  const deleteColBtn = btn(lbl('deleteCol', 'עמודה'), 'מחיקת העמודה הנוכחית', () => chain().deleteColumn().run());
   sep();
-  btn('העתקת טבלה', 'העתקת הטבלה השלמה, כולל תוכן ועיצוב, ללוח', async () => {
+  btn(lbl('copy', 'העתקת טבלה'), 'העתקת הטבלה השלמה, כולל תוכן ועיצוב, ללוח', async () => {
     const table = tableElement();
     if (!table) return;
     const rows = [...table.rows].map((row) => [...row.cells].map((cell) => cell.innerText.replace(/\s*\n\s*/g, ' ').trim()).join('\t')).join('\n');
@@ -161,11 +164,11 @@ export function attachTableBar(editor, scroller) {
     catch (err) { console.error('Failed to copy table', err); }
   });
   sep();
-  const merge = btn('⊞ מיזוג', 'מיזוג התאים המסומנים, או פיצול תא ממוזג', () => chain().mergeOrSplit().run());
-  btn('כותרת', 'שורת כותרת מודגשת (הפעלה/כיבוי)', () => chain().toggleHeaderRow().run());
-  const colorBtn = btn('🎨 צבע', 'צבע רקע לתאים המסומנים', () => toggleColors());
+  const merge = btn(lbl('merge', 'מיזוג'), 'מיזוג התאים המסומנים, או פיצול תא ממוזג', () => chain().mergeOrSplit().run());
+  btn(lbl('header', 'כותרת'), 'שורת כותרת מודגשת (הפעלה/כיבוי)', () => chain().toggleHeaderRow().run());
+  const colorBtn = btn(lbl('palette', 'צבע'), 'צבע רקע לתאים המסומנים', () => toggleColors());
   sep();
-  btn('🗑', 'מחיקת הטבלה כולה', () => chain().deleteTable().run(), 'danger');
+  btn(lbl('trash'), 'מחיקת הטבלה כולה', () => chain().deleteTable().run(), 'danger');
 
   const colors = document.createElement('div');
   colors.className = 'tb-colors';
@@ -194,7 +197,7 @@ export function attachTableBar(editor, scroller) {
     // רק כשעובדים בטבלה: הסמן בתוכה והעורך בפוקוס (לא סתם כי ההערה נפתחה עם סמן בטבלה)
     const table = editor.isFocused && editor.isActive('table') ? tableElement() : null;
     if (!table) { bar.hidden = true; colors.hidden = true; return; }
-    merge.innerHTML = editor.can().splitCell() ? '⊟ פיצול' : '⊞ מיזוג';
+    merge.innerHTML = editor.can().splitCell() ? lbl('split', 'פיצול') : lbl('merge', 'מיזוג');
     deleteRowBtn.disabled = !editor.can().deleteRow();
     deleteColBtn.disabled = !editor.can().deleteColumn();
     colorBtn.disabled = !editor.can().setCellAttribute('backgroundColor', null);

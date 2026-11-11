@@ -1,6 +1,7 @@
 // הגדרות: מראה, טקסט, הערות וקבצים.
 // נשמרות ב־settings.json של האפליקציה (דרך main.js), ומוחלות כמשתני CSS על <html>.
 // כדי להוסיף הגדרה: ערך ב־DEFAULTS, החלה ב־applyPrefs, ושורה ב־buildDialog.
+import { icon } from './icons.js';
 
 export const DEFAULTS = {
   version: 2,
@@ -29,7 +30,8 @@ const PAPERS = [
   ['warm', 'לבן חמים', '#fffdf9'], ['cool', 'לבן קריר', '#fbfdfe'],
   ['cream', 'שמנת', '#fffbf1'], ['pure', 'לבן נקי', '#ffffff'],
 ];
-const WIDTHS = { narrow: '680px', normal: '820px', wide: '1000px', full: 'none' };
+// משמש כרוחב העמודה של הדף (grid), ולכן "מלא" הוא מספר גדול ולא none
+const WIDTHS = { narrow: '680px', normal: '820px', wide: '1000px', full: '10000px' };
 // גופנים שכדאי להציע. מוצגים רק אלה שמותקנים במחשב.
 const FONT_CANDIDATES = [
   'Calibri', 'Segoe UI', 'Arial', 'Tahoma', 'David', 'Miriam', 'Narkisim', 'Gisha', 'FrankRuehl',
@@ -213,8 +215,10 @@ function buildDialog() {
 
   const reset = el('button', { type: 'button', on: { click: () => { prefs = { ...DEFAULTS }; setPref('accent', DEFAULTS.accent); refresh(); } } }, 'איפוס לברירת המחדל');
   const close = el('button', { type: 'button', class: 'primary', on: { click: () => dlg.close() } }, 'סגירה');
+  const closeBtn = el('button', { type: 'button', class: 'icon-btn', 'data-tip': 'סגירה', 'aria-label': 'סגירה', on: { click: () => dlg.close() } });
+  closeBtn.innerHTML = icon('close', 18);
   const dlg = el('dialog', { id: 'settings' },
-    el('div', { class: 'set-head' }, el('h2', {}, 'הגדרות'), el('button', { type: 'button', title: 'סגירה', on: { click: () => dlg.close() } }, '✕')),
+    el('div', { class: 'set-head' }, el('h2', {}, 'הגדרות'), closeBtn),
     body,
     el('div', { class: 'set-foot' }, reset, close),
   );

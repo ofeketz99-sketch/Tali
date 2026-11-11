@@ -2,6 +2,7 @@
 // בקובץ נשמר בדיוק מה שנכתב; רק התצוגה ממירה את הנתיב לקובץ אמיתי בדיסק.
 import { Node } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
+import { icon } from './icons.js';
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i;
 
@@ -141,7 +142,8 @@ export const Embed = Node.create({
       }
       dom.classList.add('embed-chip');
       if (!path) dom.classList.add('unresolved');
-      dom.textContent = (path ? '📎 ' : '⚠ ') + initial.name;
+      dom.innerHTML = `${icon(path ? 'paperclip' : 'warning', 14)}<span></span>`;
+      dom.querySelector('span').textContent = initial.name;
       dom.title = path ? 'לחיצה לפתיחה' : 'הקובץ לא נמצא';
       dom.addEventListener('mousedown', (event) => { if (event.button === 0) event.preventDefault(); });
       dom.addEventListener('click', () => this.options.onOpen(initial.name));

@@ -6,6 +6,7 @@
 //   notes: [{ name, path, rel }] לבחירת פתק קישור קיים
 //   onApply({ path } | { name }): פתק קיים או חדש
 import { fuzzy } from './palette.js';
+import { icon } from './icons.js';
 
 let box = null;
 let cleanup = null;
@@ -35,11 +36,12 @@ export function showLinkHubOffer({ coords, from, to, notes, onApply, refocus }) 
   // ===== שלב 1: הצעה קטנה. הכתיבה בעורך ממשיכה כרגיל =====
   const head = document.createElement('div');
   head.className = 'offer-head';
-  head.textContent = `🔗 ${from} ⟷ ${to}`;
+  head.innerHTML = `${icon('link', 13)}<span></span>`;
+  head.querySelector('span').textContent = `${from} · ${to}`;
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'offer-btn';
-  btn.innerHTML = '＋ הוספת פתק קישור <kbd>Tab</kbd>';
+  btn.innerHTML = `${icon('plus', 15)}<span>הוספת פתק קישור</span><kbd>Tab</kbd>`;
   btn.addEventListener('mousedown', (e) => { e.preventDefault(); expand(); });
   box.append(head, btn);
   place();

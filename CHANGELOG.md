@@ -1,3 +1,10 @@
+# 2.0 — Local integration candidate (2026-11-11)
+
+- Integrates the 13 preserved local edits with upstream 15a5c54: Lucide icons and aligned grid layout alongside image controls, table copying/deletion and page annotations.
+- Preserves local icons while adding the overlay icon identifiers; keeps updated embed NodeViews and table command availability checks.
+- Updates both link-panel toggle paths to the local grid container.
+- Synchronizes package and lockfile versions. Desktop interaction and full Markdown vault round-trip validation are pending; this is not a stable desktop release.
+
 # Tali — Patch Notes
 
 גרסאות האפליקציה מתקדמות בצעדים של 0.1 לכל עדכון קטן, החל מקו הבסיס 1.1. מספר הגרסה ב-package.json משתמש גם בספרת תיקון שלישית (למשל 1.9.0). כל שינוי עתידי מחייב רישום כאן ותיעוד הנחיות רלוונטיות ב-AGENTS.md.
