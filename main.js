@@ -1,6 +1,6 @@
 // תהליך ראשי של Electron: חלון, וכל הגישה לקבצים במחשב.
 // כל פעולה על קבצים עוברת כאן ונבדקת שהיא בתוך התיקייה שנבחרה.
-const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, powerMonitor } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
 const { execFile } = require('child_process');
@@ -534,6 +534,10 @@ app.on('second-instance', () => {
 app.whenReady().then(() => {
   registerIpc();
   createWindow();
+  // התעוררות משינה, פתיחת נעילה או שינוי שעון: הממשק בודק מחדש איזו ערכת צבעים צריכה לפעול
+  const wake = () => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send('system-wake'); };
+  powerMonitor.on('resume', wake);
+  powerMonitor.on('unlock-screen', wake);
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
