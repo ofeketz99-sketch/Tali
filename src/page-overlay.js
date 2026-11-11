@@ -58,6 +58,7 @@ export function createPageOverlay({ page, onChange }) {
   toolbar.dir = 'rtl';
   toolbar.setAttribute('role', 'toolbar');
   toolbar.setAttribute('aria-label', 'כלי שרטוט ותיבות טקסט');
+  toolbar.tabIndex = -1;
   document.body.append(toolbar);
 
   const notify = () => { if (enabled) onChange(); };
@@ -206,6 +207,7 @@ export function createPageOverlay({ page, onChange }) {
       event.preventDefault();
       event.stopPropagation();
       select(object.id);
+      toolbar.focus({ preventScroll: true });
       drag(object, event, 'move', shapes.querySelector('.tali-overlay-shape.selected'));
     });
     return group;
@@ -270,13 +272,16 @@ export function createPageOverlay({ page, onChange }) {
       placeBox(object, element);
       const head = document.createElement('div');
       head.className = 'tali-overlay-grip';
+      head.tabIndex = 0;
       head.innerHTML = icon('move', 15) + '<span>תיבת טקסט</span>';
       head.title = 'גרור כדי להזיז את התיבה';
       head.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
-        select(object.id); drag(object, event, 'move', element);
+        select(object.id);
+        head.focus({ preventScroll: true });
+        drag(object, event, 'move', element);
       });
       const field = document.createElement('textarea');
       field.className = 'tali-overlay-text';
@@ -364,6 +369,15 @@ export function createPageOverlay({ page, onChange }) {
   };
   svg.addEventListener('pointerup', finish);
   svg.addEventListener('pointercancel', finish);
+
+  // Clicking outside the drawing canvas and its tools exits the active session.
+  // Clicks on the page itself are reserved for adding strokes or selecting objects.
+  window.addEventListener('pointerdown', (event) => {
+    if (!enabled || (!mode && !selected)) return;
+    if (page.contains(event.target) || toolbar.contains(event.target) || document.querySelector('dialog[open]')) return;
+    setMode(null);
+    select(null);
+  }, true);
 
   window.addEventListener('keydown', (event) => {
     if (!enabled) return;
