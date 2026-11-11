@@ -222,7 +222,8 @@
 - The links panel lives inside #pageWrap. Both refresh and click handlers toggle links-open on #pageWrap; do not reintroduce #main-based panel positioning.
 - Release 2.0 is an integration candidate pending Electron UI and representative-vault round-trip checks.
 
-### Startup splash (2.1)
-- `src/splash.js` and `src/splash.css` implement a standalone 3000 ms Web Animations/CSS 3D intro, loaded before the renderer without awaiting it. Keep the original `src/logo.png` unmodified; palette tokens live in `styles.css`.
+### Startup splash (2.2)
+- `src/splash.js` owns the standalone 3000 ms lifecycle; `src/splash-art.js` draws curved, textured paper meshes on Canvas with a deterministic timeline. `src/splash.css` styles the overlay. Scripts load before the renderer without awaiting the intro. Keep the original `src/logo.png` unmodified; palette tokens live in `styles.css`.
+- Paper/ink textures are seeded and created once. Draw the book into an offscreen surface before compositing its dissolve, avoiding opacity buildup between layers. Cancel the animation frame on every exit path. Cap pixel density at 2 and keep responsive fitting inside the scene.
 - Show once per window session (`sessionStorage`, including reloads); skip completely for reduced motion. Skip button/Escape, image failure, visibility changes and a 3100 ms watchdog remove the overlay and restore inert/focus state. Never gate application initialization on animation completion.
 - `src/splash-preview.html` replays the same implementation without opening a vault. Its preview-only animation handles support visual sampling. Validate desktop, narrow portrait/landscape, skip, reduced motion, missing assets and Electron reload behavior when changing the intro.

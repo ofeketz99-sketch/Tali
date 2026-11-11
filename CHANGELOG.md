@@ -1,3 +1,9 @@
+# 2.2 — Illustrated splash refinement (2026-11-11)
+
+- Reworked the opening around the supplied close-up reference: fine paper grain, irregular hand-drawn ink, a closer opening camera and a continuous eased pullback.
+- Replaced rigid CSS leaves with curved, shaded paper meshes. Page turns overlap, the cover closes with the page block, and the complete illustration dissolves into the unchanged original logo.
+- Preserves the three-second duration and existing session, skip and reduced-motion handling. Checked sampled desktop/mobile/landscape frames, missing assets, reduced motion, Electron startup/reload and existing tests.
+
 # 2.1 — Startup animation (2026-11-11)
 
 - Added a three-second book intro: close-up schematic handwriting, right-to-left page turns, closing blue cover with the unchanged original logo, then a logo dissolve into the application.

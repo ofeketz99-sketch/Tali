@@ -11,21 +11,18 @@
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-label', 'פתיח Tali');
   root.setAttribute('aria-modal', 'true');
-  const ink = `<svg class="tali-splash__ink" viewBox="0 0 210 280" aria-hidden="true"><g>${Array.from({ length: 9 }, (_, i) => {
-    const y = 51 + i * 20;
-    return `<path d="M31 ${y} q8 -7 15 0 t14 -1 m8 0 q8 -8 14 0 t19 -2 m9 1 q7 -6 13 0 t20 -1 ${i % 3 ? 'm8 0 l15 -2' : ''}"/>`;
-  }).join('')}</g><path opacity=".35" d="M31 235 Q83 230 124 236"/></svg>`;
-  const face = `<div class="tali-splash__face">${ink}</div><div class="tali-splash__face tali-splash__face--back">${ink}</div>`;
-  root.innerHTML = `<div class="tali-splash__stage" aria-hidden="true"><div class="tali-splash__camera"><div class="tali-splash__book"><div class="tali-splash__half tali-splash__half--left">${ink}</div><div class="tali-splash__half tali-splash__half--right">${ink}</div><div class="tali-splash__leaf tali-splash__cover"><div class="tali-splash__face">${ink}</div><div class="tali-splash__face tali-splash__face--back"><img src="logo.png" alt="" /></div></div>${Array.from({ length: 5 }, () => `<div class="tali-splash__leaf tali-splash__page">${face}</div>`).join('')}</div></div><img class="tali-splash__logo" src="logo.png" alt="" /></div><button class="tali-splash__skip" type="button">דלג על הפתיח</button>`;
+  root.innerHTML = `<canvas class="tali-splash__canvas" aria-hidden="true"></canvas><img class="tali-splash__asset" src="logo.png" alt="" hidden /><button class="tali-splash__skip" type="button">דלג על הפתיח</button>`;
   const previousFocus = document.activeElement;
   const blocked = [];
   const animations = [];
   let ended = false;
   let deadline;
+  let frame;
   function finish() {
     if (ended) return;
     ended = true;
     clearTimeout(deadline);
+    cancelAnimationFrame(frame);
     animations.forEach(a => a.cancel());
     root.remove();
     blocked.forEach(el => { el.inert = false; });
@@ -60,25 +57,20 @@
     return animation;
   };
   try {
-    const ease = 'cubic-bezier(.22,.7,.18,1)';
-    animate(root, [{ opacity: 1, offset: 0 }, { opacity: 1, offset: .87 }, { opacity: 0, offset: 1 }]).finished.then(finish, () => {});
-    animate(root.querySelector('.tali-splash__stage'), [{ opacity: 0 }, { opacity: 1, offset: .08 }, { opacity: 1 }]);
-    animate(root.querySelector('.tali-splash__camera'), [
-      { transform: 'translateX(-200px) scale(4.8) rotateX(26deg) rotateZ(-9deg)', easing: ease },
-      { transform: 'translateX(0px) scale(1) rotateX(20deg) rotateZ(-6deg)', offset: .5, easing: ease },
-      { transform: 'translateX(105px) scale(1) rotateX(0deg) rotateZ(0deg)', offset: .73 },
-      { transform: 'translateX(105px) scale(1) rotateX(0deg) rotateZ(0deg)' }
-    ]);
-    const pages = [...root.querySelectorAll('.tali-splash__page')];
-    pages.forEach((page, i) => {
-      // The top sheet turns first; each successive sheet covers the last on the left.
-      const delay = 230 + (pages.length - 1 - i) * 145;
-      animate(page, [{ transform: `translateZ(${i + 2}px) rotateY(0deg)`, easing: ease }, { transform: `translateZ(${15 - i}px) rotateY(-180deg)` }], 640, delay);
-    });
-    animate(root.querySelector('.tali-splash__cover'), [{ transform: 'translateZ(1px) rotateY(0deg)', easing: ease }, { transform: 'translateZ(30px) rotateY(-180deg)' }], 680, 1370);
-    animate(root.querySelector('.tali-splash__half--right'), [{ opacity: 1 }, { opacity: 0 }], 180, 1830);
-    animate(root.querySelector('.tali-splash__camera'), [{ opacity: 1 }, { opacity: 0 }], 320, 2180);
-    animate(root.querySelector('.tali-splash__logo'), [{ opacity: 0 }, { opacity: 1 }], 280, 2180);
+    if (!window.TaliSplashArt) { finish(); return; }
+    const timeline = animate(root, [{ opacity: 1, offset: 0 }, { opacity: 1, offset: .87 }, { opacity: 0, offset: 1 }]);
+    timeline.finished.then(finish, () => {});
+    const logo = root.querySelector('img');
+    logo.decode().then(() => {
+      if (ended) return;
+      const art = new window.TaliSplashArt(root.querySelector('canvas'), logo);
+      const paint = () => {
+        if (ended) return;
+        try { art.draw(Number(timeline.currentTime) || 0); frame = requestAnimationFrame(paint); }
+        catch { finish(); }
+      };
+      paint();
+    }).catch(finish);
     if (preview) window.taliSplashPreview = { animations, finish };
   } catch { finish(); }
 })();

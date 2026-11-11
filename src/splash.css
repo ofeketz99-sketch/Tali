@@ -1,20 +1,5 @@
 /* Brand colors are defined alongside the application palette in styles.css. */
 .tali-splash { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; overflow: hidden; background: var(--splash-bg); isolation: isolate; direction: ltr; }
-.tali-splash__stage { position: absolute; inset: 0; display: grid; place-items: center; perspective: 1500px; }
-.tali-splash__camera { width: 420px; height: 280px; transform-style: preserve-3d; }
-.tali-splash__book { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
-.tali-splash__half, .tali-splash__leaf { position: absolute; top: 0; width: 210px; height: 280px; transform-style: preserve-3d; }
-.tali-splash__half { background: var(--splash-paper); border-radius: 5px 12px 12px 5px; box-shadow: 0 2px var(--splash-edge), 0 4px var(--splash-paper), 0 6px var(--splash-edge), 0 8px var(--splash-paper), 0 11px var(--splash-cover), 0 22px 30px var(--splash-shadow); }
-.tali-splash__half--left { left: 0; border-radius: 12px 5px 5px 12px; background: linear-gradient(90deg, var(--splash-paper) 80%, var(--splash-edge)); }
-.tali-splash__half--right { left: 210px; background: linear-gradient(90deg, var(--splash-edge), var(--splash-paper) 14%); }
-.tali-splash__leaf { left: 210px; transform-origin: left center; }
-.tali-splash__face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 3px 10px 10px 3px; background: linear-gradient(90deg, var(--splash-edge), var(--splash-paper) 12%, var(--splash-paper) 85%, var(--splash-edge)); border: 1px solid var(--splash-edge); overflow: hidden; }
-.tali-splash__face--back { transform: rotateY(180deg); border-radius: 10px 3px 3px 10px; }
-.tali-splash__ink { width: 100%; height: 100%; fill: none; stroke: var(--splash-ink); stroke-width: 1.7; stroke-linecap: round; opacity: .54; }
-.tali-splash__cover .tali-splash__face--back { display: grid; place-items: center; background: linear-gradient(115deg, var(--splash-cover-light), var(--splash-cover)); border: 1px solid var(--splash-cover-light); box-shadow: inset -7px 0 9px var(--splash-shadow); }
-.tali-splash__cover img { width: 116px; height: 116px; object-fit: contain; }
-.tali-splash__logo { position: absolute; width: 116px; height: 116px; object-fit: contain; opacity: 0; }
+.tali-splash__canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .tali-splash__skip { position: absolute; bottom: max(26px, env(safe-area-inset-bottom)); right: max(26px, env(safe-area-inset-right)); min-height: 44px; padding: 8px 18px; border: 1px solid var(--splash-edge); border-radius: 24px; background: var(--splash-paper); color: var(--splash-ink); direction: rtl; font-size: 14px; }
 .tali-splash__skip:focus-visible { outline: 2px solid var(--splash-ink); outline-offset: 4px; }
-@media (max-width: 540px) { .tali-splash__camera { zoom: .66; } .tali-splash__logo { width: 76.56px; height: 76.56px; } }
-@media (max-height: 420px) { .tali-splash__camera { zoom: .66; } .tali-splash__logo { width: 76.56px; height: 76.56px; } }
