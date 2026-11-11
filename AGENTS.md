@@ -191,7 +191,7 @@
 
 ## Versioning and change documentation (effective 2026-11-11)
 
-- Baseline release is 1.1. Each small delivered update increments the tenths digit by one: 1.2, 1.3, etc.; after 1.9 use 2.0. The package version uses the corresponding semantic form (1.7.0 for release 1.7).
+- Baseline release is 1.1. Each small delivered update increments the tenths digit by one: 1.2, 1.3, etc.; after 1.9 use 2.0. The package version uses the corresponding semantic form (1.9.0 for release 1.9).
 - Every change to app behavior, appearance, persistence or file format requires a CHANGELOG.md entry. Update AGENTS.md when adding/changing an editor extension, architecture, serialization rule, or workflow.
 - State precisely what is delivered vs. partially supported or pending. Do not mark features as complete without testing on the Electron desktop build.
 - Check syntax/build before committing changes when a local Node environment is available. Test Markdown round-trips on representative notes, including Hebrew/English, code, math, images and tables. Keep the existing originals and avoid unintended rewrites.
@@ -200,9 +200,19 @@
 ### Image and drawing conventions
 - Embeds `![[image.png|300]]` support width in pixels. Tali optionally adds a wrapping flag `![[image.png|300|wrap-left]]` / `wrap-right` while retaining the filename and first width field.
 - The first width field is Obsidian-compatible. The third wrapping field is Tali-specific and may not produce the same wrapping in other Markdown editors.
-- Both ordinary and quick drawings are PNG attachments. Quick drawing starts at 480×180 with transparent background; regular drawing defaults to 900×520 and opaque white. They are inserted inline, not free-positioned across unrelated paragraphs.
-- The current custom image controls target `![[...]]` embeds. Markdown `![alt](url)` images are not yet covered.
+- Ordinary and quick drawings are still PNG attachments (regular 900×520, quick 480×180 transparent); these live inline in the Markdown text. **New:** the separate page overlay supports editable vector strokes positioned anywhere on the page without creating a PNG attachment.
+- Both Obsidian embeds `![[...]]` and ordinary Markdown `![alt](url)` images have size and wrapping controls; each offers reset. Styled ordinary images are serialized as HTML `<img ... data-tali-image="1" data-tali-wrap="left|right">` and plain, unstyled images remain Markdown. ObsidianMarkdown has a narrowly targeted exception to interpret these styled tags as image nodes.
 
 ### Editable text boxes
 - `Insert > תיבת טקסט` inserts a Markdown callout with a `[!TALI-BOX]` marker and editable inner paragraph. The callout decoration styles this as a box.
-- This is an in-flow editor object, not a draggable absolutely positioned text object. Preserve the marker in Markdown serialization and avoid changing the semantics of ordinary blockquotes.
+- The in-flow text box is a blockquote, distinct from the new draggable **floating text box** saved by page-overlay.js. Keep both; preserve the marker in Markdown serialization and avoid changing ordinary blockquotes.
+
+
+### Page overlay (v1.8+)
+- `src/page-overlay.js`: SVG pen, arrow, line, rectangle and ellipse, plus text boxes moved by dragging their header and resized via a grip. Tool buttons are under Insert and in a temporary floating toolbar. Escape exits drawing mode; shapes can be selected, dragged, recolored and deleted.
+- `src/overlay-data.js`: pure `splitOverlay` / `joinOverlay` plus whitelisting and bounding. Annotation geometry is stored in exactly one trailing HTML comment, `<!-- TALI-OVERLAY:v1:<URL-encoded JSON> -->`, within the same note. The body text and its LF/CRLF/trailing blank lines must be byte-for-byte preserved by these helpers. URL encoding is **not encryption**.
+- `editor.js` must extract the marker before invoking the TipTap Markdown parser and append it on rich serialization. In raw Markdown view the comment is visible and editable. An invalid/unrecognized marker must remain untouched. Changing notes must reload the correct annotation list. Disable the overlay when there is no open note or when raw Markdown mode is active.
+- Shape coordinates are pixel offsets relative to the note page, **not anchored to a particular word or ProseMirror position**. Text reflow, font changes and page-width changes can require manual repositioning; do not describe it as semantic anchoring.
+- Annotations do not replace PNG drawings, in-flow callouts or Obsidian embeds.
+- Use SVG paths, no emoji-only interface icons. Existing icon identifiers are in `src/icons.js`.
+- Use `npm test` for pure metadata persistence checks. Always build with `npm run build` and test editing, raw/rich switching, image-style roundtrips and page-overlay interactions in Electron on a copy of a representative Markdown vault before deeming a release stable.
