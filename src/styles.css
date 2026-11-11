@@ -859,7 +859,7 @@ dialog { border-radius: 18px; }
   grid-template-columns: 0px minmax(0, var(--page-width)) calc(var(--dc-rail-w) + var(--dc-panel-w) + 10px);
 }
 #empty { grid-column: 1 / -1; }
-#page { grid-area: page; width: 100%; max-width: none; margin: 0; }
+#page { grid-area: page; width: 100%; max-width: none; margin: 0; align-self: start; } /* בלי start, השורה של ה־grid נשארה בגובה המינימלי (1050px) והרקע של הדף נחתך במסמך ארוך */
 #docCtx {
   grid-area: ctx; position: sticky; top: 0; /* top נמדד מתוך הריווח של pageWrap, ולכן 0 = בגובה ראש הדף */ align-self: start; z-index: 12;
   display: flex; gap: 10px; justify-content: flex-end;
