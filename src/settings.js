@@ -82,7 +82,6 @@ export function applyPrefs() {
   if (prefs.pageLook) delete root.dataset.page; else root.dataset.page = 'flat';
   root.dataset.textdir = prefs.textDir;
   if (prefs.justify) root.dataset.justify = 'on'; else delete root.dataset.justify;
-  if (prefs.showBacklinks) delete root.dataset.backlinks; else root.dataset.backlinks = 'off';
   for (const fn of listeners) fn(prefs);
 }
 
@@ -210,7 +209,6 @@ function buildDialog() {
     row('מסמך חדש נוצר', null, select('newNoteLocation', [['selected', 'בתיקייה שנבחרה בעץ'], ['root', 'בתיקייה הראשית']])),
     row('תמונות מיובאות נשמרות', null, select('attachMode', [['folder', 'בתיקייה קבועה'], ['beside', 'ליד המסמך']], { onChange: refresh })),
     row('שם התיקייה לתמונות', 'בתוך התיקייה הראשית', folderInput),
-    row('קישורים חוזרים', 'הרשימה מתחת לדף', check('showBacklinks')),
   );
 
   const reset = el('button', { type: 'button', on: { click: () => { prefs = { ...DEFAULTS }; setPref('accent', DEFAULTS.accent); refresh(); } } }, 'איפוס לברירת המחדל');

@@ -1,7 +1,8 @@
 // נקודת הכניסה של הממשק: מחברת בין העורך, הסרגל והקבצים.
 import { createEditor } from './editor.js';
 import { buildToolbar } from './toolbar.js';
-import { renderTree, renderSearchResults, renderBacklinks } from './sidebar.js';
+import { renderTree, renderSearchResults } from './sidebar.js';
+import { createContextPanel, countWords } from './context-panel.js';
 import { resolveLink, extractLinks, getFrontmatterLinks, setFrontmatterLinks } from '../links.js';
 import { openLinkPicker } from './linkpicker.js';
 import { showLinkHubOffer } from './linkhub.js';
@@ -161,6 +162,7 @@ const noteChanged = () => {
   state.dirty = true;
   setSaveState('dirty');
   scheduleWordCount();
+  docPanel?.scheduleRefresh();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSave, 600);
 };
@@ -356,13 +358,13 @@ function updateWordCount() {
   const out = $('wordCount');
   if (!state.currentPath) { out.textContent = ''; return; }
   const text = editorApi.isRaw() ? $('raw').value : (document.querySelector('#editor .ProseMirror')?.innerText || '');
-  const n = (text.match(/[\p{L}\p{N}][\p{L}\p{N}'"\u05F3\u05F4־-]*/gu) || []).length;
+  const n = countWords(text);
   out.textContent = n === 1 ? 'מילה אחת' : `${n.toLocaleString('he-IL')} מילים`;
 }
 let wordTimer = null;
 function scheduleWordCount() { clearTimeout(wordTimer); wordTimer = setTimeout(updateWordCount, 400); }
 
-// פס גלילה שמופיע רק בגלילה או בריחוף על האזור הנגלל
+// פס גלילה שמופיע רק בזמן גלילה או בריחוף על הפס עצמו
 const scrollTimers = new WeakMap();
 document.addEventListener('scroll', (e) => {
   const el = e.target === document ? document.documentElement : e.target;
@@ -611,15 +613,7 @@ async function openLink(target) {
 }
 
 let backlinksToken = 0;
-async function refreshBacklinks() {
-  const box = $('backlinks');
-  if (!state.currentPath) { box.hidden = true; return; }
-  const token = ++backlinksToken;
-  const list = await window.api.backlinks(state.currentPath).catch(() => []);
-  if (token !== backlinksToken) return; // בינתיים נפתחה הערה אחרת
-  box.hidden = false;
-  renderBacklinks(box, list, (p) => openNote(p));
-}
+function refreshBacklinks() { docPanel?.refreshBacklinks(); }
 
 async function goHistory(dir) {
   const from = dir < 0 ? state.back : state.forward;
@@ -647,10 +641,9 @@ async function enterRoot(r) {
   state.back = [];
   state.forward = [];
   state.recent = store.get('recent:' + r.root, []);
-  $('linksPanel').hidden = true;
   state.collapsed = new Set(store.get('collapsed:' + r.root, []));
   $('page').hidden = true;
-  $('empty').hidden = false;
+  $('empty').hidden = false; docPanel?.layout();
   $('btnPickBig').hidden = true;
   setSaveState('');
   $('wordCount').textContent = '';
@@ -680,7 +673,7 @@ async function renameNode(node) {
       await reloadFromDisk();
     }
     await refreshTree();
-    if (!state.currentPath) { pageOverlay.setEnabled(false); $('page').hidden = true; $('empty').hidden = false; }
+    if (!state.currentPath) { pageOverlay.setEnabled(false); $('page').hidden = true; $('empty').hidden = false; docPanel?.layout(); }
     else setStatus(prettyPath(state.currentPath));
     const others = changed.filter((p) => p !== to).length;
     if (others) setStatus(`הקישורים עודכנו ב־${others} מסמכים`);
@@ -702,7 +695,7 @@ async function deleteNode(node) {
       state.dirty = false;
       pageOverlay.setEnabled(false);
       $('page').hidden = true;
-      $('empty').hidden = false;
+      $('empty').hidden = false; docPanel?.layout();
     }
     await refreshTree();
   } catch (err) { setStatus(err.message); }
@@ -911,67 +904,33 @@ async function applyNoteLinks(target, paths) {
   } catch (err) { setStatus('שגיאה בשמירת הקישורים: ' + err.message); }
 }
 
-// ===== לוח "קישורים" לצד הדף: מצומצם כברירת מחדל, נפתח בלחיצה =====
-let linksOpen = store.get('linksPanelOpen', false);
-function refreshLinksPanel() {
-  const panel = $('linksPanel');
-  // פריסה (ב־CSS, grid): מצומצם הלוח יושב מעל הדף, צמוד לקצה שלו. פתוח הוא עמודה לצד הדף, מיושר לראש הדף.
-  $('pageWrap').classList.toggle('links-open', !!state.currentPath && linksOpen);
-  if (!state.currentPath) { panel.hidden = true; return; }
-  const files = allNotes().map((n) => n.path);
-  const targets = getFrontmatterLinks(editorApi.getMarkdown());
-  panel.hidden = false;
-  panel.classList.toggle('open', linksOpen);
-  panel.innerHTML = '';
-
-  const head = document.createElement('button');
-  head.type = 'button';
-  head.className = 'lk-head';
-  head.dataset.tip = linksOpen ? 'צמצום' : 'הצגת הקישורים של המסמך';
-  head.innerHTML = `${icon('link', 16)}<span>קישורים</span><span class="lk-count">${targets.length}</span>${icon('chevron', 14)}`;
-  head.addEventListener('click', () => {
-    linksOpen = !linksOpen;
-    store.set('linksPanelOpen', linksOpen);
-    panel.classList.toggle('open', linksOpen);
-    $('pageWrap').classList.toggle('links-open', linksOpen);
-    head.dataset.tip = linksOpen ? 'צמצום' : 'הצגת הקישורים של המסמך';
-  });
-  panel.append(head);
-  // משאירים את גוף החלונית ב-DOM גם בסגירה, כדי לאפשר אנימציית גובה/דהייה.
-  const body = document.createElement('div');
-  body.className = 'lk-body';
-  if (!targets.length) {
-    const empty = document.createElement('div');
-    empty.className = 'lk-empty';
-    empty.textContent = 'עוד אין קישורים לפתקים אחרים.';
-    body.append(empty);
-  }
-  targets.forEach((t, i) => {
-    const p = resolveLink(t, files, state.root);
-    const row = document.createElement('div');
-    row.className = 'lk-item' + (p ? '' : ' missing');
-    row.style.setProperty('--i', Math.min(i, 10));
-    row.innerHTML = `${icon('file', 15)}<span class="lk-name"></span><button type="button" class="lk-remove" data-tip="הסרת הקישור">${icon('close', 13)}</button>`;
-    row.querySelector('.lk-name').textContent = t.split('/').pop();
-    if (!p) row.dataset.tip = 'הפתק לא קיים';
-    row.addEventListener('click', (e) => {
-      if (e.target.closest('.lk-remove')) {
-        const remaining = targets.filter((_, k) => k !== i).map((x) => resolveLink(x, files, state.root)).filter(Boolean);
-        applyNoteLinks(state.currentPath, remaining);
-        return;
-      }
-      if (p) openNote(p);
-    });
-    body.append(row);
-  });
-  const add = document.createElement('button');
-  add.type = 'button';
-  add.className = 'lk-add';
-  add.innerHTML = `${icon('plus', 15)}<span>קישור לפתקים…</span>`;
-  add.addEventListener('click', () => pickLinksFor(state.currentPath));
-  body.append(add);
-  panel.append(body);
-}
+// ===== לוח ההקשר (src/context-panel.js): קישורים, קישורים חוזרים, ראשי פרקים, משימות, מידע =====
+// eslint-disable-next-line prefer-const
+var docPanel = createContextPanel({
+  root: $('docCtx'), wrap: $('pageWrap'), icon, store,
+  api: {
+    getPath: () => state.currentPath,
+    getMarkdown: () => editorApi.getMarkdown(),
+    isRaw: () => editorApi.isRaw(),
+    getEditor: () => editorApi.editor,
+    resolve: (t) => resolveTarget(t),
+    openLink: (t) => openLink(t),
+    openNote: (p) => openNote(p),
+    backlinks: (p) => window.api.backlinks(p),
+    pickLinks: () => pickLinksFor(state.currentPath),
+    removeFrontLink: (t) => {
+      const files = allNotes().map((n) => n.path);
+      const remaining = getFrontmatterLinks(editorApi.getMarkdown()).filter((x) => x !== t)
+        .map((x) => resolveLink(x, files, state.root)).filter(Boolean);
+      applyNoteLinks(state.currentPath, remaining);
+    },
+    showTag: (t) => showTags(t),
+    addTaskSection: () => insertTaskSection(),
+    getMtime: () => state.mtime,
+    prettyPath: (p) => prettyPath(p),
+  },
+});
+function refreshLinksPanel() { docPanel.refresh(); }
 
 // ===== כפתורים =====
 $('btnPick').addEventListener('click', async () => enterRoot(await window.api.pickFolder()));
@@ -1175,6 +1134,12 @@ const COMMANDS = [
   { title: 'משימות בכל המסמכים', keys: 'Ctrl+Shift+T', run: showTasks, needs: 'root' },
   { title: 'מסמכי רפאים (קישורים למסמכים שלא נוצרו)', run: showGhosts, needs: 'root' },
   { title: 'משימות להמשך בסוף המסמך', run: insertTaskSection, needs: 'note' },
+  { title: 'לוח ההקשר: קישורים', run: () => docPanel.open('links'), needs: 'note' },
+  { title: 'לוח ההקשר: קישורים חוזרים', run: () => docPanel.open('back'), needs: 'note' },
+  { title: 'לוח ההקשר: ראשי פרקים', run: () => docPanel.open('outline'), needs: 'note' },
+  { title: 'לוח ההקשר: משימות במסמך', run: () => docPanel.open('tasks'), needs: 'note' },
+  { title: 'לוח ההקשר: מידע על המסמך', run: () => docPanel.open('info'), needs: 'note' },
+  { title: 'סגירת לוח ההקשר', run: () => docPanel.open(null), needs: 'note' },
   { title: 'הוספת מאפיינים', run: () => editorApi.addProperties(), needs: 'note' },
   { title: 'ייצוא ל־PDF', run: () => exportNote('pdf'), needs: 'note' },
   { title: 'ייצוא ל־Word', run: () => exportNote('doc'), needs: 'note' },
