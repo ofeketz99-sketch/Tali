@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('api', {
   saveAttachment: call('save-attachment'),
   reveal: call('reveal'),
   duplicate: call('duplicate'),
+  copyTable: call('copy-table'),
   saveConflictCopy: call('save-conflict-copy'),
   writeImage: call('write-image'),
 });
