@@ -99,12 +99,14 @@ function setupMarkdownIt(md) {
   // הערות HTML (<!-- -->, למשל של תוסף החזרה המרווחת) תמיד נשמרות
   md.renderer.rules.html_block = (tokens, i, ...rest) => {
     const html = tokens[i].content;
+    if (/\bdata-tali-image\s*=\s*["']?1\b/.test(html)) return defaultBlock(tokens, i, ...rest);
     if (!html.includes('<!--') && tagNames(html).every((t) => KNOWN_BLOCK_TAGS.has(t))) return defaultBlock(tokens, i, ...rest);
     return `<div data-raw-html="${esc(html.replace(/\n+$/, ''))}"></div>`;
   };
   const defaultInline = md.renderer.rules.html_inline || ((t, i) => t[i].content);
   md.renderer.rules.html_inline = (tokens, i, ...rest) => {
     const html = tokens[i].content;
+    if (/\bdata-tali-image\s*=\s*["']?1\b/.test(html)) return defaultInline(tokens, i, ...rest);
     if (!html.includes('<!--') && tagNames(html).every((t) => KNOWN_INLINE_TAGS.has(t))) return defaultInline(tokens, i, ...rest);
     return `<span data-raw-inline="${esc(html)}"></span>`;
   };
