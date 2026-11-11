@@ -185,6 +185,8 @@ export function attachTableBar(editor, scroller) {
   }
   bar.append(colors);
   function toggleColors() { colors.hidden = !colors.hidden; }
+  // לחיצה מחוץ לבוחר הצבעים סוגרת אותו (גם לחיצה בתא אחר)
+  window.addEventListener('pointerdown', (e) => { if (!colors.hidden && !colors.contains(e.target) && !colorBtn?.contains(e.target)) colors.hidden = true; }, true);
 
   function tableElement() {
     const { from } = editor.state.selection;

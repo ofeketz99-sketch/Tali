@@ -365,6 +365,13 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
     if (tab === 'back') renderBody();
   }
 
+  // לחיצה מחוץ ללוח: כשהוא מעל הדף (חלון צר) כל לחיצה בחוץ סוגרת. כשהוא לצד הדף, רק לחיצה על הרקע הריק.
+  function outsideClick(target) {
+    if (!tab || root.contains(target)) return;
+    if (target.closest?.('.tb-menu, dialog, #tip')) return;
+    if (wrap.classList.contains('dc-narrow') || target === wrap) setTab(null);
+  }
+
   setTab(tab);
-  return { refresh, scheduleRefresh, refreshBacklinks, open: (id) => setTab(id), layout };
+  return { refresh, scheduleRefresh, refreshBacklinks, open: (id) => setTab(id), layout, outsideClick };
 }

@@ -1244,3 +1244,37 @@ body[data-sidebar-mode="compact"] .side-top #btnNote {
 #tree .node.dragging { opacity: .45; }
 #tree .node.drop-target { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-line); }
 #tree.drop-root { box-shadow: inset 0 0 0 2px var(--accent-line); border-radius: 10px; }
+
+/* =====================================================================
+   3.6: סרגל צף ליד טקסט מסומן, תפריט "עוד" בסרגל, מצב מיקוד
+   ===================================================================== */
+/* הסרגל העליון בשורה אחת. קבוצות שלא נכנסות עוברות לתפריט "עוד" (fit ב־toolbar.js) */
+#toolbar { flex-wrap: nowrap; overflow: hidden; }
+#toolbar .tb-group { flex: none; }
+.tb-group[hidden] { display: none; }
+.tb-menu.tb-more-menu { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; padding: 6px; }
+.tb-menu.tb-more-menu .tb-group { justify-content: center; }
+
+/* הסרגל הצף */
+.tb-bubble {
+  position: fixed; z-index: 35; display: flex; align-items: center; gap: 1px; padding: 3px;
+  background: var(--panel-bg); border: 1px solid var(--accent-line); border-radius: 11px; box-shadow: var(--shadow-lift);
+}
+.tb-bubble[hidden] { display: none; }
+.tb-bubble.show { animation: bubble-in .18s var(--spring) both; }
+@keyframes bubble-in { from { opacity: 0; transform: translateY(4px) scale(.96); } }
+.tb-bubble .tb-btn { height: 30px; min-width: 30px; padding: 0 6px; }
+.tb-bubble-sep { width: 1px; height: 18px; margin: 0 3px; background: var(--border); }
+
+/* מצב מיקוד */
+body[data-focus] #sidebar, body[data-focus] #toolbar, body[data-focus] #statusBar, body[data-focus] #docCtx { display: none !important; }
+body[data-focus] #pageWrap { grid-template-columns: minmax(0, var(--page-width)); grid-template-areas: "page"; padding-top: 44px; }
+body[data-focus] #page { animation: rise-spring .4s var(--spring); }
+#focusExit {
+  position: fixed; z-index: 30; top: 10px; inset-inline-end: 14px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border: 1px solid var(--accent-line); border-radius: 999px; background: var(--panel-bg); color: var(--muted);
+  font-size: 12px; opacity: .45; transition: opacity .2s var(--ease), color .2s var(--ease);
+}
+#focusExit:hover, #focusExit:focus-visible { opacity: 1; color: var(--accent-strong); }
+#focusExit[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .tb-bubble.show, body[data-focus] #page { animation: none; } }

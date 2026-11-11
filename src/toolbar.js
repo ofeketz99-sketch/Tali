@@ -18,13 +18,23 @@ const STYLES = [
 
 // ===== תפריט קופץ קטן מתחת לכפתור =====
 let openMenuEl = null;
-export function closeMenu() { openMenuEl?.remove(); openMenuEl = null; }
-function openMenu(anchor, fill) {
+let openMenuOnClose = null;
+let fallbackAnchor = null; // כפתור "עוד": עוגן לתפריט של כפתור שחזר לקבוצה מוסתרת
+export function closeMenu() {
+  const fn = openMenuOnClose;
+  openMenuOnClose = null;
+  fn?.();
+  openMenuEl?.remove();
+  openMenuEl = null;
+}
+function openMenu(anchor, fill, onClose) {
   closeMenu();
   const m = document.createElement('div');
   m.className = 'tb-menu';
   fill(m);
   document.body.append(m);
+  openMenuOnClose = onClose || null;
+  if (!anchor.getClientRects().length && fallbackAnchor) anchor = fallbackAnchor;
   const r = anchor.getBoundingClientRect();
   m.style.top = r.bottom + 6 + 'px';
   m.style.left = Math.max(8, Math.min(r.right - m.offsetWidth, window.innerWidth - m.offsetWidth - 8)) + 'px';
@@ -165,16 +175,112 @@ export function buildToolbar(container, editorApi, actions = {}) {
     }),
   });
 
-  // ===== תצוגת Markdown =====
+  // ===== עוד: קבוצות שלא נכנסות בשורה אחת עוברות לתפריט =====
+  const gMore = group('tb-more');
+  const moreBtn = button(gMore, { html: icon('more', 19), tip: 'עוד כלים', run: () => openMore() });
+  gMore.hidden = true; // מופיע רק כש־fit מסתיר קבוצה
+  fallbackAnchor = moreBtn;
+
+  // ===== מצב מיקוד ותצוגת Markdown =====
   const g8 = group('tb-end');
+  button(g8, { html: icon('focus', 19), tip: 'מצב מיקוד: רק הדף (F11)', run: () => actions.onFocusMode?.() });
   const rawBtn = button(g8, {
     html: icon('markdown', 20), tip: 'תצוגת Markdown: הטקסט הגולמי של המסמך (Ctrl+E)',
     run: () => rawBtn.classList.toggle('is-active', editorApi.toggleRaw()),
   });
   rawBtn.id = 'btnRaw';
 
+  // ----- התאמה לרוחב: מסתירים קבוצות לפי הסדר, והן מופיעות בתפריט "עוד" -----
+  // הסדר: יישור, צבעים, רשימות, ביטול/חזרה. סגנון, B I U S והוספה תמיד בשורה.
+  const collapsible = [g6, g4, g5, g1];
+  const marks = new Map(collapsible.map((g) => { const c = document.createComment('tb'); g.before(c); return [g, c]; }));
+  let hiddenGroups = [];
+  const putBack = () => { for (const g of collapsible) { marks.get(g).after(g); g.hidden = hiddenGroups.includes(g); } };
+  function fit() {
+    if (openMenuEl && openMenuEl.classList.contains('tb-more-menu')) closeMenu();
+    hiddenGroups = [];
+    putBack();
+    gMore.hidden = true;
+    const over = () => container.scrollWidth > container.clientWidth + 1;
+    for (const g of collapsible) {
+      if (!over()) break;
+      g.hidden = true;
+      hiddenGroups.push(g);
+      gMore.hidden = false;
+    }
+  }
+  function openMore() {
+    if (!hiddenGroups.length) return;
+    openMenu(moreBtn, (m) => {
+      m.classList.add('tb-more-menu');
+      // בתפריט: באותו סדר כמו בסרגל
+      for (const g of collapsible.filter((x) => hiddenGroups.includes(x)).reverse()) { g.hidden = false; m.append(g); }
+    }, putBack);
+  }
+  new ResizeObserver(() => fit()).observe(container);
+  window.addEventListener('resize', () => requestAnimationFrame(fit));
+
+  // ----- סרגל צף ליד טקסט מסומן -----
+  const bubble = document.createElement('div');
+  bubble.className = 'tb-bubble';
+  bubble.hidden = true;
+  bubble.setAttribute('role', 'toolbar');
+  bubble.setAttribute('aria-label', 'עיצוב הטקסט המסומן');
+  document.body.append(bubble);
+  const bb = (opts) => button(bubble, opts);
+  bb({ html: icon('bold', 17), tip: 'מודגש (Ctrl+B)', run: () => chain().toggleBold().run(), active: () => editor.isActive('bold') });
+  bb({ html: icon('italic', 17), tip: 'נטוי (Ctrl+I)', run: () => chain().toggleItalic().run(), active: () => editor.isActive('italic') });
+  bb({ html: icon('underline', 17), tip: 'קו תחתון (Ctrl+U)', run: () => chain().toggleUnderline().run(), active: () => editor.isActive('underline') });
+  bb({ html: icon('strike', 17), tip: 'קו חוצה', run: () => chain().toggleStrike().run(), active: () => editor.isActive('strike') });
+  bubble.append(Object.assign(document.createElement('span'), { className: 'tb-bubble-sep' }));
+  bb({
+    html: icon('textColor', 17), tip: 'צבע טקסט',
+    run: (b) => swatchMenu(b, TEXT_COLORS, (c) => (c ? chain().setColor(c).run() : chain().unsetColor().run()), () => editor.getAttributes('textStyle').color),
+  });
+  bb({
+    html: icon('highlight', 17), tip: 'צבע הדגשה (מרקר)', active: () => editor.isActive('highlight'),
+    run: (b) => swatchMenu(b, HIGHLIGHTS, (c) => (c ? chain().setHighlight({ color: c }).run() : chain().unsetHighlight().run()), () => editor.getAttributes('highlight').color),
+  });
+  bb({ html: icon('code', 17), tip: 'קוד בשורה', run: () => chain().toggleCode().run(), active: () => editor.isActive('code') });
+
+  let selecting = false; // בזמן גרירת בחירה עם העכבר: מחכים לשחרור
+  editor.view.dom.addEventListener('mousedown', () => { selecting = true; bubble.hidden = true; });
+  window.addEventListener('mouseup', () => { if (selecting) { selecting = false; setTimeout(placeBubble, 0); } });
+  function bubbleWanted() {
+    const sel = editor.state.selection;
+    if (selecting || sel.empty || editorApi.isRaw() || !editor.isFocused) return false;
+    if (sel.node || sel.$anchorCell) return false; // תמונה או בחירת תאים בטבלה
+    if (editor.isActive('codeBlock')) return false;
+    return editor.state.doc.textBetween(sel.from, sel.to, ' ').trim().length > 0;
+  }
+  function placeBubble() {
+    if (!bubbleWanted()) { bubble.hidden = true; return; }
+    const { from, to } = editor.state.selection;
+    const a = editor.view.coordsAtPos(from);
+    const z = editor.view.coordsAtPos(to);
+    const wasHidden = bubble.hidden;
+    bubble.hidden = false;
+    const w = bubble.offsetWidth;
+    const h = bubble.offsetHeight;
+    const top = Math.min(a.top, z.top);
+    const bottom = Math.max(a.bottom, z.bottom);
+    const minTop = container.getBoundingClientRect().bottom + 6;
+    let y = top - h - 8;
+    if (y < minTop) y = bottom + 8;
+    const mid = a.top === z.top ? (a.left + z.right) / 2 : (a.left + z.left) / 2;
+    bubble.style.top = Math.round(y) + 'px';
+    bubble.style.left = Math.round(Math.max(8, Math.min(mid - w / 2, window.innerWidth - w - 8))) + 'px';
+    if (wasHidden) { bubble.classList.remove('show'); void bubble.offsetWidth; bubble.classList.add('show'); }
+  }
+  editor.on('selectionUpdate', () => setTimeout(placeBubble, 0));
+  editor.on('blur', () => setTimeout(() => { if (!editor.isFocused && !openMenuEl) bubble.hidden = true; }, 120));
+  window.addEventListener('resize', () => { if (!bubble.hidden) placeBubble(); });
+  document.addEventListener('scroll', () => { if (!bubble.hidden) placeBubble(); }, true);
+
   const refresh = () => { for (const fn of refreshers) fn(); };
   editor.on('transaction', refresh);
   editor.on('selectionUpdate', refresh);
   refresh();
+  requestAnimationFrame(fit);
+  return { hideBubble: () => { bubble.hidden = true; }, fit };
 }

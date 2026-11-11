@@ -196,12 +196,72 @@ const useOverlay = (tool) => {
   else pageOverlay.openDrawing();
   setStatus('בחר כלי ושרטט על הדף. Esc מסיים את הקבוצה.');
 };
-buildToolbar($('toolbar'), editorApi, {
+const toolbarApi = buildToolbar($('toolbar'), editorApi, {
   onImage: importImages,
   onDraw: newDrawing,
   onOverlayDraw: useOverlay,
   onTaskSection: insertTaskSection,
+  onFocusMode: () => toggleFocusMode(),
 });
+
+// ===== מצב מיקוד: רק הדף. הסרגלים, שורת המצב ולוח ההקשר מוסתרים. F11 או הכפתור בפינה יוצאים =====
+const focusExit = document.createElement('button');
+focusExit.type = 'button';
+focusExit.id = 'focusExit';
+focusExit.hidden = true;
+focusExit.innerHTML = `${icon('focusExit', 16)}<span>יציאה ממצב מיקוד</span>`;
+focusExit.dataset.tip = 'יציאה ממצב מיקוד (F11)';
+focusExit.addEventListener('click', () => toggleFocusMode(false));
+document.body.append(focusExit);
+function toggleFocusMode(on = !document.body.dataset.focus) {
+  if (on && !state.currentPath) return;
+  if (on) document.body.dataset.focus = '1'; else delete document.body.dataset.focus;
+  focusExit.hidden = !on;
+  if (on) editorApi.editor.commands.focus();
+}
+
+// ===== מיקום בכל מסמך: גלילה וסמן, כדי שחזרה למסמך תמשיך מאותו מקום =====
+let docPositions = new Map();
+const positionsKey = () => 'tali:pos:' + state.root;
+function loadPositions() { docPositions = new Map(store.get(positionsKey(), [])); }
+function rememberPosition() {
+  if (!state.currentPath || !state.root) return;
+  const cursor = editorApi.isRaw() ? null : editorApi.editor.state.selection.from;
+  docPositions.delete(state.currentPath);
+  docPositions.set(state.currentPath, { s: Math.round($('pageWrap').scrollTop), c: cursor });
+  while (docPositions.size > 300) docPositions.delete(docPositions.keys().next().value);
+  store.set(positionsKey(), [...docPositions]);
+}
+function restorePosition(p) {
+  const wrap = $('pageWrap');
+  const saved = docPositions.get(p);
+  const jump = (top) => { wrap.style.scrollBehavior = 'auto'; wrap.scrollTop = top; wrap.style.scrollBehavior = ''; };
+  if (!saved) { jump(0); return; }
+  if (saved.c != null && !editorApi.isRaw()) {
+    const size = editorApi.editor.state.doc.content.size;
+    try { editorApi.editor.commands.setTextSelection(Math.max(1, Math.min(saved.c, size - 1))); } catch { /* מסמך שהשתנה מבחוץ */ }
+  }
+  // תמונות והטמעות נטענות אחרי הפתיחה ומגדילות את הדף, ולכן מנסים שוב, כל עוד המשתמש לא גלל בעצמו
+  jump(saved.s);
+  let tries = 0;
+  const again = () => {
+    if (state.currentPath !== p || Math.abs(wrap.scrollTop - saved.s) < 2 || ++tries > 6) return;
+    jump(saved.s);
+    setTimeout(again, 120);
+  };
+  requestAnimationFrame(again);
+}
+let positionTimer = null;
+$('pageWrap').addEventListener('scroll', () => { clearTimeout(positionTimer); positionTimer = setTimeout(rememberPosition, 400); }, { passive: true });
+
+// ===== לחיצה מחוץ לחלון משני סוגרת אותו =====
+// (תפריטים, תצוגה מקדימה, הצעת פתק קישור, חלונות dialog ותפריט ימני סוגרים את עצמם. כאן: לוח ההקשר והודעות)
+document.addEventListener('pointerdown', (e) => {
+  const t = e.target;
+  const toast = $('toast');
+  if (toast && !toast.hidden && !toast.contains(t)) toast.hidden = true;
+  docPanel?.outsideClick(t);
+}, true);
 
 // ===== צד ימין: פתוח או פס אייקונים =====
 // מצב "מוסתר" ישן (עד 3.0) חוזר כפס אייקונים, כדי שהסרגל לא ייעלם בלי דרך להחזיר אותו.
@@ -548,6 +608,7 @@ function targetDir() {
 
 async function openNote(p, { history = true } = {}) {
   await flushSave();
+  rememberPosition();
   const md = await window.api.read(p);
   const mtime = await window.api.mtime(p);
   if (history && state.currentPath && state.currentPath !== p) {
@@ -564,7 +625,7 @@ async function openNote(p, { history = true } = {}) {
   pageOverlay.setEnabled(!editorApi.isRaw());
   $('empty').hidden = true;
   $('page').hidden = false;
-  $('pageWrap').scrollTop = 0;
+  restorePosition(p);
   setSaveState('saved');
   // כניסה רכה של הדף בכל פתיחת הערה
   const pg = $('page');
@@ -628,7 +689,10 @@ async function goHistory(dir) {
 async function enterRoot(r) {
   if (!r) return;
   await flushSave();
+  rememberPosition();
+  toggleFocusMode(false);
   state.root = r.root;
+  loadPositions();
   state.tree = r.tree;
   $('vaultName').textContent = r.root.split(/[\\/]/).filter(Boolean).pop() || r.root;
   $('vaultName').title = r.root;
@@ -643,7 +707,7 @@ async function enterRoot(r) {
   state.recent = store.get('recent:' + r.root, []);
   state.collapsed = new Set(store.get('collapsed:' + r.root, []));
   $('page').hidden = true;
-  $('empty').hidden = false; docPanel?.layout();
+  $('empty').hidden = false; docPanel?.layout(); toggleFocusMode(false);
   $('btnPickBig').hidden = true;
   setSaveState('');
   $('wordCount').textContent = '';
@@ -673,7 +737,7 @@ async function renameNode(node) {
       await reloadFromDisk();
     }
     await refreshTree();
-    if (!state.currentPath) { pageOverlay.setEnabled(false); $('page').hidden = true; $('empty').hidden = false; docPanel?.layout(); }
+    if (!state.currentPath) { pageOverlay.setEnabled(false); $('page').hidden = true; $('empty').hidden = false; docPanel?.layout(); toggleFocusMode(false); }
     else setStatus(prettyPath(state.currentPath));
     const others = changed.filter((p) => p !== to).length;
     if (others) setStatus(`הקישורים עודכנו ב־${others} מסמכים`);
@@ -695,7 +759,7 @@ async function deleteNode(node) {
       state.dirty = false;
       pageOverlay.setEnabled(false);
       $('page').hidden = true;
-      $('empty').hidden = false; docPanel?.layout();
+      $('empty').hidden = false; docPanel?.layout(); toggleFocusMode(false);
     }
     await refreshTree();
   } catch (err) { setStatus(err.message); }
@@ -1134,6 +1198,7 @@ const COMMANDS = [
   { title: 'משימות בכל המסמכים', keys: 'Ctrl+Shift+T', run: showTasks, needs: 'root' },
   { title: 'מסמכי רפאים (קישורים למסמכים שלא נוצרו)', run: showGhosts, needs: 'root' },
   { title: 'משימות להמשך בסוף המסמך', run: insertTaskSection, needs: 'note' },
+  { title: 'מצב מיקוד (רק הדף)', keys: 'F11', run: () => toggleFocusMode(), needs: 'note' },
   { title: 'לוח ההקשר: קישורים', run: () => docPanel.open('links'), needs: 'note' },
   { title: 'לוח ההקשר: קישורים חוזרים', run: () => docPanel.open('back'), needs: 'note' },
   { title: 'לוח ההקשר: ראשי פרקים', run: () => docPanel.open('outline'), needs: 'note' },
@@ -1195,7 +1260,7 @@ window.addEventListener('mouseup', (e) => {
   if (e.button === 3) goHistory(-1);
   if (e.button === 4) goHistory(1);
 });
-window.addEventListener('beforeunload', () => { if (state.dirty) flushSave(); });
+window.addEventListener('beforeunload', () => { rememberPosition(); if (state.dirty) flushSave(); });
 
 // ===== התחלה =====
 (async () => {
