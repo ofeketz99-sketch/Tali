@@ -914,38 +914,88 @@ dialog { border-radius: 18px; }
 .table-bar button { height: 30px; padding: 0 8px; }
 .table-bar button:not(:has(span)) { width: 30px; padding: 0; }
 
-/* ===== כפתור "מסמך חדש": מילוי בגרדיאנט עדין עם מרקם נייר =====
-   שלוש שכבות: ברק רך מלמעלה, מרקם גרגירי (רעש SVG אפור, בלי צבע קבוע), וגרדיאנט אלכסוני בגוון המודגש. */
-button.btn-new {
-  position: relative; isolation: isolate; overflow: hidden;
-  color: var(--on-accent); border: 1px solid color-mix(in srgb, var(--accent) 70%, var(--text) 8%);
-  /* הרעש: אפור משתנה (מהערוץ האדום של feTurbulence), ב־overlay מעל הגרדיאנט = גרגיר נייר עדין */
-  --btn-new-bg:
-    radial-gradient(130% 110% at 15% -10%, color-mix(in srgb, var(--sheen) 62%, transparent) 0%, transparent 52%),
-    radial-gradient(90% 120% at 100% 120%, color-mix(in srgb, var(--accent-strong) 30%, transparent) 0%, transparent 60%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 .32'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E"),
-    linear-gradient(135deg, color-mix(in srgb, var(--accent) 62%, var(--sheen)) 0%, var(--accent) 50%, color-mix(in srgb, var(--accent) 80%, var(--accent-strong)) 100%);
-  background: var(--btn-new-bg);
-  background-blend-mode: normal, normal, overlay, normal;
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--sheen) 55%, transparent),
-    inset 0 -2px 6px color-mix(in srgb, var(--accent-strong) 22%, transparent),
-    0 2px 6px color-mix(in srgb, var(--accent) 38%, transparent);
-  border-radius: 12px; letter-spacing: .2px;
+/* ===== מסמך חדש: גלי פסטל, סאטן ופלוס שמנת (3.3) =====
+   שתי שכבות ה־SVG הן קישוט בלבד. הטקסט והפעולה נשארים רכיבי ממשק רגילים. */
+button.primary.btn-new {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid #8dbbd7;
+  border-radius: 999px;
+  background: linear-gradient(108deg, #a7d0e9 0%, #83b9da 47%, #70aacf 100%);
+  color: #204760;
+  box-shadow: 0 7px 15px rgba(45, 69, 87, .19), inset 0 1px 0 rgba(255, 255, 255, .35);
+  font-weight: 700;
+  text-shadow: none;
+  letter-spacing: 0;
   transition: transform .18s var(--ease), box-shadow .18s var(--ease), filter .18s var(--ease);
 }
-/* ברק שעובר לאט בריחוף */
-button.btn-new::after {
-  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background: linear-gradient(110deg, transparent 30%, color-mix(in srgb, var(--sheen) 35%, transparent) 50%, transparent 70%);
-  transform: translateX(-120%); transition: transform .6s var(--ease);
+button.primary.btn-new .btn-new-waves {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 0;
+  width: 54%;
+  height: 100%;
+  pointer-events: none;
 }
-button.btn-new:hover { background: var(--btn-new-bg); background-blend-mode: normal, normal, overlay, normal; filter: saturate(1.08) brightness(1.03); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--sheen) 60%, transparent), inset 0 -2px 6px color-mix(in srgb, var(--accent-strong) 22%, transparent), 0 6px 16px color-mix(in srgb, var(--accent) 42%, transparent); }
-button.btn-new:hover::after { transform: translateX(120%); }
-button.btn-new .ic { filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--sheen) 40%, transparent)); }
-button.btn-new-big { display: inline-flex; align-items: center; gap: 9px; padding: 12px 30px; font-size: 16px; border-radius: 16px; }
+button.primary.btn-new .btn-new-icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 27px;
+  height: 27px;
+  border-radius: 10px;
+  background: #fbf7f0;
+  color: #356782;
+  box-shadow: 0 2px 5px rgba(42, 77, 100, .17), inset 0 1px 0 rgba(255, 255, 255, .75);
+  transition: transform .18s var(--ease);
+}
+button.primary.btn-new .btn-new-icon .ic {
+  width: 17px;
+  height: 17px;
+  stroke-width: 2.8;
+}
+button.primary.btn-new .btn-new-label {
+  position: relative;
+  z-index: 1;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+button.primary.btn-new:hover:not(:disabled) {
+  background: linear-gradient(108deg, #a7d0e9 0%, #83b9da 47%, #70aacf 100%);
+  filter: brightness(1.045);
+  box-shadow: 0 10px 19px rgba(45, 69, 87, .22), inset 0 1px 0 rgba(255, 255, 255, .38);
+  transform: translateY(-1px);
+}
+button.primary.btn-new:hover:not(:disabled) .btn-new-icon { transform: scale(1.045); }
+button.primary.btn-new:active:not(:disabled) {
+  filter: brightness(.97);
+  transform: translateY(1px) scale(.99);
+  box-shadow: 0 3px 8px rgba(45, 69, 87, .16);
+}
+button.primary.btn-new:focus-visible { outline: 3px solid #285f86; outline-offset: 3px; }
+.side-top #btnNote { min-width: 0; height: 36px; padding: 0 10px; font-size: 13px; }
+.side-top #btnNote .btn-new-waves { width: 50%; }
+.empty button.btn-new-big { min-width: 244px; height: 64px; padding: 0 22px; gap: 14px; font-size: 19px; }
+.empty button.btn-new-big .btn-new-icon { width: 40px; height: 40px; border-radius: 13px; }
+.empty button.btn-new-big .btn-new-icon .ic { width: 24px; height: 24px; }
 button.btn-new-big[hidden] { display: none; }
-@media (prefers-reduced-motion: reduce) { button.btn-new::after { display: none; } }
+body[data-sidebar-mode="compact"] .side-top #btnNote { border-radius: 10px; gap: 0; }
+body[data-sidebar-mode="compact"] #btnNote .btn-new-waves { display: none; }
+body[data-sidebar-mode="compact"] #btnNote .btn-new-icon { width: 25px; height: 25px; border-radius: 7px; }
+:root[data-theme="dark"] button.primary.btn-new {
+  box-shadow: 0 7px 16px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .25);
+}
+@media (prefers-reduced-motion: reduce) {
+  button.primary.btn-new,
+  button.primary.btn-new .btn-new-icon { transition: none; }
+}
 
 /* ===== Patch Notes (לוח פקודות) ===== */
 .patch-notes-dialog {
