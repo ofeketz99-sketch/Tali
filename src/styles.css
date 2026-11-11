@@ -369,9 +369,9 @@ dialog menu { display: flex; gap: 8px; justify-content: flex-start; padding: 0; 
 .table-grid .tg-hint { font-size: 11px; color: var(--muted); margin-top: 8px; text-align: center; }
 
 .table-bar {
-  position: fixed; z-index: 15; display: flex; flex-wrap: nowrap; align-items: center; gap: 3px; padding: 4px;
+  position: fixed; z-index: 15; display: flex; flex-wrap: wrap; align-items: center; gap: 3px; padding: 4px;
   background: var(--panel-bg); border: 1px solid var(--border); border-radius: 9px; box-shadow: 0 6px 18px rgba(0,0,0,.12);
-  font-size: 13px; max-width: calc(100vw - 16px); overflow-x: auto; scrollbar-width: thin;
+  font-size: 13px; max-width: calc(100vw - 16px);
 }
 .table-bar[hidden] { display: none; }
 .table-bar button { padding: 3px 8px; border-color: transparent; background: none; white-space: nowrap; }
