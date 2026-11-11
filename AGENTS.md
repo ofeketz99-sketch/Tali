@@ -187,3 +187,18 @@
 - תבניות להערות סיכום מהלימודים (תאריך, קורס, נושא)
 - כרטיסיות לימוד שנוצרות מכותרות בהערה
 - שינוי גודל תמונה בגרירה (נשמר כ־`![[שם|300]]`)
+
+
+## Versioning and change documentation (effective 2026-11-11)
+
+- Baseline release is 1.1. Each small delivered update increments the tenths digit by one: 1.2, 1.3, etc.; after 1.9 use 2.0. The package version uses the corresponding semantic form (1.6.0 for release 1.6).
+- Every change to app behavior, appearance, persistence or file format requires a CHANGELOG.md entry. Update AGENTS.md when adding/changing an editor extension, architecture, serialization rule, or workflow.
+- State precisely what is delivered vs. partially supported or pending. Do not mark features as complete without testing on the Electron desktop build.
+- Check syntax/build before committing changes when a local Node environment is available. Test Markdown round-trips on representative notes, including Hebrew/English, code, math, images and tables. Keep the existing originals and avoid unintended rewrites.
+- The GitHub connector can edit the Git repository, not the user's running D:\\PROJECTS\\Tali or installed Tali.exe; a pull/restart/build is required locally.
+
+### Image and drawing conventions
+- Embeds `![[image.png|300]]` support width in pixels. Tali optionally adds a wrapping flag `![[image.png|300|wrap-left]]` / `wrap-right` while retaining the filename and first width field.
+- The first width field is Obsidian-compatible. The third wrapping field is Tali-specific and may not produce the same wrapping in other Markdown editors.
+- Both ordinary and quick drawings are PNG attachments. Quick drawing starts at 480×180 with transparent background; regular drawing defaults to 900×520 and opaque white. They are inserted inline, not free-positioned across unrelated paragraphs.
+- The current custom image controls target `![[...]]` embeds. Markdown `![alt](url)` images are not yet covered.
