@@ -128,7 +128,17 @@ export function createPageOverlay({ page, onChange }) {
     if (object.kind === 'pen') {
       return object.points.map((p, index) => (index ? 'L' : 'M') + p[0] + ' ' + p[1]).join(' ');
     }
-    return 'M0 0 L' + object.dx + ' ' + object.dy;
+    const shaft = 'M0 0 L' + object.dx + ' ' + object.dy;
+    if (object.kind !== 'arrow') return shaft;
+    const angle = Math.atan2(object.dy, object.dx);
+    const size = 13;
+    const round = (n) => Math.round(n * 10) / 10;
+    const x1 = round(object.dx + Math.cos(angle + 2.62) * size);
+    const y1 = round(object.dy + Math.sin(angle + 2.62) * size);
+    const x2 = round(object.dx + Math.cos(angle - 2.62) * size);
+    const y2 = round(object.dy + Math.sin(angle - 2.62) * size);
+    return shaft + ' M' + x1 + ' ' + y1 + ' L' + object.dx + ' ' + object.dy +
+      ' L' + x2 + ' ' + y2;
   };
   function shapeElement(object) {
     const group = svgEl('g', { transform: 'translate(' + object.x + ' ' + object.y + ')' });
@@ -157,7 +167,6 @@ export function createPageOverlay({ page, onChange }) {
     geometry.setAttribute('stroke-linecap', 'round');
     geometry.setAttribute('stroke-linejoin', 'round');
     geometry.setAttribute('vector-effect', 'non-scaling-stroke');
-    if (object.kind === 'arrow') geometry.setAttribute('marker-end', 'url(#tali-overlay-arrow)');
     group.append(geometry);
     const hit = geometry.cloneNode();
     hit.classList.remove('tali-overlay-stroke');
