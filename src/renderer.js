@@ -13,6 +13,33 @@ import { icon } from './icons.js';
 // אייקונים בכפתורים שב־index.html: <span data-icon="plus">
 for (const el of document.querySelectorAll('[data-icon]')) el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon, 18));
 
+// Common dialog behavior: Escape or a click on the backdrop closes the top modal.
+// A cancelable "cancel" event lets the paint dialog guard unsaved artwork.
+function requestDialogDismiss(dialog) {
+  const request = new Event('cancel', { cancelable: true });
+  if (dialog.dispatchEvent(request)) dialog.close();
+}
+function topDialog() {
+  return [...document.querySelectorAll('dialog[open]')].at(-1) || null;
+}
+document.addEventListener('keydown', (event) => {
+  const dialog = topDialog();
+  if (!dialog || event.key !== 'Escape') return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  requestDialogDismiss(dialog);
+}, true);
+document.addEventListener('pointerdown', (event) => {
+  const dialog = topDialog();
+  if (!dialog || event.target !== dialog) return;
+  const rect = dialog.getBoundingClientRect();
+  if (event.clientX < rect.left || event.clientX > rect.right ||
+      event.clientY < rect.top || event.clientY > rect.bottom) {
+    event.preventDefault();
+    requestDialogDismiss(dialog);
+  }
+}, true);
+
 // ===== הסבר בריחוף (tooltip) לכל אלמנט עם data-tip =====
 {
   const tip = document.createElement('div');
@@ -157,6 +184,40 @@ buildToolbar($('toolbar'), editorApi, {
   onDraw: newDrawing,
   onOverlayDraw: useOverlay,
 });
+
+// ===== צד ימין: פתוח, פס אייקונים, מוסתר =====
+const sidebarRestore = document.createElement('button');
+sidebarRestore.type = 'button';
+sidebarRestore.id = 'btnSidebarRestore';
+sidebarRestore.className = 'tb-btn sidebar-restore';
+sidebarRestore.innerHTML = icon('panelExpand', 19);
+sidebarRestore.setAttribute('aria-label', 'פתיחת הסרגל הימני');
+sidebarRestore.dataset.tip = 'פתיחת הסרגל הימני';
+$('toolbar').prepend(sidebarRestore);
+
+let sidebarMode = store.get('tali:sidebar-mode', 'expanded');
+if (!['expanded', 'compact', 'hidden'].includes(sidebarMode)) sidebarMode = 'expanded';
+let sidebarLastShown = store.get('tali:sidebar-last-shown', 'expanded');
+if (!['expanded', 'compact'].includes(sidebarLastShown)) sidebarLastShown = 'expanded';
+function setSidebarMode(next) {
+  sidebarMode = next;
+  if (next !== 'hidden') {
+    sidebarLastShown = next;
+    store.set('tali:sidebar-last-shown', next);
+  }
+  store.set('tali:sidebar-mode', next);
+  document.body.dataset.sidebarMode = next;
+  sidebarRestore.hidden = next !== 'hidden';
+  const min = $('btnSidebarMin');
+  min.innerHTML = icon(next === 'compact' ? 'panelExpand' : 'panelCollapse', 18);
+  min.dataset.tip = next === 'compact' ? 'הרחבת הסרגל הימני' : 'צמצום הסרגל הימני';
+  min.setAttribute('aria-label', min.dataset.tip);
+  min.setAttribute('aria-expanded', next === 'expanded' ? 'true' : 'false');
+}
+$('btnSidebarMin').addEventListener('click', () => setSidebarMode(sidebarMode === 'compact' ? 'expanded' : 'compact'));
+$('btnSidebarHide').addEventListener('click', () => setSidebarMode('hidden'));
+sidebarRestore.addEventListener('click', () => setSidebarMode(sidebarLastShown));
+setSidebarMode(sidebarMode);
 
 // ===== ציורים =====
 function drawingStamp() {
@@ -437,6 +498,7 @@ function drawTree() {
       state.opening = null;
     },
     onContext: showContextMenu,
+    onDelete: deleteNode,
   });
 }
 
