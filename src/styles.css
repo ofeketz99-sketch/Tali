@@ -369,9 +369,9 @@ dialog menu { display: flex; gap: 8px; justify-content: flex-start; padding: 0; 
 .table-grid .tg-hint { font-size: 11px; color: var(--muted); margin-top: 8px; text-align: center; }
 
 .table-bar {
-  position: fixed; z-index: 15; display: flex; flex-wrap: wrap; align-items: center; gap: 3px; padding: 4px;
+  position: fixed; z-index: 15; display: flex; flex-wrap: nowrap; align-items: center; gap: 3px; padding: 4px;
   background: var(--panel-bg); border: 1px solid var(--border); border-radius: 9px; box-shadow: 0 6px 18px rgba(0,0,0,.12);
-  font-size: 13px; max-width: calc(100vw - 16px);
+  font-size: 13px; max-width: calc(100vw - 16px); overflow-x: auto; scrollbar-width: thin;
 }
 .table-bar[hidden] { display: none; }
 .table-bar button { padding: 3px 8px; border-color: transparent; background: none; white-space: nowrap; }
@@ -492,8 +492,8 @@ dialog menu { display: flex; gap: 8px; justify-content: flex-start; padding: 0; 
   --font-ui: "Rubik", "Segoe UI", "Arial", sans-serif;
   --font-heading: "Rubik", "Segoe UI", sans-serif;
   /* קפיצי: עובר מעט את היעד וחוזר, כמו ג'לי */
-  --spring: cubic-bezier(.34, 1.56, .64, 1);
-  --spring-strong: cubic-bezier(.3, 1.9, .5, 1);
+  --spring: cubic-bezier(.28, 1.18, .62, 1);
+  --spring-strong: cubic-bezier(.3, 1.25, .6, 1);
   --radius: 10px;
   --shadow-soft: 0 1px 2px rgba(40, 35, 25, .06), 0 6px 18px -6px rgba(40, 35, 25, .12);
   --shadow-lift: 0 2px 4px rgba(40, 35, 25, .06), 0 14px 32px -10px color-mix(in srgb, var(--accent) 45%, rgba(0, 0, 0, .25));
@@ -503,23 +503,23 @@ body { font-size: 14px; }
 /* ----- כפתורים: ריחוף מרים קצת, לחיצה נמעכת, שחרור קופץ ----- */
 button { border-radius: var(--radius); transition: background-color .18s var(--ease), border-color .18s var(--ease), color .18s var(--ease), box-shadow .25s var(--ease), transform .36s var(--spring); }
 button:hover:not(:disabled) { transform: translateY(-1px); }
-button:active:not(:disabled) { transform: scale(.9); transition-duration: .08s; }
+button:active:not(:disabled) { transform: scale(.97); transition-duration: .08s; }
 button.primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
 .tb-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 8px -2px color-mix(in srgb, var(--accent) 40%, transparent); }
-.tb-btn.is-active { box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 45%, transparent); animation: jelly .4s var(--ease); }
+.tb-btn.is-active { box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 45%, transparent); animation: jelly .3s var(--ease); }
 /* בלי scale או rotate בריחוף: הם גורמים לטשטוש רגעי של האייקון */
 .icon-btn:hover { box-shadow: 0 3px 8px -3px color-mix(in srgb, var(--accent) 50%, transparent); }
 
 
-.jelly { animation: jelly .44s var(--ease) !important; }
+.jelly { animation: jelly .34s var(--ease) !important; }
 @keyframes jelly {
-  0% { transform: scale(1, 1); } 22% { transform: scale(.86, 1.14); } 40% { transform: scale(1.14, .88); }
-  58% { transform: scale(.95, 1.06); } 76% { transform: scale(1.03, .98); } 100% { transform: scale(1, 1); }
+  0% { transform: scale(1, 1); } 22% { transform: scale(.97, 1.03); } 42% { transform: scale(1.035, .97); }
+  65% { transform: scale(.992, 1.008); } 100% { transform: scale(1, 1); }
 }
 @keyframes pop-spring {
-  0% { opacity: 0; transform: translateY(-8px) scale(.9); } 60% { opacity: 1; transform: translateY(1px) scale(1.03); } 100% { opacity: 1; transform: none; }
+  0% { opacity: 0; transform: translateY(-3px) scale(.975); } 65% { opacity: 1; transform: translateY(0) scale(1.005); } 100% { opacity: 1; transform: none; }
 }
-@keyframes rise-spring { 0% { opacity: 0; transform: translateY(14px) scale(.96); } 65% { opacity: 1; transform: translateY(-2px) scale(1.01); } 100% { opacity: 1; transform: none; } }
+@keyframes rise-spring { 0% { opacity: 0; transform: translateY(4px) scale(.99); } 65% { opacity: 1; transform: translateY(-.5px); } 100% { opacity: 1; transform: none; } }
 @keyframes rise-small { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
 @keyframes dot-pop { 0% { transform: scale(1); } 40% { transform: scale(1.9); } 100% { transform: scale(1); } }
@@ -557,7 +557,8 @@ dialog { border-radius: 18px; }
 }
 :root[data-page="flat"] #page::before { display: none; }
 :root[data-page="flat"] #page { border: none; }
-#page.enter { animation: rise-spring .44s var(--spring); }
+#page.enter { animation: page-calm .24s var(--ease); }
+@keyframes page-calm { from { opacity: .96; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 
 /* ----- כותרות בתוך ההערה ----- */
 .ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4 { font-family: var(--font-heading); line-height: 1.3; letter-spacing: -.3px; }
@@ -716,10 +717,10 @@ dialog { border-radius: 18px; }
 #linksPanel {
   position: absolute; top: 62px; inset-inline-end: 22px; z-index: 12; width: 230px;
   background: var(--panel-bg); border: 1px solid var(--accent-line); border-radius: 14px;
-  box-shadow: var(--shadow-soft); overflow: hidden; transition: width .29s var(--spring), box-shadow .2s;
+  box-shadow: var(--shadow-soft); overflow: hidden; transition: width .24s var(--ease), box-shadow .2s;
 }
 #linksPanel[hidden] { display: none; }
-#linksPanel:not(.open) { width: auto; }
+#linksPanel:not(.open) { width: 152px; }
 #linksPanel:hover { box-shadow: var(--shadow-lift); }
 #linksPanel .lk-head {
   display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px; border: none; border-radius: 0;
@@ -730,7 +731,9 @@ dialog { border-radius: 18px; }
 #linksPanel .lk-head .ic:last-child { margin-inline-start: auto; transition: transform .29s var(--spring); transform: rotate(90deg); opacity: .6; }
 #linksPanel.open .lk-head .ic:last-child { transform: none; }
 #linksPanel .lk-count { min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-size: 11px; text-align: center; line-height: 18px; }
-#linksPanel .lk-body { padding: 6px; max-height: 55vh; overflow: auto; border-top: 1px solid var(--accent-line); animation: rise-small .22s var(--spring); }
+#linksPanel .lk-body { padding: 6px; max-height: 55vh; opacity: 1; overflow: auto; border-top: 1px solid var(--accent-line); transition: max-height .24s var(--ease), opacity .16s var(--ease), padding .24s var(--ease); }
+#linksPanel:not(.open) .lk-body { max-height: 0; opacity: 0; padding-block: 0; border-top-color: transparent; overflow: hidden; pointer-events: none; }
+#linksPanel:not(.open) .lk-head { white-space: nowrap; }
 #linksPanel .lk-item {
   display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 8px; cursor: pointer; font-size: 13px;
   transition: background-color .14s var(--ease), padding .29s var(--spring); animation: rise-small .22s var(--spring) both; animation-delay: calc(var(--i, 0) * 25ms);
@@ -750,6 +753,6 @@ dialog { border-radius: 18px; }
 }
 #linksPanel .lk-add:hover { background: var(--accent-hover); border-style: solid; }
 /* מקום ללוח הקישורים, כדי שלא יסתיר את הדף */
-#pageWrap { transition: padding .29s var(--spring); }
+#pageWrap { transition: padding .24s var(--ease); }
 #main.links-on #pageWrap { padding-top: 64px; }
 #main.links-open #pageWrap { padding-inline-end: 272px; }
