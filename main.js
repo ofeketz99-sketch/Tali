@@ -320,7 +320,7 @@ function createWindow() {
     height: 800,
     title: 'Tali',
     icon: path.join(__dirname, 'build', 'icon.ico'),
-    backgroundColor: '#f1eee8',
+    backgroundColor: '#aac7f2', // the intro's first frame (src/splash.js), so launch never flashes white
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

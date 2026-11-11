@@ -1,3 +1,12 @@
+# 2.4 — Pre-rendered 3D book intro (2026-11-11)
+
+- Replaced the canvas-drawn intro with a pre-rendered 3D sequence, `src/splash.webm` (VP9, 1920×1080, 60 fps, 4.3 s, 5.6 MB). It's rendered offline by `tools/splash-render` (Three.js in Electron on the GPU; dev dependencies `three` and `webm-muxer`). Each frame averages 48 sub-frames for motion blur, soft area-light shadows, sky occlusion, depth of field and anti-aliasing.
+- Storyboard: a macro close-up of a page with abstract blue notes, nine curved leaves thumbed right to left while the camera pulls back, the full open book (rounded boards, page blocks, curved gutter), the blue cover closing over the pages, then the book losing its thickness. The cover colour then floods the screen until only the white emblem is left on full-screen blue.
+- The emblem (`src/splash-emblem.png`) is separated from `build/icon.png` by unmatting against the icon's own blue. The original `logo.png` and `icon.png` are unchanged. After the video ends, a native emblem, pixel-aligned with the last frame, holds for 280 ms. The overlay then fades out over 520 ms, revealing the already-rendered app (about 5.1 s in total).
+- The window background and the first frame are the same blue, so launch has no white flash. The script now runs first in `<body>`, so the overlay is in the first paint. The skip button is visible only for keyboard focus; Escape and a click also skip. Reduced motion shows the emblem only, then a fade. Video or image errors, a hidden window and a 7.5 s watchdog all fail open.
+- Removed `src/splash-art.js` and its unused colour tokens.
+- Verified by capturing the real app at 1200×800 and 700×950: no white frame, a seamless video-to-emblem hand-off, and the fade into the UI. Also verified reduced motion and `npm test`. Known: narrow portrait windows crop the open book's sides (cover fit). The final emblem is upscaled from the 512 px icon on large/HiDPI windows. Two test launches ended early under the capture harness, most likely because the test window was hidden (the intro ends on `visibilitychange`).
+
 # 2.3 — Softer book and slower pacing (2026-11-11)
 
 - Extended the intro to 4.65 seconds: camera/page motion takes 25% longer and the fully revealed logo holds for approximately one additional second before the fade.

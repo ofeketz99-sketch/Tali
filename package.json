@@ -1,6 +1,6 @@
 {
   "name": "tali",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "productName": "Tali",
   "description": "Tali: אפליקציית הערות אישית. אובסידיאן פוגש וורד",
   "main": "main.js",
@@ -36,7 +36,9 @@
     "electron": "^33.0.0",
     "esbuild": "^0.24.0",
     "lucide": "^0.577.0",
-    "rcedit": "^4.0.1"
+    "rcedit": "^4.0.1",
+    "three": "^0.187.0",
+    "webm-muxer": "^5.1.4"
   },
   "allowScripts": {
     "electron@33.4.11": true,
