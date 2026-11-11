@@ -14,6 +14,7 @@ import TaskItem from '@tiptap/extension-task-item';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Markdown } from 'tiptap-markdown';
 import { WikiLink } from './wikilink.js';
+import { splitLinksLines, mergeLinksLines } from '../links.js';
 import { Embed, LocalImage } from './embed.js';
 import {
   ObsidianMarkdown, FaithfulText, FaithfulHardBreak, FaithfulHorizontalRule, FaithfulHeading, FaithfulLink,
@@ -85,22 +86,32 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
   rawElement.addEventListener('input', () => { if (!loading) onChange(); });
   attachTableBar(editor, element.closest('#pageWrap') || window);
 
-  // מאפיינים: מוצגים בתיבה מעל הדף רק כשיש כאלה בקובץ
+  // מאפיינים: מוצגים בתיבה מעל הדף רק כשיש כאלה בקובץ.
+  // השורות של links: לא מוצגות כאן (הן בלוח "קישורים"), ונשמרות בצד במקומן המקורי.
+  let linkLines = { block: [], at: -1 };
   const showProps = () => {
-    propsElement.value = frontmatter ?? '';
-    propsElement.hidden = frontmatter == null || raw;
+    const parts = splitLinksLines(frontmatter ?? '');
+    linkLines = { block: parts.block, at: parts.at };
+    propsElement.value = parts.rest;
+    propsElement.hidden = frontmatter == null || raw || !parts.rest.trim();
     propsElement.style.height = 'auto';
     propsElement.style.height = propsElement.scrollHeight + 2 + 'px';
   };
   propsElement.addEventListener('input', () => {
-    frontmatter = propsElement.value;
+    frontmatter = mergeLinksLines(propsElement.value, linkLines.block, linkLines.at);
     propsElement.style.height = 'auto';
     propsElement.style.height = propsElement.scrollHeight + 2 + 'px';
     if (!loading) onChange();
   });
 
-  const richMarkdown = () => joinFrontmatter(frontmatter, editor.storage.markdown.getMarkdown());
+  // שורה ריקה בסוף הקובץ (כמו שאובסידיאן ועורכים אחרים שומרים) נשמרת גם אחרי עריכה
+  let endsWithNewline = false;
+  const richMarkdown = () => {
+    const out = joinFrontmatter(frontmatter, editor.storage.markdown.getMarkdown());
+    return endsWithNewline && out && !out.endsWith('\n') ? out + '\n' : out;
+  };
   const loadRich = (md) => {
+    endsWithNewline = /\n$/.test(md);
     const parts = splitFrontmatter(md);
     frontmatter = parts.frontmatter;
     editor.commands.setContent(parts.body, false);

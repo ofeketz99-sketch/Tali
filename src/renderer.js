@@ -2,7 +2,8 @@
 import { createEditor } from './editor.js';
 import { buildToolbar } from './toolbar.js';
 import { renderTree, renderSearchResults, renderBacklinks } from './sidebar.js';
-import { resolveLink, extractLinks } from '../links.js';
+import { resolveLink, extractLinks, getFrontmatterLinks, setFrontmatterLinks } from '../links.js';
+import { openLinkPicker } from './linkpicker.js';
 import { showLinkHubOffer } from './linkhub.js';
 import { fileUrl, bumpImage } from './embed.js';
 import { openPaint } from './paint.js';
@@ -293,6 +294,7 @@ async function saveNow() {
     state.diskText = content;
     setStatus('נשמר');
     if (!state.dirty) setSaveState('saved');
+    refreshLinksPanel(); // ייתכן שהמאפיינים (links:) נערכו ידנית
   } catch (err) {
     if (/CONFLICT/.test(err.message)) return saveDespiteOutsideChange(p, content);
     state.dirty = true;
@@ -332,6 +334,7 @@ async function reloadFromDisk() {
   state.diskText = md;
   state.dirty = false;
   editorApi.setMarkdown(md);
+  refreshLinksPanel();
 }
 
 // חזרה לחלון: אם ההערה הפתוחה השתנתה בחוץ ואין כאן שינויים, טוענים אותה מחדש בשקט.
@@ -429,6 +432,7 @@ async function refreshTree() {
   drawTree();
   editorApi.refreshLinks();
   refreshBacklinks();
+  refreshLinksPanel();
 }
 
 function targetDir() {
@@ -463,6 +467,7 @@ async function openNote(p, { history = true } = {}) {
   setStatus(prettyPath(p));
   drawTree();
   refreshBacklinks();
+  refreshLinksPanel();
 }
 
 // ===== קישורים =====
@@ -535,6 +540,7 @@ async function enterRoot(r) {
   state.back = [];
   state.forward = [];
   state.recent = store.get('recent:' + r.root, []);
+  $('linksPanel').hidden = true;
   state.collapsed = new Set(store.get('collapsed:' + r.root, []));
   $('page').hidden = true;
   $('empty').hidden = false;
@@ -595,23 +601,149 @@ async function deleteNode(node) {
 }
 
 // ===== תפריט ימני =====
+// רוחב אחיד, אייקון לכל פעולה, קו דהוי בין פעולות. נפתח לכיוון פנים החלון ולא נחתך.
 function showContextMenu(node, x, y) {
   const menu = $('ctx');
   menu.innerHTML = '';
-  const add = (text, fn) => {
+  const add = (ic, text, fn, { keys, danger } = {}) => {
     const item = document.createElement('div');
-    item.textContent = text;
+    item.className = 'ctx-item' + (danger ? ' danger' : '');
+    item.setAttribute('role', 'menuitem');
+    item.innerHTML = `${icon(ic, 16)}<span class="ctx-label"></span>${keys ? `<kbd>${keys}</kbd>` : ''}`;
+    item.querySelector('.ctx-label').textContent = text;
     item.addEventListener('click', () => { hideMenu(); fn(); });
     menu.appendChild(item);
   };
-  add('שינוי שם (F2)', () => renameNode(node));
-  add('מחיקה (לסל המחזור)', () => deleteNode(node));
-  menu.style.left = x + 'px';
-  menu.style.top = y + 'px';
+  const isFile = node.type === 'file';
+  if (isFile) {
+    add('edit', 'שינוי שם', () => renameNode(node), { keys: 'F2' });
+    add('copy', 'שכפול', () => duplicateNode(node));
+    add('link', 'קישור לפתקים אחרים…', () => pickLinksFor(node.path));
+  } else {
+    add('filePlus', 'הערה חדשה בתיקייה', () => { state.selectedDir = node.path; newNote(); });
+    add('edit', 'שינוי שם', () => renameNode(node), { keys: 'F2' });
+  }
+  add('trash', 'מחיקה (לסל המחזור)', () => deleteNode(node), { danger: true });
+
   menu.hidden = false;
+  // מצמידים את הפינה לסמן, לכיוון פנים החלון (הסרגל בצד ימין, אז ברירת המחדל נפתחת שמאלה)
+  const w = menu.offsetWidth, h = menu.offsetHeight;
+  let left = x - w;
+  if (left < 8) left = Math.min(x, window.innerWidth - w - 8);
+  let top = y;
+  if (top + h > window.innerHeight - 8) top = Math.max(8, y - h);
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
 }
 function hideMenu() { $('ctx').hidden = true; }
 document.addEventListener('click', hideMenu);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideMenu(); });
+window.addEventListener('blur', hideMenu);
+$('tree').addEventListener('scroll', hideMenu);
+
+// ===== שכפול =====
+async function duplicateNode(node) {
+  try {
+    if (node.path === state.currentPath) await flushSave();
+    const copy = await window.api.duplicate(node.path);
+    await refreshTree();
+    await openNote(copy);
+    setStatus(`נוצר עותק: ${noteName(copy)}`);
+  } catch (err) { setStatus('שגיאה בשכפול: ' + err.message); }
+}
+
+// ===== קישור לפתקים אחרים: בורר עם בחירה מרובה, נשמר במאפייני ההערה (links:) =====
+async function pickLinksFor(target) {
+  try {
+    if (target === state.currentPath) await flushSave();
+    const text = target === state.currentPath ? editorApi.getMarkdown() : await window.api.read(target);
+    const files = allNotes().map((n) => n.path);
+    const current = getFrontmatterLinks(text).map((t) => resolveLink(t, files, state.root)).filter(Boolean);
+    openLinkPicker({
+      title: `קישור ״${noteName(target)}״ לפתקים אחרים`,
+      notes: allNotes().filter((n) => n.path !== target),
+      selected: current,
+      onSave: (paths) => applyNoteLinks(target, paths),
+    });
+  } catch (err) { setStatus(err.message); }
+}
+
+async function applyNoteLinks(target, paths) {
+  try {
+    if (target === state.currentPath) await flushSave();
+    const text = await window.api.read(target);
+    const files = allNotes().map((n) => n.path);
+    // שומרים את הסדר הקיים, ומוסיפים חדשים בסוף. קישורים לפתקים שלא קיימים נשארים כמו שהם.
+    const existing = getFrontmatterLinks(text);
+    const keep = existing.filter((t) => { const p = resolveLink(t, files, state.root); return !p || paths.includes(p); });
+    const keptPaths = new Set(keep.map((t) => resolveLink(t, files, state.root)).filter(Boolean));
+    const targets = [...keep, ...paths.filter((p) => !keptPaths.has(p)).map(linkTextFor)];
+    const next = setFrontmatterLinks(text, targets);
+    if (next !== text) await window.api.write(target, next, null);
+    if (target === state.currentPath) await reloadFromDisk();
+    refreshLinksPanel();
+    refreshBacklinks();
+    showToast(paths.length ? `״${noteName(target)}״ מקושר עכשיו ל־${paths.length} פתקים.` : `הקישורים של ״${noteName(target)}״ הוסרו.`);
+  } catch (err) { setStatus('שגיאה בשמירת הקישורים: ' + err.message); }
+}
+
+// ===== לוח "קישורים" לצד הדף: מצומצם כברירת מחדל, נפתח בלחיצה =====
+let linksOpen = store.get('linksPanelOpen', false);
+function refreshLinksPanel() {
+  const panel = $('linksPanel');
+  // מקום לפאנל: מצומצם הוא יושב מעל פינת הדף, פתוח הדף זז הצידה כדי שלא יוסתר
+  $('main').classList.toggle('links-on', !!state.currentPath && !linksOpen);
+  $('main').classList.toggle('links-open', !!state.currentPath && linksOpen);
+  if (!state.currentPath) { panel.hidden = true; return; }
+  const files = allNotes().map((n) => n.path);
+  const targets = getFrontmatterLinks(editorApi.getMarkdown());
+  panel.hidden = false;
+  panel.classList.toggle('open', linksOpen);
+  panel.innerHTML = '';
+
+  const head = document.createElement('button');
+  head.type = 'button';
+  head.className = 'lk-head';
+  head.dataset.tip = linksOpen ? 'צמצום' : 'הצגת הקישורים של ההערה';
+  head.innerHTML = `${icon('link', 16)}<span>קישורים</span><span class="lk-count">${targets.length}</span>${icon('chevron', 14)}`;
+  head.addEventListener('click', () => { linksOpen = !linksOpen; store.set('linksPanelOpen', linksOpen); refreshLinksPanel(); });
+  panel.append(head);
+  if (!linksOpen) return;
+
+  const body = document.createElement('div');
+  body.className = 'lk-body';
+  if (!targets.length) {
+    const empty = document.createElement('div');
+    empty.className = 'lk-empty';
+    empty.textContent = 'עוד אין קישורים לפתקים אחרים.';
+    body.append(empty);
+  }
+  targets.forEach((t, i) => {
+    const p = resolveLink(t, files, state.root);
+    const row = document.createElement('div');
+    row.className = 'lk-item' + (p ? '' : ' missing');
+    row.style.setProperty('--i', Math.min(i, 10));
+    row.innerHTML = `${icon('file', 15)}<span class="lk-name"></span><button type="button" class="lk-remove" data-tip="הסרת הקישור">${icon('close', 13)}</button>`;
+    row.querySelector('.lk-name').textContent = t.split('/').pop();
+    if (!p) row.dataset.tip = 'הפתק לא קיים';
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.lk-remove')) {
+        const remaining = targets.filter((_, k) => k !== i).map((x) => resolveLink(x, files, state.root)).filter(Boolean);
+        applyNoteLinks(state.currentPath, remaining);
+        return;
+      }
+      if (p) openNote(p);
+    });
+    body.append(row);
+  });
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'lk-add';
+  add.innerHTML = `${icon('plus', 15)}<span>קישור לפתקים…</span>`;
+  add.addEventListener('click', () => pickLinksFor(state.currentPath));
+  body.append(add);
+  panel.append(body);
+}
 
 // ===== כפתורים =====
 $('btnPick').addEventListener('click', async () => enterRoot(await window.api.pickFolder()));
@@ -728,6 +860,8 @@ const COMMANDS = [
   { title: 'מעבר בין תצוגה מעוצבת ל־Markdown', keys: 'Ctrl+E', run: () => rawButton()?.click(), needs: 'note' },
   { title: 'שינוי שם ההערה', keys: 'F2', run: () => renameNode(currentNode()), needs: 'note' },
   { title: 'מחיקת ההערה (לסל המחזור)', run: () => deleteNode(currentNode()), needs: 'note' },
+  { title: 'קישור לפתקים אחרים…', run: () => pickLinksFor(state.currentPath), needs: 'note' },
+  { title: 'שכפול ההערה', run: () => duplicateNode(currentNode()), needs: 'note' },
   { title: 'ייבוא תמונה', run: importImages, needs: 'note' },
   { title: 'ציור חדש', run: newDrawing, needs: 'note' },
   { title: 'אחורה להערה הקודמת', keys: 'Alt+←', run: () => goHistory(-1) },

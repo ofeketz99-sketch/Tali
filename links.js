@@ -53,4 +53,61 @@ function replaceLinks(text, mapTarget) {
   });
 }
 
-module.exports = { resolveLink, extractLinks, replaceLinks, relKey };
+// ===== קישורים במאפייני ההערה (frontmatter) =====
+// "קישור לפתקים אחרים" נשמר בראש ההערה, כמו מאפיין של אובסידיאן:
+//   ---
+//   links:
+//     - "[[הערה א]]"
+//     - "[[הערה ב]]"
+//   ---
+// כך אובסידיאן מזהה אותם כקישורים, והם מופיעים בקישורים החוזרים של ההערות המקושרות.
+const FM_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(\r?\n|$)/;
+
+// השורות של המפתח links: בתוך המאפיינים (השורה עצמה והשורות המוזחות שאחריה)
+function linksBlock(lines) {
+  const start = lines.findIndex((l) => /^links\s*:/.test(l));
+  if (start < 0) return null;
+  let end = start + 1;
+  while (end < lines.length && (/^\s/.test(lines[end]) || lines[end] === '')) end++;
+  while (end > start + 1 && lines[end - 1] === '') end--; // שורה ריקה בסוף לא שייכת לרשימה
+  return { start, end };
+}
+
+function getFrontmatterLinks(text) {
+  const m = FM_RE.exec(text || '');
+  if (!m) return [];
+  const lines = m[1].split(/\r?\n/);
+  const b = linksBlock(lines);
+  return b ? extractLinks(lines.slice(b.start, b.end).join('\n')).map((l) => l.target) : [];
+}
+
+// targets: הטקסט שבתוך [[ ]] לכל קישור. רשימה ריקה מוחקת את המפתח (ואת המאפיינים אם לא נשאר בהם כלום).
+function setFrontmatterLinks(text, targets) {
+  const block = targets.length ? ['links:', ...targets.map((t) => `  - "[[${t}]]"`)] : [];
+  const m = FM_RE.exec(text || '');
+  if (!m) return block.length ? `---\n${block.join('\n')}\n---\n${text || ''}` : text;
+  const lines = m[1].split(/\r?\n/);
+  const b = linksBlock(lines);
+  if (b) lines.splice(b.start, b.end - b.start, ...block);
+  else lines.push(...block);
+  const body = text.slice(m[0].length);
+  if (lines.every((l) => !l.trim())) return body;
+  return `---\n${lines.join('\n')}\n---\n${body}`;
+}
+
+// לתיבת המאפיינים בעורך: מפרידים את שורות links: (הן מוצגות בלוח הקישורים) ומחזירים אותן בדיוק לאותו מקום
+function splitLinksLines(fm) {
+  const lines = fm.split(/\r?\n/);
+  const b = linksBlock(lines);
+  if (!b) return { rest: fm, block: [], at: -1 };
+  const block = lines.splice(b.start, b.end - b.start);
+  return { rest: lines.join('\n'), block, at: b.start };
+}
+function mergeLinksLines(rest, block, at) {
+  if (!block.length) return rest;
+  const lines = rest === '' ? [] : rest.split(/\r?\n/);
+  lines.splice(Math.min(Math.max(at, 0), lines.length), 0, ...block);
+  return lines.join('\n');
+}
+
+module.exports = { resolveLink, extractLinks, replaceLinks, relKey, getFrontmatterLinks, setFrontmatterLinks, splitLinksLines, mergeLinksLines };

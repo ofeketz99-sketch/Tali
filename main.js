@@ -204,6 +204,15 @@ function registerIpc() {
     return true;
   });
 
+  // שכפול הערה: "שם (עותק).md" באותה תיקייה, ואם תפוס "שם (עותק) 1.md"
+  ipcMain.handle('duplicate', async (_e, p) => {
+    const src = safe(p);
+    const ext = path.extname(src);
+    const dest = await uniquePath(path.dirname(src), `${path.basename(src, ext)} (עותק)${ext}`);
+    await fs.copyFile(src, dest);
+    return dest;
+  });
+
   // הצגת קובץ בסייר הקבצים של Windows
   ipcMain.handle('reveal', async (_e, p) => { shell.showItemInFolder(safe(p)); return true; });
 

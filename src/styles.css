@@ -660,3 +660,96 @@ dialog { border-radius: 18px; }
 #settings input[type="checkbox"]:checked { background: var(--accent); }
 #settings input[type="checkbox"]:checked::before { transform: translateX(17px); }
 #settings input[type="checkbox"]:active::before { width: 22px; }
+
+/* ----- תפריט ימני (עץ הקבצים): רוחב אחיד, אייקונים, קו דהוי בין פעולות ----- */
+#ctx { min-width: 220px; padding: 5px; }
+#ctx .ctx-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+  white-space: nowrap; color: var(--text); position: relative;
+  transition: background-color .14s var(--ease), color .14s var(--ease), padding .29s var(--spring);
+}
+#ctx .ctx-item + .ctx-item::before {
+  content: ""; position: absolute; top: -1px; inset-inline: 12px; height: 1px;
+  background: color-mix(in srgb, var(--border) 55%, transparent);
+}
+#ctx .ctx-item .ic { color: var(--muted); transition: color .14s; }
+#ctx .ctx-item .ctx-label { flex: 1; }
+#ctx .ctx-item kbd { direction: ltr; font-family: var(--font-ui); font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 5px; padding: 0 6px; background: var(--input-bg); }
+#ctx .ctx-item:hover { background: var(--accent-soft); color: var(--accent-strong); padding-inline-start: 15px; }
+#ctx .ctx-item:hover .ic { color: var(--accent-strong); }
+#ctx .ctx-item.danger:hover { background: color-mix(in srgb, #e06c6c 13%, var(--page-bg)); color: #c24545; }
+#ctx .ctx-item.danger:hover .ic { color: #c24545; }
+
+/* ----- בורר קישורים: חיפוש + בחירה מרובה ----- */
+#linkPicker { width: min(520px, 92vw); padding: 0; }
+#linkPicker[open] { display: flex; flex-direction: column; max-height: 78vh; }
+#linkPicker .lp-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px; background: var(--accent-tint); border-bottom: 1px solid var(--accent-line); }
+#linkPicker .lp-icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; background: var(--accent); color: var(--on-accent); }
+#linkPicker h2 { margin: 0; font-size: 16px; font-family: var(--font-heading); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#linkPicker .lp-search { position: relative; margin: 12px 14px 6px; }
+#linkPicker .lp-search .ic { position: absolute; inset-inline-start: 11px; top: 50%; transform: translateY(-50%); color: var(--faint); }
+#linkPicker .lp-search input { width: 100%; padding: 9px 12px; padding-inline-start: 36px; border: 1px solid var(--border); border-radius: 12px; background: var(--input-bg); }
+#linkPicker .lp-list { flex: 1; min-height: 160px; overflow: auto; padding: 4px 8px 8px; }
+#linkPicker .lp-item {
+  display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: 9px; cursor: pointer;
+  transition: background-color .14s var(--ease); animation: rise-small .22s var(--spring) both; animation-delay: calc(var(--i, 0) * 18ms);
+}
+#linkPicker .lp-item:hover, #linkPicker .lp-item.focus { background: var(--accent-hover); }
+#linkPicker .lp-item.on { background: var(--accent-soft); }
+#linkPicker .lp-box {
+  width: 20px; height: 20px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 7px;
+  border: 2px solid var(--accent-line); background: var(--input-bg); color: transparent;
+  transition: background-color .2s var(--ease), border-color .2s var(--ease);
+}
+#linkPicker .lp-item.on .lp-box { background: var(--accent); border-color: var(--accent); color: var(--on-accent); animation: check-in .36s var(--spring); }
+#linkPicker .lp-text { min-width: 0; display: flex; flex-direction: column; }
+#linkPicker .lp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#linkPicker .lp-name mark { background: none; color: var(--accent-strong); font-weight: 700; }
+#linkPicker .lp-text small { font-size: 11px; color: var(--muted); }
+#linkPicker .lp-empty { padding: 24px; text-align: center; color: var(--muted); }
+#linkPicker .lp-foot { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--border); }
+#linkPicker .lp-count { font-size: 13px; color: var(--muted); }
+#linkPicker .lp-actions { display: flex; gap: 8px; }
+
+/* ----- לוח "קישורים" לצד הדף ----- */
+#main { position: relative; }
+#linksPanel {
+  position: absolute; top: 62px; inset-inline-end: 22px; z-index: 12; width: 230px;
+  background: var(--panel-bg); border: 1px solid var(--accent-line); border-radius: 14px;
+  box-shadow: var(--shadow-soft); overflow: hidden; transition: width .29s var(--spring), box-shadow .2s;
+}
+#linksPanel[hidden] { display: none; }
+#linksPanel:not(.open) { width: auto; }
+#linksPanel:hover { box-shadow: var(--shadow-lift); }
+#linksPanel .lk-head {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px; border: none; border-radius: 0;
+  background: var(--accent-tint); color: var(--text); font-weight: 600; font-size: 13px;
+}
+#linksPanel .lk-head:hover { transform: none; background: var(--accent-soft); color: var(--accent-strong); }
+#linksPanel .lk-head .ic:first-child { color: var(--accent-strong); }
+#linksPanel .lk-head .ic:last-child { margin-inline-start: auto; transition: transform .29s var(--spring); transform: rotate(90deg); opacity: .6; }
+#linksPanel.open .lk-head .ic:last-child { transform: none; }
+#linksPanel .lk-count { min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-size: 11px; text-align: center; line-height: 18px; }
+#linksPanel .lk-body { padding: 6px; max-height: 55vh; overflow: auto; border-top: 1px solid var(--accent-line); animation: rise-small .22s var(--spring); }
+#linksPanel .lk-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 8px; cursor: pointer; font-size: 13px;
+  transition: background-color .14s var(--ease), padding .29s var(--spring); animation: rise-small .22s var(--spring) both; animation-delay: calc(var(--i, 0) * 25ms);
+}
+#linksPanel .lk-item .ic { color: var(--faint); flex: 0 0 auto; }
+#linksPanel .lk-item:hover { background: var(--accent-soft); color: var(--accent-strong); padding-inline-start: 12px; }
+#linksPanel .lk-item:hover .ic { color: var(--accent-strong); }
+#linksPanel .lk-item.missing { color: var(--muted); font-style: italic; cursor: default; }
+#linksPanel .lk-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#linksPanel .lk-remove { width: 22px; height: 22px; padding: 0; display: grid; place-items: center; border: none; background: none; color: var(--muted); opacity: 0; border-radius: 6px; }
+#linksPanel .lk-item:hover .lk-remove { opacity: 1; }
+#linksPanel .lk-remove:hover { background: color-mix(in srgb, #e06c6c 15%, var(--page-bg)); color: #c24545; }
+#linksPanel .lk-empty { padding: 10px; font-size: 12px; color: var(--muted); }
+#linksPanel .lk-add {
+  display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 4px; padding: 7px 9px; border: 1px dashed var(--accent-line);
+  background: none; border-radius: 8px; color: var(--accent-strong); font-size: 13px;
+}
+#linksPanel .lk-add:hover { background: var(--accent-hover); border-style: solid; }
+/* מקום ללוח הקישורים, כדי שלא יסתיר את הדף */
+#pageWrap { transition: padding .29s var(--spring); }
+#main.links-on #pageWrap { padding-top: 64px; }
+#main.links-open #pageWrap { padding-inline-end: 272px; }
