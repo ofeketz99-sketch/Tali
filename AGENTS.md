@@ -191,7 +191,7 @@
 
 ## Versioning and change documentation (effective 2026-11-11)
 
-- Baseline release is 1.1. Each small delivered update increments the tenths digit by one: 1.2, 1.3, etc.; after 1.9 use 2.0. The package version uses the corresponding semantic form (1.6.0 for release 1.6).
+- Baseline release is 1.1. Each small delivered update increments the tenths digit by one: 1.2, 1.3, etc.; after 1.9 use 2.0. The package version uses the corresponding semantic form (1.7.0 for release 1.7).
 - Every change to app behavior, appearance, persistence or file format requires a CHANGELOG.md entry. Update AGENTS.md when adding/changing an editor extension, architecture, serialization rule, or workflow.
 - State precisely what is delivered vs. partially supported or pending. Do not mark features as complete without testing on the Electron desktop build.
 - Check syntax/build before committing changes when a local Node environment is available. Test Markdown round-trips on representative notes, including Hebrew/English, code, math, images and tables. Keep the existing originals and avoid unintended rewrites.
@@ -202,3 +202,7 @@
 - The first width field is Obsidian-compatible. The third wrapping field is Tali-specific and may not produce the same wrapping in other Markdown editors.
 - Both ordinary and quick drawings are PNG attachments. Quick drawing starts at 480×180 with transparent background; regular drawing defaults to 900×520 and opaque white. They are inserted inline, not free-positioned across unrelated paragraphs.
 - The current custom image controls target `![[...]]` embeds. Markdown `![alt](url)` images are not yet covered.
+
+### Editable text boxes
+- `Insert > תיבת טקסט` inserts a Markdown callout with a `[!TALI-BOX]` marker and editable inner paragraph. The callout decoration styles this as a box.
+- This is an in-flow editor object, not a draggable absolutely positioned text object. Preserve the marker in Markdown serialization and avoid changing the semantics of ordinary blockquotes.
