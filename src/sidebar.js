@@ -2,7 +2,7 @@
 import { icon as svg } from './icons.js';
 
 // opening: התיקייה שנפתחה עכשיו. הפריטים שלה נכנסים באנימציה, אחד אחרי השני.
-export function renderTree(container, tree, { activePath, collapsed, opening, onOpen, onToggleDir, onContext, onSelectDir }) {
+export function renderTree(container, tree, { activePath, collapsed, opening, onOpen, onToggleDir, onContext, onSelectDir, onDelete }) {
   container.innerHTML = '';
   container.appendChild(buildLevel(tree));
 
@@ -12,6 +12,14 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
       const row = document.createElement('div');
       row.className = 'node ' + n.type + (n.path === activePath ? ' active' : '');
       row.style.setProperty('--i', i);
+      row.tabIndex = 0;
+      row.dataset.path = n.path;
+      row.addEventListener('keydown', (event) => {
+        if (event.key !== 'Delete' || event.target !== row) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onDelete?.(n);
+      });
       const icon = document.createElement('span');
       icon.className = 'icon';
       const label = document.createElement('span');
