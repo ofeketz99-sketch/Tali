@@ -216,3 +216,9 @@
 - Annotations do not replace PNG drawings, in-flow callouts or Obsidian embeds.
 - Use SVG paths, no emoji-only interface icons. Existing icon identifiers are in `src/icons.js`.
 - Use `npm test` for pure metadata persistence checks. Always build with `npm run build` and test editing, raw/rich switching, image-style roundtrips and page-overlay interactions in Electron on a copy of a representative Markdown vault before deeming a release stable.
+
+### Home screen and Patch Notes (v2.0+)
+- `#empty` in `src/index.html` is a minimalist Obsidian-like two-action home screen: `#btnNewBig` creates a note; `#btnPatchNotes` opens a patch-notes dialog. There is no logo or explanatory copy in the central empty state. Do not remove the existing sidebar brand.
+- Patch notes come from the root `CHANGELOG.md`, preferably fetched via `git fetch origin main` + `git show FETCH_HEAD:CHANGELOG.md` in Electron's main process (`main.js`), using the user's existing Git authentication. The repo is private; do not use unauthenticated renderer requests or expose credentials. The fallback is a local `CHANGELOG.md`; fetched results have a five-minute cache.
+- `preload.js` exposes only the `patchNotes()` IPC method. `renderer.js` creates DOM elements with `textContent` rather than rendering raw GitHub Markdown as HTML. `src/styles.css` uses theme variables for light/dark/paper/accent themes.
+- When changes are made on GitHub, the user's local `D:\\PROJECTS\\Tali` must be pulled and the app restarted so the launcher rebuilds the renderer bundle. Do not claim that remote GitHub writes update the running desktop app.
