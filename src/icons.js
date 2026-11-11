@@ -8,6 +8,7 @@ import {
   BetweenVerticalStart, BetweenVerticalEnd, Heading, Pen, Slash, MoveUpRight, Square, Circle, Eraser,
   Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
   PanelRightClose, PanelRightOpen, Waypoints, Ghost, Hash, FileDown, FileType, ListChecks, ListTree, Info, Reply, Ellipsis, Focus, Minimize2,
+  Sigma, SquareSigma, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight,
 } from 'lucide';
 
 const ICONS = {
@@ -29,6 +30,9 @@ const ICONS = {
   outline: ListTree, info: Info, backlinks: Reply,
   // סרגל: עוד, מצב מיקוד
   more: Ellipsis, focus: Focus, focusExit: Minimize2,
+  // תפריט הלחיצה הימנית ונוסחאות
+  math: Sigma, mathBlock: SquareSigma, h1: Heading1, h2: Heading2, h3: Heading3, paragraph: Pilcrow,
+  cut: Scissors, paste: ClipboardPaste, selectAll: TextSelect, chevronLeft: ChevronLeft, chevronRight: ChevronRight,
   // טבלה
   rowBefore: BetweenHorizontalStart, rowAfter: BetweenHorizontalEnd,
   colBefore: BetweenVerticalStart, colAfter: BetweenVerticalEnd,

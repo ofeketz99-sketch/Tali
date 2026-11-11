@@ -2,12 +2,16 @@
 // נשמרות ב־settings.json של האפליקציה (דרך main.js), ומוחלות כמשתני CSS על <html>.
 // כדי להוסיף הגדרה: ערך ב־DEFAULTS, החלה ב־applyPrefs, ושורה ב־buildDialog.
 import { icon } from './icons.js';
+import { updateTheme } from './theme.js';
+import { buildThemeSection } from './theme-editor.js';
+import { DEFAULT_THEMES, DEFAULT_SCHEDULE, migratePrefs } from './theme-core.js';
 
 export const DEFAULTS = {
-  version: 2,
-  theme: 'light',          // light | dark | system
-  paper: 'warm',           // גוון הלבן: warm | cool | cream | pure
-  accent: '#6cb8e6',       // תכלת
+  version: 3,
+  // ערכות צבעים (theme-core.js). עד 3.7 היו כאן theme / paper / accent, ו־migratePrefs ממיר אותם.
+  themeMode: 'day',        // day | night | system (לפי Windows) | schedule (לפי שעות)
+  themes: { day: { ...DEFAULT_THEMES.day }, night: { ...DEFAULT_THEMES.night } },
+  schedule: { ...DEFAULT_SCHEDULE },
   fontDoc: 'Calibri',
   fontHeading: 'Rubik',    // גופן הכותרות. 'same' = כמו הטקסט
   textDir: 'rtl',          // rtl (ימין לשמאל) | auto (כל פסקה לפי השפה שלה) | ltr
@@ -22,14 +26,6 @@ export const DEFAULTS = {
   attachFolder: 'attachments',
 };
 
-const ACCENTS = [
-  ['#6cb8e6', 'תכלת'], ['#4a8fd8', 'כחול'], ['#5cc4a4', 'מנטה'],
-  ['#a596e2', 'לבנדר'], ['#ee9f7c', 'אפרסק'], ['#e98fb4', 'ורוד'],
-];
-const PAPERS = [
-  ['warm', 'לבן חמים', '#fffdf9'], ['cool', 'לבן קריר', '#fbfdfe'],
-  ['cream', 'שמנת', '#fffbf1'], ['pure', 'לבן נקי', '#ffffff'],
-];
 // משמש כרוחב העמודה של הדף (grid), ולכן "מלא" הוא מספר גדול ולא none
 const WIDTHS = { narrow: '680px', normal: '820px', wide: '1000px', full: '10000px' };
 // גופנים שכדאי להציע. מוצגים רק אלה שמותקנים במחשב.
@@ -53,26 +49,23 @@ export async function loadPrefs() {
     if (saved.fontDoc === 'Segoe UI') saved.fontDoc = DEFAULTS.fontDoc;
     saved.version = DEFAULTS.version;
   }
-  prefs = { ...DEFAULTS, ...(saved || {}) };
+  // ערכות הצבעים (3.8): הצבע המודגש וגוון הנייר שנבחרו קודם עוברים לערכת היום, והמצב בהיר/כהה/Windows נשמר
+  const migrated = migratePrefs(saved || {});
+  prefs = { ...DEFAULTS, ...migrated, version: DEFAULTS.version };
   applyPrefs();
+  if (saved && !saved.themes) window.api.setPrefs(prefs);
 }
 
-function setPref(key, value) {
+function setPref(key, value, { animate = false } = {}) {
   prefs = { ...prefs, [key]: value };
-  applyPrefs();
+  applyPrefs({ animate });
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => window.api.setPrefs(prefs), 300);
 }
 
-const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
-darkQuery.addEventListener('change', () => { if (prefs.theme === 'system') applyPrefs(); });
-
-export function applyPrefs() {
+export function applyPrefs({ animate = false } = {}) {
   const root = document.documentElement;
-  const dark = prefs.theme === 'dark' || (prefs.theme === 'system' && darkQuery.matches);
-  root.dataset.theme = dark ? 'dark' : 'light';
-  if (prefs.paper === 'warm') delete root.dataset.paper; else root.dataset.paper = prefs.paper;
-  root.style.setProperty('--accent', prefs.accent);
+  updateTheme(prefs, { animate }); // צבעים: theme.js
   root.style.setProperty('--font-doc', `"${prefs.fontDoc}", "Segoe UI", Arial, sans-serif`);
   root.style.setProperty('--font-heading', prefs.fontHeading === 'same'
     ? 'var(--font-doc)' : `"${prefs.fontHeading}", "Segoe UI", Arial, sans-serif`);
@@ -102,7 +95,7 @@ let dialog = null;
 
 export function openSettings() {
   if (!dialog) dialog = buildDialog();
-  dialog.refresh();
+  dialog.open();
   dialog.el.showModal();
 }
 
@@ -155,26 +148,8 @@ function buildDialog() {
     return el('span', { style: 'display:flex;align-items:center;gap:6px' }, r, out);
   };
 
-  // צבע מודגש: דוגמיות + בחירה חופשית
-  const accentBox = el('div', { class: 'swatches' });
-  for (const [color, name] of ACCENTS) {
-    const b = el('button', { type: 'button', class: 'swatch', title: name, style: `background:${color}`, on: { click: () => { setPref('accent', color); refresh(); } } });
-    accentBox.append(b);
-    bind(() => b.classList.toggle('on', prefs.accent.toLowerCase() === color));
-  }
-  const custom = el('input', { type: 'color', title: 'צבע אחר', on: { input: () => { setPref('accent', custom.value); refresh(); } } });
-  accentBox.append(custom);
-  bind(() => { custom.value = prefs.accent; });
-
-  // גוון הרקע
-  const paperBox = el('div', { class: 'swatches' });
-  for (const [value, name, color] of PAPERS) {
-    const b = el('button', { type: 'button', class: 'swatch', title: name, style: `background:${color}`, on: { click: () => { setPref('paper', value); refresh(); } } });
-    paperBox.append(b);
-    bind(() => b.classList.toggle('on', prefs.paper === value));
-  }
-  const paperRow = row('גוון הרקע', 'במצב בהיר', paperBox);
-  bind(() => { paperRow.hidden = document.documentElement.dataset.theme === 'dark'; });
+  // ערכות צבעים (theme-editor.js)
+  const themes = buildThemeSection({ el, row, getPrefs: () => prefs, setPref });
 
   // גופנים מותקנים בלבד, והגופן הנוכחי גם אם הוא לא ברשימה
   // Rubik מגיע עם האפליקציה (תיקיית fonts), ולכן תמיד ברשימה
@@ -188,9 +163,7 @@ function buildDialog() {
 
   const body = el('div', { class: 'set-body' },
     el('h3', {}, 'מראה'),
-    row('ערכת צבעים', null, seg('theme', [['light', 'בהיר'], ['dark', 'כהה'], ['system', 'לפי Windows']])),
-    paperRow,
-    row('צבע מודגש', 'כפתורים, קישורים וסימונים', accentBox),
+    ...themes.nodes,
 
     el('h3', {}, 'טקסט'),
     row('כיוון הטקסט', 'אוטומטי: כל פסקה לפי השפה שבה היא מתחילה', seg('textDir', [['rtl', 'ימין לשמאל'], ['auto', 'אוטומטי'], ['ltr', 'שמאל לימין']])),
@@ -211,17 +184,36 @@ function buildDialog() {
     row('שם התיקייה לתמונות', 'בתוך התיקייה הראשית', folderInput),
   );
 
-  const reset = el('button', { type: 'button', on: { click: () => { prefs = { ...DEFAULTS }; setPref('accent', DEFAULTS.accent); refresh(); } } }, 'איפוס לברירת המחדל');
-  const close = el('button', { type: 'button', class: 'primary', on: { click: () => dlg.close() } }, 'סגירה');
-  const closeBtn = el('button', { type: 'button', class: 'icon-btn', 'data-tip': 'סגירה', 'aria-label': 'סגירה', on: { click: () => dlg.close() } });
+  const reset = el('button', { type: 'button', on: { click: () => {
+    prefs = { ...DEFAULTS, themes: { day: { ...DEFAULT_THEMES.day }, night: { ...DEFAULT_THEMES.night } }, schedule: { ...DEFAULT_SCHEDULE } };
+    setPref('version', DEFAULTS.version, { animate: true });
+    themes.open();
+    refresh();
+  } } }, 'איפוס לברירת המחדל');
+  // סגירה עם צבעים שלא הוחלו: שואלים בתוך החלון (בלי חלון של Windows)
+  const pending = el('div', { class: 'set-pending', hidden: '' },
+    el('span', {}, 'יש שינויים בצבעים שעוד לא הוחלו.'),
+    el('button', { type: 'button', class: 'primary', on: { click: () => { themes.commit(); pending.hidden = true; dlg.close(); } } }, 'החלה וסגירה'),
+    el('button', { type: 'button', on: { click: () => { themes.discard(); pending.hidden = true; dlg.close(); } } }, 'ביטול השינויים'));
+  const tryClose = () => {
+    if (themes.isDirty()) { pending.hidden = false; pending.querySelector('button').focus(); return; }
+    dlg.close();
+  };
+  const close = el('button', { type: 'button', class: 'primary', on: { click: tryClose } }, 'סגירה');
+  const closeBtn = el('button', { type: 'button', class: 'icon-btn', 'data-tip': 'סגירה', 'aria-label': 'סגירה', on: { click: tryClose } });
   closeBtn.innerHTML = icon('close', 18);
   const dlg = el('dialog', { id: 'settings' },
     el('div', { class: 'set-head' }, el('h2', {}, 'הגדרות'), closeBtn),
     body,
+    pending,
     el('div', { class: 'set-foot' }, reset, close),
   );
   document.body.append(dlg);
+  // Escape ולחיצה בחוץ (המאזין הכללי ב־renderer.js) שולחים cancel: אם יש טיוטה, לא סוגרים ושואלים
+  dlg.addEventListener('cancel', (e) => { if (themes.isDirty()) { e.preventDefault(); tryClose(); } });
+  dlg.addEventListener('close', () => { pending.hidden = true; });
 
-  function refresh() { for (const fn of refreshers) fn(); }
-  return { el: dlg, refresh };
+  function refresh() { for (const fn of refreshers) fn(); themes.refresh(); }
+  function open() { pending.hidden = true; themes.open(); refresh(); }
+  return { el: dlg, refresh, open };
 }

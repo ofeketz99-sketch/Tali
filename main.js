@@ -1,6 +1,6 @@
 // תהליך ראשי של Electron: חלון, וכל הגישה לקבצים במחשב.
 // כל פעולה על קבצים עוברת כאן ונבדקת שהיא בתוך התיקייה שנבחרה.
-const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, powerMonitor } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
 const { execFile } = require('child_process');
@@ -343,6 +343,8 @@ function registerIpc() {
   ipcMain.handle('attachments', async () => (root ? walkFiles(root, [], false) : []));
 
   // הגדרות התצוגה (גופן, צבעים וכו'), נשמרות לצד התיקייה האחרונה
+  // גזירה/העתקה/הדבקה מתפריט הלחיצה הימנית: אותה פקודה כמו Ctrl+X/C/V, על הרכיב שבפוקוס
+  ipcMain.handle('edit-command', (e, cmd) => { if (['cut', 'copy', 'paste', 'selectAll'].includes(cmd)) e.sender[cmd](); });
   ipcMain.handle('get-prefs', async () => (await loadSettings()).prefs || null);
   ipcMain.handle('set-prefs', async (_e, prefs) => {
     if (!prefs || typeof prefs !== 'object') return false;
@@ -534,6 +536,10 @@ app.on('second-instance', () => {
 app.whenReady().then(() => {
   registerIpc();
   createWindow();
+  // התעוררות משינה, פתיחת נעילה או שינוי שעון: הממשק בודק מחדש איזו ערכת צבעים צריכה לפעול
+  const wake = () => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send('system-wake'); };
+  powerMonitor.on('resume', wake);
+  powerMonitor.on('unlock-screen', wake);
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
