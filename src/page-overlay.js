@@ -172,7 +172,7 @@ export function createPageOverlay({ page, onChange }) {
       event.preventDefault();
       event.stopPropagation();
       select(object.id);
-      drag(object, event, 'move', group);
+      drag(object, event, 'move', shapes.querySelector('.tali-overlay-shape.selected'));
     });
     return group;
   }
