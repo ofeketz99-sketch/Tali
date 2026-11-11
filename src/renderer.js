@@ -563,9 +563,6 @@ async function enterRoot(r) {
   state.collapsed = new Set(store.get('collapsed:' + r.root, []));
   $('page').hidden = true;
   $('empty').hidden = false;
-  $('empty').querySelector('p').textContent = 'בחר הערה מהרשימה, או צור הערה חדשה.';
-  $('btnPickBig').hidden = true;
-  $('btnNewBig').hidden = false;
   setStatus('תיקיית ההערות: ' + $('vaultName').textContent);
   drawTree();
 }
@@ -773,7 +770,6 @@ function refreshLinksPanel() {
 
 // ===== כפתורים =====
 $('btnPick').addEventListener('click', async () => enterRoot(await window.api.pickFolder()));
-$('btnPickBig').addEventListener('click', async () => enterRoot(await window.api.pickFolder()));
 $('btnSettings').addEventListener('click', openSettings);
 
 async function newNote(presetName) {
@@ -799,8 +795,79 @@ async function newFolder() {
 }
 
 $('btnNote').addEventListener('click', () => newNote());
-$('btnNewBig').addEventListener('click', () => newNote());
+$('btnNewBig').addEventListener('click', async () => {
+  if (!state.root) await enterRoot(await window.api.pickFolder());
+  if (state.root) newNote();
+});
 $('btnFolder').addEventListener('click', newFolder);
+
+// הצגת Patch Notes מה־CHANGELOG המתוחזק בגיטהאב. תוכן ה־Markdown מוצג כטקסט בטוח.
+function appendPatchText(target, value) {
+  for (const part of value.split(/(`[^`]+`|\*\*[^*]+\*\*)/g)) {
+    if (!part) continue;
+    if (part.startsWith('`') && part.endsWith('`')) {
+      const code = document.createElement('code');
+      code.textContent = part.slice(1, -1);
+      target.append(code);
+    } else if (part.startsWith('**') && part.endsWith('**')) {
+      const strong = document.createElement('strong');
+      strong.textContent = part.slice(2, -2);
+      target.append(strong);
+    } else {
+      target.append(document.createTextNode(part));
+    }
+  }
+}
+function renderPatchNotes(markdown) {
+  const box = $('patchNotesContent');
+  box.replaceChildren();
+  let group = null;
+  let list = null;
+  for (const originalLine of markdown.split(/\r?\n/)) {
+    const line = originalLine.trim();
+    const section = /^##\s+(.+)$/.exec(line);
+    if (section) {
+      if (/^טרם הושלם/.test(section[1])) break;
+      group = document.createElement('section');
+      group.className = 'patch-note-release';
+      const title = document.createElement('h3');
+      title.textContent = section[1];
+      group.append(title);
+      box.append(group);
+      list = null;
+    } else if (group && /^-\s+/.test(line)) {
+      if (!list) { list = document.createElement('ul'); group.append(list); }
+      const item = document.createElement('li');
+      appendPatchText(item, line.replace(/^-\s+/, ''));
+      list.append(item);
+    } else if (group && line && !line.startsWith('#')) {
+      const paragraph = document.createElement('p');
+      appendPatchText(paragraph, line);
+      group.append(paragraph);
+      list = null;
+    }
+  }
+  if (!box.children.length) box.textContent = 'עדיין אין הערות גרסה להצגה.';
+}
+async function openPatchNotes() {
+  const dialog = $('patchNotesDialog');
+  if (dialog.open) return;
+  $('patchNotesContent').textContent = 'טוען עדכונים…';
+  $('patchNotesSource').textContent = '';
+  dialog.showModal();
+  try {
+    const data = await window.api.patchNotes();
+    if (!dialog.open) return;
+    renderPatchNotes(data.content || '');
+    $('patchNotesSource').textContent = data.source === 'github'
+      ? 'העדכונים נמשכו מ־GitHub'
+      : 'מוצג עותק מקומי — לא ניתן כרגע לעדכן מ־GitHub';
+  } catch {
+    if (dialog.open) $('patchNotesContent').textContent = 'לא ניתן לטעון את עדכוני הגרסה כעת.';
+  }
+}
+$('btnPatchNotes').addEventListener('click', openPatchNotes);
+$('btnClosePatchNotes').addEventListener('click', () => $('patchNotesDialog').close());
 
 // ===== חיפוש =====
 let searchTimer = null;
@@ -932,7 +999,7 @@ function matchesKeys(e, keys) {
 // שלב הלכידה: הקיצורים של האפליקציה קודמים לעורך (למשל Ctrl+E)
 window.addEventListener('keydown', (e) => {
   // בזמן דיאלוג (שם, אישור, הגדרות) הקיצורים כבויים
-  if ($('dlg').open || document.getElementById('settings')?.open || document.getElementById('paint')?.open) return;
+  if ($('dlg').open || $('patchNotesDialog').open || document.getElementById('settings')?.open || document.getElementById('paint')?.open) return;
   for (const c of COMMANDS) {
     if (!c.keys || !matchesKeys(e, c.keys)) continue;
     // בתוך חלון החיפוש המהיר עובדים רק המעברים בינו לבין לוח הפקודות
