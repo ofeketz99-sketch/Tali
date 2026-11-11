@@ -1,0 +1,9 @@
+# תלויות ותוצרי בנייה: נוצרים מחדש עם npm install ו־npm run build
+node_modules/
+dist/
+
+# קבצי מערכת
+*.log
+Thumbs.db
+desktop.ini
+.DS_Store

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: file:" />
+  <title>Tali</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <aside id="sidebar">
+    <div class="side-head">
+      <div class="vault">
+        <img class="app-logo" src="logo.png" alt="" />
+        <div class="brand-text"><div class="brand">Tali</div><div id="vaultName">בחירת תיקייה</div></div>
+      </div>
+      <button id="btnPick" class="icon-btn" data-tip="החלפת תיקיית ההערות" data-icon="vault"></button>
+      <button id="btnSettings" class="icon-btn" data-tip="הגדרות (Ctrl+,)" data-icon="settings"></button>
+    </div>
+    <div class="side-top">
+      <button id="btnNote" class="primary" data-tip="הערה חדשה (Ctrl+N)"><span data-icon="plus"></span>הערה חדשה</button>
+      <button id="btnFolder" class="icon-btn" data-tip="תיקייה חדשה (Ctrl+Shift+N)" data-icon="folderPlus"></button>
+    </div>
+    <div class="search-box">
+      <span data-icon="search"></span>
+      <input id="search" type="search" placeholder="חיפוש בכל ההערות…" title="חיפוש בכל ההערות (Ctrl+Shift+F)" />
+    </div>
+    <div class="side-hint">מעבר מהיר <kbd>Ctrl+O</kbd> · פקודות <kbd>Ctrl+P</kbd></div>
+    <div id="tree"></div>
+  </aside>
+
+  <main id="main">
+    <div id="toolbar"></div>
+    <div id="pageWrap">
+      <div id="empty" class="empty">
+        <img class="empty-logo" src="logo.png" alt="Tali" />
+        <h1 class="empty-title">Tali</h1>
+        <p>בחר תיקיית עבודה כדי להתחיל.</p>
+        <button id="btnPickBig" class="primary">בחירת תיקייה</button>
+        <button id="btnNewBig" class="primary" hidden>הערה חדשה</button>
+      </div>
+      <div id="page" hidden>
+        <textarea id="props" hidden spellcheck="false" title="מאפיינים (frontmatter)"></textarea>
+        <div id="editor"></div>
+        <textarea id="raw" hidden spellcheck="false"></textarea>
+      </div>
+      <section id="backlinks" hidden></section>
+    </div>
+    <div id="statusBar"><span id="saveDot" title="מצב שמירה"></span><div id="status"></div></div>
+  </main>
+
+  <dialog id="dlg">
+    <form method="dialog">
+      <label id="dlgLabel"></label>
+      <input id="dlgInput" autocomplete="off" />
+      <menu>
+        <button value="cancel">ביטול</button>
+        <button value="ok" class="primary">אישור</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <div id="ctx" hidden></div>
+
+  <script src="../dist/renderer.js"></script>
+</body>
+</html>

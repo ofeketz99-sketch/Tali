@@ -1,0 +1,6 @@
+# קוד וטקסט נשמרים עם סוף שורה LF. קבצי .cmd חייבים CRLF, אחרת cmd עלול להתבלבל בקפיצות (goto).
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.ico binary
+*.png binary
+*.woff2 binary
