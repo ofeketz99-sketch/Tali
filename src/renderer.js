@@ -7,6 +7,7 @@ import { openLinkPicker } from './linkpicker.js';
 import { showLinkHubOffer } from './linkhub.js';
 import { fileUrl, bumpImage } from './embed.js';
 import { openPaint } from './paint.js';
+import { createPageOverlay } from './page-overlay.js';
 import { icon } from './icons.js';
 
 // אייקונים בכפתורים שב־index.html: <span data-icon="plus">
@@ -119,17 +120,18 @@ function localSrc(src) {
 
 // ===== עורך וסרגל כלים =====
 let saveTimer = null;
+const noteChanged = () => {
+  state.dirty = true;
+  setSaveState('dirty');
+  setStatus('נערך…');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSave, 600);
+};
 const editorApi = createEditor({
   element: $('editor'),
   rawElement: $('raw'),
   propsElement: $('props'),
-  onChange: () => {
-    state.dirty = true;
-    setSaveState('dirty');
-    setStatus('נערך…');
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(flushSave, 600);
-  },
+  onChange: noteChanged,
   links: {
     getNotes: () => allNotes().filter((n) => n.path !== state.currentPath),
     resolve: resolveTarget,
@@ -140,7 +142,21 @@ const editorApi = createEditor({
   },
   onImageFiles: saveDroppedImages,
 });
-buildToolbar($('toolbar'), editorApi, { onImage: importImages, onDraw: newDrawing, onQuickDraw: () => newDrawing(true) });
+const pageOverlay = createPageOverlay({ page: $('page'), onChange: noteChanged });
+editorApi.setOverlayController(pageOverlay);
+const useOverlay = (tool) => {
+  if (!state.currentPath) { setStatus('קודם פותחים פתק'); return; }
+  if (editorApi.isRaw()) { setStatus('עבור לתצוגה המעוצבת כדי לשרטט על הדף'); return; }
+  pageOverlay.setEnabled(true);
+  pageOverlay.setMode(tool);
+  setStatus('בחר כלי, ולאחר מכן צייר על הדף. Esc מסיים.');
+};
+buildToolbar($('toolbar'), editorApi, {
+  onImage: importImages,
+  onDraw: newDrawing,
+  onQuickDraw: () => newDrawing(true),
+  onOverlayDraw: useOverlay,
+});
 
 // ===== ציורים =====
 function drawingStamp() {
@@ -456,6 +472,7 @@ async function openNote(p, { history = true } = {}) {
   state.recent = [p, ...state.recent.filter((x) => x !== p)].slice(0, 30);
   store.set('recent:' + state.root, state.recent);
   editorApi.setMarkdown(md);
+  pageOverlay.setEnabled(!editorApi.isRaw());
   $('empty').hidden = true;
   $('page').hidden = false;
   $('pageWrap').scrollTop = 0;
@@ -537,6 +554,7 @@ async function enterRoot(r) {
   notesCache = null;
   state.currentPath = null;
   state.dirty = false;
+  pageOverlay.setEnabled(false);
   state.selectedDir = null;
   state.back = [];
   state.forward = [];
@@ -574,7 +592,7 @@ async function renameNode(node) {
       await reloadFromDisk();
     }
     await refreshTree();
-    if (!state.currentPath) { $('page').hidden = true; $('empty').hidden = false; }
+    if (!state.currentPath) { pageOverlay.setEnabled(false); $('page').hidden = true; $('empty').hidden = false; }
     else setStatus(prettyPath(state.currentPath));
     const others = changed.filter((p) => p !== to).length;
     if (others) setStatus(`הקישורים עודכנו ב־${others} הערות`);
@@ -594,6 +612,7 @@ async function deleteNode(node) {
     if (state.currentPath && state.currentPath.startsWith(node.path)) {
       state.currentPath = null;
       state.dirty = false;
+      pageOverlay.setEnabled(false);
       $('page').hidden = true;
       $('empty').hidden = false;
     }
