@@ -12,9 +12,9 @@ const SIZES = [[2, 'דק'], [5, 'בינוני'], [12, 'עבה']];
 
 let dlg = null;
 
-export function openPaint({ image = null, onSave }) {
+export function openPaint({ image = null, quick = false, onSave }) {
   if (!dlg) dlg = build();
-  dlg.start(image, onSave);
+  dlg.start(image, onSave, quick);
 }
 
 function build() {
@@ -228,15 +228,15 @@ function build() {
     finally { btn.disabled = false; }
   }
 
-  async function start(image, onSave) {
+  async function start(image, onSave, quick = false) {
     saveFn = onSave;
     undo = []; redo = []; dirty = false;
     tool = 'pen'; color = COLORS[0]; size = SIZES[1][0];
-    transparent = false;
-    d.querySelector('[data-act="transparent"]').checked = false;
-    paper.classList.remove('transparent');
+    transparent = !!quick;
+    d.querySelector('[data-act="transparent"]').checked = transparent;
+    paper.classList.toggle('transparent', transparent);
     d.querySelector('[data-act="save"]').textContent = image ? 'שמירה' : 'הוספה להערה';
-    resize(900, 520, false);
+    resize(quick ? 480 : 900, quick ? 180 : 520, false);
     mctx.clearRect(0, 0, W, H);
     if (image) {
       const img = new Image();
