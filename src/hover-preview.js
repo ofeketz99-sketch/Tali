@@ -36,7 +36,7 @@ export function setupHoverPreview({ resolve, read, fileUrl, onOpen, isNote }) {
     head.className = 'np-head';
     head.innerHTML = `${icon('file', 15)}<span></span>${icon('chevron', 13)}`;
     head.querySelector('span').textContent = name.split('/').pop() + (heading ? ' › ' + heading : '');
-    head.dataset.tip = 'פתיחת ההערה';
+    head.dataset.tip = 'פתיחת המסמך';
     head.addEventListener('click', () => { hide(); onOpen(name); });
     const body = document.createElement('div');
     body.className = 'np-body';

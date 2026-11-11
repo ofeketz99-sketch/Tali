@@ -108,7 +108,7 @@ export function renderNoteHtml(markdown, { resolve, fileUrl, heading, limit } = 
     text = text.slice(0, at > limit * 0.5 ? at : limit);
     cut = true;
   }
-  if (!text.trim()) return '<p class="np-empty">ההערה ריקה</p>';
+  if (!text.trim()) return '<p class="np-empty">המסמך ריק</p>';
   // "- [ ] משימה" מוצגת עם תיבה, כמו בעורך
   const html = md.render(text).replace(/<li>(<p>)?\[([ xX])\]\s?/g, (_m, p, mark) =>
     `<li class="np-task">${p || ''}${mark === ' ' ? '☐' : '☑'} `);

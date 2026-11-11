@@ -143,21 +143,21 @@ export function buildToolbar(container, editorApi, actions = {}) {
     html: `${icon('insert')}<span>הוספה</span>${icon('chevron', 14)}`, tip: 'הוספת טבלה, תמונה, ציור ועוד', cls: 'tb-select',
     run: (b) => openMenu(b, (m) => {
       const items = [
-        ['table', 'טבלה', 'בחירת גודל בריחוף', () => openTableGrid(insertBtn, (rows, cols) => chain().insertTable({ rows, cols, withHeaderRow: true }).run())],
-        ['image', 'תמונה', 'מהמחשב. אפשר גם להדביק או לגרור', () => actions.onImage?.()],
-        ['draw', 'ציור כתמונה', 'חלון אחד לציור רגיל או מהיר עם רקע שקוף', () => actions.onDraw?.()],
-        ['arrow', 'שרטוט על הדף', 'ציור חופשי, חץ או צורה שאפשר לערוך ולהזיז כקבוצה', () => actions.onOverlayDraw?.()],
-        ['textBox', 'תיבת טקסט צפה', 'תיבה שאפשר לגרור ולשנות לה גודל בכל מקום על הדף', () => actions.onOverlayDraw?.('textbox')],
-        ['quote', 'תיבה בתוך הפסקה', 'תיבת טקסט רגילה שזזה עם הכתיבה', () => chain().insertContent({ type: 'blockquote', content: [ { type: 'paragraph', content: [{ type: 'text', text: '[!TALI-BOX]' }] }, { type: 'paragraph', content: [{ type: 'text', text: 'טקסט בתוך התיבה' }] } ] }).run()],
-        ['code', 'בלוק קוד', '', () => chain().toggleCodeBlock().run()],
-        ['rule', 'קו מפריד', '', () => chain().setHorizontalRule().run()],
-        ['taskSection', 'משימות להמשך', 'סקציית תיבות סימון בתחתית המסמך', () => actions.onTaskSection?.()],
+        ['table', 'טבלה', () => openTableGrid(insertBtn, (rows, cols) => chain().insertTable({ rows, cols, withHeaderRow: true }).run())],
+        ['image', 'תמונה', () => actions.onImage?.()],
+        ['draw', 'ציור כתמונה', () => actions.onDraw?.()],
+        ['arrow', 'שרטוט על הדף', () => actions.onOverlayDraw?.()],
+        ['textBox', 'תיבת טקסט צפה', () => actions.onOverlayDraw?.('textbox')],
+        ['quote', 'תיבה בתוך הפסקה', () => chain().insertContent({ type: 'blockquote', content: [ { type: 'paragraph', content: [{ type: 'text', text: '[!TALI-BOX]' }] }, { type: 'paragraph', content: [{ type: 'text', text: 'טקסט בתוך התיבה' }] } ] }).run()],
+        ['code', 'בלוק קוד', () => chain().toggleCodeBlock().run()],
+        ['rule', 'קו מפריד', () => chain().setHorizontalRule().run()],
+        ['taskSection', 'משימות להמשך', () => actions.onTaskSection?.()],
       ];
-      for (const [ic, name, hint, run] of items) {
+      for (const [ic, name, run] of items) {
         const it = document.createElement('button');
         it.type = 'button';
         it.className = 'tb-menu-item with-icon';
-        it.innerHTML = `${icon(ic)}<span><span>${name}</span>${hint ? `<small>${hint}</small>` : ''}</span>`;
+        it.innerHTML = `${icon(ic)}<span>${name}</span>`;
         it.addEventListener('mousedown', (e) => e.preventDefault());
         it.addEventListener('click', () => { closeMenu(); run(); });
         m.append(it);
@@ -168,7 +168,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
   // ===== תצוגת Markdown =====
   const g8 = group('tb-end');
   const rawBtn = button(g8, {
-    html: icon('markdown', 20), tip: 'תצוגת Markdown: הטקסט הגולמי של ההערה (Ctrl+E)',
+    html: icon('markdown', 20), tip: 'תצוגת Markdown: הטקסט הגולמי של המסמך (Ctrl+E)',
     run: () => rawBtn.classList.toggle('is-active', editorApi.toggleRaw()),
   });
   rawBtn.id = 'btnRaw';

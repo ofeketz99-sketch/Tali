@@ -194,29 +194,15 @@ buildToolbar($('toolbar'), editorApi, {
   onTaskSection: insertTaskSection,
 });
 
-// ===== צד ימין: פתוח, פס אייקונים, מוסתר =====
-const sidebarRestore = document.createElement('button');
-sidebarRestore.type = 'button';
-sidebarRestore.id = 'btnSidebarRestore';
-sidebarRestore.className = 'tb-btn sidebar-restore';
-sidebarRestore.innerHTML = icon('panelExpand', 19);
-sidebarRestore.setAttribute('aria-label', 'פתיחת הסרגל הימני');
-sidebarRestore.dataset.tip = 'פתיחת הסרגל הימני';
-$('toolbar').prepend(sidebarRestore);
-
+// ===== צד ימין: פתוח או פס אייקונים =====
+// מצב "מוסתר" ישן (עד 3.0) חוזר כפס אייקונים, כדי שהסרגל לא ייעלם בלי דרך להחזיר אותו.
 let sidebarMode = store.get('tali:sidebar-mode', 'expanded');
-if (!['expanded', 'compact', 'hidden'].includes(sidebarMode)) sidebarMode = 'expanded';
-let sidebarLastShown = store.get('tali:sidebar-last-shown', 'expanded');
-if (!['expanded', 'compact'].includes(sidebarLastShown)) sidebarLastShown = 'expanded';
+if (sidebarMode === 'hidden') sidebarMode = 'compact';
+if (!['expanded', 'compact'].includes(sidebarMode)) sidebarMode = 'expanded';
 function setSidebarMode(next) {
   sidebarMode = next;
-  if (next !== 'hidden') {
-    sidebarLastShown = next;
-    store.set('tali:sidebar-last-shown', next);
-  }
   store.set('tali:sidebar-mode', next);
   document.body.dataset.sidebarMode = next;
-  sidebarRestore.hidden = next !== 'hidden';
   const min = $('btnSidebarMin');
   min.innerHTML = icon(next === 'compact' ? 'panelExpand' : 'panelCollapse', 18);
   min.dataset.tip = next === 'compact' ? 'הרחבת הסרגל הימני' : 'צמצום הסרגל הימני';
@@ -224,8 +210,6 @@ function setSidebarMode(next) {
   min.setAttribute('aria-expanded', next === 'expanded' ? 'true' : 'false');
 }
 $('btnSidebarMin').addEventListener('click', () => setSidebarMode(sidebarMode === 'compact' ? 'expanded' : 'compact'));
-$('btnSidebarHide').addEventListener('click', () => setSidebarMode('hidden'));
-sidebarRestore.addEventListener('click', () => setSidebarMode(sidebarLastShown));
 setSidebarMode(sidebarMode);
 
 // ===== ציורים =====
@@ -235,7 +219,7 @@ function drawingStamp() {
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}.${two(d.getMinutes())}.${two(d.getSeconds())}`;
 }
 function newDrawing() {
-  if (!state.currentPath) { setStatus('קודם פותחים הערה, ואז מוסיפים לה ציור'); return; }
+  if (!state.currentPath) { setStatus('קודם פותחים מסמך, ואז מוסיפים לו ציור'); return; }
   if (editorApi.isRaw()) { setStatus('ציור עובד בתצוגה המעוצבת'); return; }
   const at = editorApi.editor.state.selection.from;
   openPaint({
@@ -335,7 +319,7 @@ async function insertImages(paths) {
 }
 
 async function importImages() {
-  if (!state.currentPath) { setStatus('קודם פותחים הערה, ואז מוסיפים לה תמונה'); return; }
+  if (!state.currentPath) { setStatus('קודם פותחים מסמך, ואז מוסיפים לו תמונה'); return; }
   if (editorApi.isRaw()) { setStatus('ייבוא תמונות עובד בתצוגה המעוצבת'); return; }
   try { await insertImages(await window.api.importImages(attachmentDir())); }
   catch (err) { setStatus('שגיאה בייבוא: ' + err.message); }
@@ -398,7 +382,7 @@ async function saveDespiteOutsideChange(p, content) {
     const disk = await window.api.read(p);
     if (disk !== state.diskText && disk !== content) {
       const copy = await window.api.saveConflictCopy(p, disk);
-      showToast('ההערה נערכה גם מחוץ לאפליקציה. השינויים שלך נשמרו, והגרסה האחרת נשמרה כהערה נפרדת.',
+      showToast('המסמך נערך גם מחוץ לאפליקציה. השינויים שלך נשמרו, והגרסה האחרת נשמרה כמסמך נפרד.',
         'פתיחת הגרסה האחרת', () => openNote(copy));
       refreshTree();
     }
@@ -434,7 +418,7 @@ window.addEventListener('focus', async () => {
   if (disk == null || state.currentPath !== p || state.dirty) return;
   if (disk === state.diskText) { state.mtime = now; return; }
   await reloadFromDisk();
-  setStatus('ההערה עודכנה מהדיסק');
+  setStatus('המסמך עודכן מהדיסק');
 });
 
 // הודעה קטנה בפינה, שלא עוצרת את העבודה
@@ -617,7 +601,7 @@ async function goHistory(dir) {
   if (!p) return;
   if (state.currentPath) to.push(state.currentPath);
   try { await openNote(p, { history: false }); }
-  catch { setStatus('ההערה כבר לא קיימת'); }
+  catch { setStatus('המסמך כבר לא קיים'); }
 }
 
 async function enterRoot(r) {
@@ -642,7 +626,7 @@ async function enterRoot(r) {
   $('empty').hidden = false;
   $('btnPickBig').hidden = true;
   $('btnNewBig').hidden = false;
-  setStatus('תיקיית ההערות: ' + $('vaultName').textContent);
+  setStatus('תיקיית המסמכים: ' + $('vaultName').textContent);
   drawTree();
 }
 
@@ -671,7 +655,7 @@ async function renameNode(node) {
     if (!state.currentPath) { pageOverlay.setEnabled(false); $('page').hidden = true; $('empty').hidden = false; }
     else setStatus(prettyPath(state.currentPath));
     const others = changed.filter((p) => p !== to).length;
-    if (others) setStatus(`הקישורים עודכנו ב־${others} הערות`);
+    if (others) setStatus(`הקישורים עודכנו ב־${others} מסמכים`);
   } catch (err) { setStatus(err.message); }
 }
 
@@ -915,14 +899,14 @@ function refreshLinksPanel() {
   const head = document.createElement('button');
   head.type = 'button';
   head.className = 'lk-head';
-  head.dataset.tip = linksOpen ? 'צמצום' : 'הצגת הקישורים של ההערה';
+  head.dataset.tip = linksOpen ? 'צמצום' : 'הצגת הקישורים של המסמך';
   head.innerHTML = `${icon('link', 16)}<span>קישורים</span><span class="lk-count">${targets.length}</span>${icon('chevron', 14)}`;
   head.addEventListener('click', () => {
     linksOpen = !linksOpen;
     store.set('linksPanelOpen', linksOpen);
     panel.classList.toggle('open', linksOpen);
     $('pageWrap').classList.toggle('links-open', linksOpen);
-    head.dataset.tip = linksOpen ? 'צמצום' : 'הצגת הקישורים של ההערה';
+    head.dataset.tip = linksOpen ? 'צמצום' : 'הצגת הקישורים של המסמך';
   });
   panel.append(head);
   // משאירים את גוף החלונית ב-DOM גם בסגירה, כדי לאפשר אנימציית גובה/דהייה.
@@ -1102,9 +1086,9 @@ function expandAll() { state.collapsed.clear(); saveCollapsed(); drawTree(); }
 function openSwitcher() {
   if (!state.root) return;
   openPalette({
-    placeholder: 'הקלד שם של הערה…',
+    placeholder: 'הקלד שם של מסמך…',
     footer: '↑↓ בחירה · Enter פתיחה · Esc סגירה',
-    emptyText: 'אין הערות',
+    emptyText: 'אין מסמכים',
     items: (query) => {
       const notes = allNotes();
       const recentRank = new Map(state.recent.map((p, i) => [p, i]));
@@ -1141,31 +1125,31 @@ function openSwitcher() {
 // keys: מה שמוצג. הזיהוי לפי המקש הפיזי (e.code), כך שזה עובד גם כשהמקלדת בעברית.
 const rawButton = () => $('btnRaw');
 const COMMANDS = [
-  { title: 'מעבר מהיר להערה', keys: 'Ctrl+O', run: openSwitcher, needs: 'root' },
+  { title: 'מעבר מהיר למסמך', keys: 'Ctrl+O', run: openSwitcher, needs: 'root' },
   { title: 'לוח פקודות', keys: 'Ctrl+P', run: openCommands },
   { title: 'מסמך חדש', keys: 'Ctrl+N', run: () => newNote(), needs: 'root' },
   { title: 'תיקייה חדשה', keys: 'Ctrl+Shift+N', run: newFolder, needs: 'root' },
-  { title: 'חיפוש בכל ההערות', keys: 'Ctrl+Shift+F', run: () => { $('search').focus(); $('search').select(); }, needs: 'root' },
+  { title: 'חיפוש בכל המסמכים', keys: 'Ctrl+Shift+F', run: () => { $('search').focus(); $('search').select(); }, needs: 'root' },
   { title: 'שמירה', keys: 'Ctrl+S', run: flushSave, needs: 'note' },
   { title: 'מעבר בין תצוגה מעוצבת ל־Markdown', keys: 'Ctrl+E', run: () => rawButton()?.click(), needs: 'note' },
-  { title: 'שינוי שם ההערה', keys: 'F2', run: () => renameNode(currentNode()), needs: 'note' },
-  { title: 'מחיקת ההערה (לסל המחזור)', run: () => deleteNode(currentNode()), needs: 'note' },
+  { title: 'שינוי שם המסמך', keys: 'F2', run: () => renameNode(currentNode()), needs: 'note' },
+  { title: 'מחיקת המסמך (לסל המחזור)', run: () => deleteNode(currentNode()), needs: 'note' },
   { title: 'קישור לפתקים אחרים…', run: () => pickLinksFor(state.currentPath), needs: 'note' },
-  { title: 'שכפול ההערה', run: () => duplicateNode(currentNode()), needs: 'note' },
+  { title: 'שכפול המסמך', run: () => duplicateNode(currentNode()), needs: 'note' },
   { title: 'ייבוא תמונה', run: importImages, needs: 'note' },
   { title: 'ציור חדש', run: newDrawing, needs: 'note' },
-  { title: 'אחורה להערה הקודמת', keys: 'Alt+←', run: () => goHistory(-1) },
+  { title: 'אחורה למסמך הקודם', keys: 'Alt+←', run: () => goHistory(-1) },
   { title: 'קדימה', keys: 'Alt+→', run: () => goHistory(1) },
-  { title: 'הצגת ההערה בעץ הקבצים', run: revealInTree, needs: 'note' },
+  { title: 'הצגת המסמך בעץ הקבצים', run: revealInTree, needs: 'note' },
   { title: 'כיווץ כל התיקיות', run: collapseAll, needs: 'root' },
   { title: 'פתיחת כל התיקיות', run: expandAll, needs: 'root' },
-  { title: 'הצגת ההערה בסייר הקבצים של Windows', run: () => window.api.reveal(state.currentPath), needs: 'note' },
+  { title: 'הצגת המסמך בסייר הקבצים של Windows', run: () => window.api.reveal(state.currentPath), needs: 'note' },
   { title: 'הגדרות', keys: 'Ctrl+,', run: openSettings },
   { title: 'מה חדש (Patch Notes)', run: openPatchNotes },
   { title: 'גרף הקישורים', keys: 'Ctrl+G', run: showGraph, needs: 'root' },
   { title: 'תגיות', run: () => showTags(), needs: 'root' },
   { title: 'משימות בכל המסמכים', keys: 'Ctrl+Shift+T', run: showTasks, needs: 'root' },
-  { title: 'הערות רפאים (קישורים להערות שלא נוצרו)', run: showGhosts, needs: 'root' },
+  { title: 'מסמכי רפאים (קישורים למסמכים שלא נוצרו)', run: showGhosts, needs: 'root' },
   { title: 'משימות להמשך בסוף המסמך', run: insertTaskSection, needs: 'note' },
   { title: 'הוספת מאפיינים', run: () => editorApi.addProperties(), needs: 'note' },
   { title: 'ייצוא ל־PDF', run: () => exportNote('pdf'), needs: 'note' },

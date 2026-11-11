@@ -204,11 +204,11 @@ function buildDialog() {
     row('מראה דף', 'דף עם צל, כמו במסמך Word', check('pageLook')),
     el('div', { class: 'preview' },
       el('div', { style: 'font-family:var(--font-heading);font-weight:700;font-size:1.3em;margin-bottom:4px' }, 'כותרת לדוגמה'),
-      'כך ייראה הטקסט בהערות. The quick brown fox jumps over the lazy dog.'),
+      'כך ייראה הטקסט במסמכים. The quick brown fox jumps over the lazy dog.'),
 
-    el('h3', {}, 'הערות וקבצים'),
+    el('h3', {}, 'מסמכים וקבצים'),
     row('מסמך חדש נוצר', null, select('newNoteLocation', [['selected', 'בתיקייה שנבחרה בעץ'], ['root', 'בתיקייה הראשית']])),
-    row('תמונות מיובאות נשמרות', null, select('attachMode', [['folder', 'בתיקייה קבועה'], ['beside', 'ליד ההערה']], { onChange: refresh })),
+    row('תמונות מיובאות נשמרות', null, select('attachMode', [['folder', 'בתיקייה קבועה'], ['beside', 'ליד המסמך']], { onChange: refresh })),
     row('שם התיקייה לתמונות', 'בתוך התיקייה הראשית', folderInput),
     row('קישורים חוזרים', 'הרשימה מתחת לדף', check('showBacklinks')),
   );

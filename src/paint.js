@@ -43,7 +43,7 @@ function build() {
       </div>
       <div class="pt-end">
         <button type="button" data-act="cancel">ביטול</button>
-        <button type="button" data-act="save" class="primary">הוספה להערה</button>
+        <button type="button" data-act="save" class="primary">הוספה למסמך</button>
       </div>
     </div>
     <div class="pt-stage"><div class="pt-paper"><canvas class="pt-main"></canvas><canvas class="pt-over"></canvas></div></div>`;
@@ -276,7 +276,7 @@ function build() {
     transparent = !!quick;
     d.querySelector('[data-act="transparent"]').checked = transparent;
     paper.classList.toggle('transparent', transparent);
-    d.querySelector('[data-act="save"]').textContent = image ? 'שמירה' : 'הוספה להערה';
+    d.querySelector('[data-act="save"]').textContent = image ? 'שמירה' : 'הוספה למסמך';
     resize(quick ? 480 : 900, quick ? 180 : 520, false);
     mctx.clearRect(0, 0, W, H);
     if (image) {

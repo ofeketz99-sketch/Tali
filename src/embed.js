@@ -196,7 +196,7 @@ export const Embed = Node.create({
         dom.append(head, body);
         this.options.read(path).then((text) => {
           body.innerHTML = renderNoteHtml(text, { resolve: this.options.resolve, fileUrl, heading, limit: 6000 });
-        }).catch(() => { body.textContent = 'לא ניתן לקרוא את ההערה'; });
+        }).catch(() => { body.textContent = 'לא ניתן לקרוא את המסמך'; });
         dom.addEventListener('mousedown', (event) => { if (event.button === 0) event.preventDefault(); });
         dom.addEventListener('click', (event) => {
           const link = event.target.closest('.np-link');

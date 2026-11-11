@@ -55,7 +55,7 @@ export function openGraph({ index, current, onOpen, store }) {
   hint.textContent = 'גלגלת: זום · גרירה: הזזה · לחיצה על נקודה: פתיחה';
   body.append(canvas, hint);
   if (current) tools.append(toggle('רק סביב המסמך הפתוח', local, (v) => { local = v; store.set('tali:graph-local', v); build(); }));
-  tools.append(toggle('הערות רפאים', ghosts, (v) => { ghosts = v; store.set('tali:graph-ghosts', v); build(); }));
+  tools.append(toggle('מסמכי רפאים', ghosts, (v) => { ghosts = v; store.set('tali:graph-ghosts', v); build(); }));
 
   const colors = {
     node: css('--accent'), current: css('--accent-strong'), ghost: css('--muted'),
@@ -236,7 +236,7 @@ export function openGraph({ index, current, onOpen, store }) {
 // ===================== הערות רפאים =====================
 // קישורים להערות שלא קיימות עדיין: מכמה הערות מקשרים אליהן, ומאילו.
 export function openGhosts({ index, onOpenNote, onCreate }) {
-  const { body } = makeDialog('הערות רפאים', 'ghosts-dialog', 'ghost');
+  const { body } = makeDialog('מסמכי רפאים', 'ghosts-dialog', 'ghost');
   const map = new Map();
   for (const n of index.notes) for (const g of n.missing) {
     const key = g.toLowerCase();
@@ -247,8 +247,8 @@ export function openGhosts({ index, onOpenNote, onCreate }) {
   const intro = document.createElement('p');
   intro.className = 'vd-intro';
   intro.textContent = list.length
-    ? `${plural(list.length, 'הערה אחת', 'הערות')} שמקשרים אליהן אבל עדיין לא נוצרו. לחיצה על "יצירה" יוצרת אותה.`
-    : 'אין הערות רפאים: כל הקישורים מובילים להערות קיימות.';
+    ? `${plural(list.length, 'מסמך אחד', 'מסמכים')} שמקשרים אליהם אבל עדיין לא נוצרו. לחיצה על "יצירה" יוצרת אותם.`
+    : 'אין מסמכי רפאים: כל הקישורים מובילים למסמכים קיימים.';
   body.append(intro);
   list.forEach((g, i) => {
     const row = document.createElement('details');

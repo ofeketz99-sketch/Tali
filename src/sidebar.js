@@ -114,7 +114,7 @@ function hitRow({ title, snippet, index, onClick }) {
 export function renderBacklinks(container, list, onOpen) {
   container.innerHTML = '';
   const head = document.createElement('h4');
-  head.textContent = list.length ? `קישורים חוזרים (${list.length})` : 'אין הערות שמקשרות לכאן';
+  head.textContent = list.length ? `קישורים חוזרים (${list.length})` : 'אין מסמכים שמקשרים לכאן';
   container.appendChild(head);
   list.forEach((b, i) => container.appendChild(hitRow({
     title: b.count > 1 ? `${b.name} (${b.count})` : b.name, snippet: b.snippet, index: i, onClick: () => onOpen(b.path),

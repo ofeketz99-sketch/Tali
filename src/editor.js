@@ -80,7 +80,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       FaithfulLink,
       LocalImage.configure({ localSrc: links.localSrc }),
       Embed.configure({ resolve: links.resolve, onOpen: links.onOpen, onEditDrawing: links.onEditDrawing, read: links.read }),
-      Placeholder.configure({ placeholder: 'התחל לכתוב… ([[ לקישור להערה אחרת)' }),
+      Placeholder.configure({ placeholder: 'התחל לכתוב… ([[ לקישור למסמך אחר)' }),
       WikiLink.configure(links),
       MathPreview,
       Tags.configure({ onClick: (tag) => links.onTag?.(tag) }),
