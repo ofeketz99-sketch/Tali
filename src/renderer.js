@@ -148,13 +148,13 @@ const useOverlay = (tool) => {
   if (!state.currentPath) { setStatus('קודם פותחים פתק'); return; }
   if (editorApi.isRaw()) { setStatus('עבור לתצוגה המעוצבת כדי לשרטט על הדף'); return; }
   pageOverlay.setEnabled(true);
-  pageOverlay.setMode(tool);
-  setStatus('בחר כלי, ולאחר מכן צייר על הדף. Esc מסיים.');
+  if (tool === 'textbox') pageOverlay.setMode('textbox');
+  else pageOverlay.openDrawing();
+  setStatus('בחר כלי ושרטט על הדף. Esc מסיים את הקבוצה.');
 };
 buildToolbar($('toolbar'), editorApi, {
   onImage: importImages,
   onDraw: newDrawing,
-  onQuickDraw: () => newDrawing(true),
   onOverlayDraw: useOverlay,
 });
 
@@ -164,12 +164,11 @@ function drawingStamp() {
   const two = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}.${two(d.getMinutes())}.${two(d.getSeconds())}`;
 }
-function newDrawing(quick = false) {
+function newDrawing() {
   if (!state.currentPath) { setStatus('קודם פותחים הערה, ואז מוסיפים לה ציור'); return; }
   if (editorApi.isRaw()) { setStatus('ציור עובד בתצוגה המעוצבת'); return; }
   const at = editorApi.editor.state.selection.from;
   openPaint({
-    quick,
     onSave: async (bytes, width) => {
       const p = await window.api.saveAttachment(attachmentDir(), `Drawing ${drawingStamp()}.png`, bytes);
       state.attachments = await window.api.attachments();
