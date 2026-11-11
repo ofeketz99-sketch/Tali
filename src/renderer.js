@@ -708,8 +708,7 @@ function refreshLinksPanel() {
   head.innerHTML = `${icon('link', 16)}<span>קישורים</span><span class="lk-count">${targets.length}</span>${icon('chevron', 14)}`;
   head.addEventListener('click', () => { linksOpen = !linksOpen; store.set('linksPanelOpen', linksOpen); refreshLinksPanel(); });
   panel.append(head);
-  if (!linksOpen) return;
-
+  // משאירים את גוף החלונית ב-DOM גם בסגירה, כדי לאפשר אנימציית גובה/דהייה.
   const body = document.createElement('div');
   body.className = 'lk-body';
   if (!targets.length) {
