@@ -320,7 +320,8 @@ function createWindow() {
     height: 800,
     title: 'Tali',
     icon: path.join(__dirname, 'build', 'icon.ico'),
-    backgroundColor: '#aac7f2', // the intro's first frame (src/splash.js), so launch never flashes white
+    backgroundColor: '#aac7f2', // the intro's background (src/splash.js)
+    show: false, // shown on its first painted frame, which is already the intro: no white window
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -336,6 +337,8 @@ function createWindow() {
   win.webContents.on('will-navigate', (e, url) => {
     if (!url.startsWith('file:')) { e.preventDefault(); if (/^(https?|mailto):/i.test(url)) shell.openExternal(url); }
   });
+  win.once('ready-to-show', () => win.show());
+  setTimeout(() => { if (!win.isDestroyed() && !win.isVisible()) win.show(); }, 3000); // never stay hidden
   win.loadFile(path.join(__dirname, 'src', 'index.html'));
 }
 

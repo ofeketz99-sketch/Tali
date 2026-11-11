@@ -1,3 +1,10 @@
+# 2.5 — Smooth intro opening (2026-11-11)
+
+- The window stays hidden until its first frame is painted. That frame is already the intro blue, so the white window on launch is gone.
+- The video now starts only after the app has loaded and the decoder is ready, at most 1.4 s after launch. Playing during start-up caused the first frames to stall and then jump. It fades in from the blue over 0.9 s, starting on its first decoded frame.
+- Re-rendered (4.7 s, 6.0 MB): a 0.4 s opening settle on the page, out of focus coming sharp with a slight drift, before the first leaf turns. The pull-back is now even (log distance), so the book emerges over about 1.2 s instead of popping in. The table blue is lighter, so it changes less sharply against the white page.
+- Verified by capturing the real app at 1200×800: blue first frame, a continuous fade with no repeated frames, a gradual book reveal, and an unchanged hand-off and fade into the app.
+
 # 2.4 — Pre-rendered 3D book intro (2026-11-11)
 
 - Replaced the canvas-drawn intro with a pre-rendered 3D sequence, `src/splash.webm` (VP9, 1920×1080, 60 fps, 4.3 s, 5.6 MB). It's rendered offline by `tools/splash-render` (Three.js in Electron on the GPU; dev dependencies `three` and `webm-muxer`). Each frame averages 48 sub-frames for motion blur, soft area-light shadows, sky occlusion, depth of field and anti-aliasing.

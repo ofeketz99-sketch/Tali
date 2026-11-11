@@ -18,7 +18,10 @@ const fs = require('fs'), path = require('path');
 export const FINAL_BG = '#aac7f2';      // full-screen identity blue; also --splash-bg
 export const EMBLEM_FRACTION = 0.56;     // emblem image size / frame height in the final frame
 const W = 1920, H = 1080, FPS = 60;
-const DURATION = 4.3;                    // the video; the native logo hold + fade follows
+// PRE: an opening settle on the macro page (rack focus + slight drift) before anything turns.
+// The runtime fades the video in over it, starting on the first decoded frame.
+const PRE = 0.4;
+const DURATION = 4.3 + PRE;              // the video; the native logo hold + fade follows
 const FOV = 30;
 
 // ---------- small math helpers ----------
@@ -215,8 +218,8 @@ const flood = t => smoother(lin(t, 3.6, 4.12));
 function cameraAt(t, decalCenter, finalDist) {
   // Macro on the hero leaf -> continuous pull-back revealing the book -> follow the
   // closing cover -> straight overhead so the cover becomes the logo plane.
-  const pull = smoother(lin(t, 0.32, 2.75));
-  const pullE = 1 - Math.pow(1 - pull, 1.6);
+  const pull = smooth(lin(t, 0.25, 2.8));
+  const pullE = pull;
   const macroT = new THREE.Vector3(0.48, T + BLOCK + 0.01, -0.12);
   const bookT = new THREE.Vector3(0.0, 0.06, 0.04);
   const target = macroT.clone().lerp(bookT, smoother(lin(t, 0.35, 2.6)));
@@ -246,7 +249,7 @@ function buildScene(renderer, emblemCanvas) {
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.42;
 
-  const table = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: '#b3cdf3', roughness: 0.95 }));
+  const table = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: '#bad2f5', roughness: 0.95 }));
   table.rotation.x = -Math.PI / 2; table.receiveShadow = true; scene.add(table);
 
   const book = new THREE.Group(); scene.add(book);
@@ -458,7 +461,9 @@ export async function run(args, { emblem, ROOT }) {
   const decalCenter = () => st.decal.getWorldPosition(new THREE.Vector3());
   const keyBase = new THREE.Vector3(-0.62, 1.0, 0.72).normalize();
 
-  async function renderFrame(t, N) {
+  async function renderFrame(vt, N) {
+    const t = vt - PRE; // scene time; everything before 0 holds the opening pose
+    const settle = 1 - smoother(lin(vt, 0, PRE + 0.55));
     renderer.setRenderTarget(rtAccum); renderer.setClearColor(0x000000, 0); renderer.clear();
     const shutter = 0.5 / FPS;
     for (let k = 0; k < N; k++) {
@@ -466,6 +471,7 @@ export async function run(args, { emblem, ROOT }) {
       const tk = t + ((kt + 0.5) / N - 0.5) * shutter;
       poseScene(st, tk);
       const cam = cameraAt(tk, decalCenter(), finalDist);
+      cam.aperture += 0.04 * settle * settle; cam.az += 4 * settle; cam.dist *= 1 + 0.06 * settle;
       // lens sample (golden-angle disk)
       const lr = Math.sqrt((kl + 0.5) / N) * cam.aperture, la = kl * 2.39996;
       placeCamera(camera, cam, Math.cos(la) * lr, Math.sin(la) * lr, halton(k + 1, 2) - 0.5, halton(k + 1, 3) - 0.5);
@@ -488,9 +494,9 @@ export async function run(args, { emblem, ROOT }) {
     const cam = cameraAt(t, decalCenter(), finalDist);
     placeCamera(camera, cam, 0, 0, 0, 0);
     const U = compMat.uniforms;
-    U.invN.value = 1 / N; U.frame.value = Math.round(t * FPS);
+    U.invN.value = 1 / N; U.frame.value = Math.round(vt * FPS);
     U.exposure.value = 1.0;
-    U.fadeIn.value = smooth(lin(t, 0.0, 0.32));
+    U.fadeIn.value = 1; // the fade-in happens in the runtime, synced to the first decoded frame
     const f = flood(t);
     U.emblemOn.value = t > 3.2 ? 1 : 0;
     U.floodR.value = mix(-0.55, 1.6, f); U.floodF.value = mix(0.06, 0.45, f);

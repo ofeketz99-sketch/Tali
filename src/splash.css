@@ -1,6 +1,6 @@
 /* Brand colours are defined alongside the application palette in styles.css. */
 .tali-splash { position: fixed; inset: 0; z-index: 10000; overflow: hidden; background: var(--splash-bg); isolation: isolate; direction: ltr; cursor: default; }
-.tali-splash__video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; pointer-events: none; }
+.tali-splash__video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; pointer-events: none; opacity: 0; /* faded in by splash.js on the first decoded frame */ }
 .tali-splash__emblem { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; user-select: none; }
 .tali-splash.is-logo .tali-splash__emblem { opacity: 1; }
 /* No visible playback UI: the skip button only appears for keyboard users. Escape and a click also skip. */

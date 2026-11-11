@@ -13,7 +13,7 @@
 
   // Must match tools/splash-render/scene.mjs.
   const VIDEO_W = 1920, VIDEO_H = 1080, EMBLEM_FRACTION = 0.56;
-  const HOLD_MS = 280, FADE_MS = 520, WATCHDOG_MS = 7500;
+  const HOLD_MS = 280, FADE_MS = 520, FADE_IN_MS = 900, START_MAX_WAIT_MS = 1400, WATCHDOG_MS = 9500;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const root = document.createElement('div');
@@ -112,8 +112,24 @@
   } else {
     video.addEventListener('ended', holdAndFade);
     video.addEventListener('error', finish);
-    const start = () => video.play().catch(finish);
-    if (video.readyState >= 2) start(); else video.addEventListener('loadeddata', start, { once: true });
+    // Start only once the app's own scripts have run and the decoder is ready: playing during
+    // the heavy app start-up made the first frames stall and jump. Until then the overlay is
+    // the flat identity blue, and the video fades in from it on its first presented frame.
+    let started = false;
+    const start = () => {
+      if (started || ended) return;
+      started = true;
+      video.play().then(() => {
+        const fadeIn = () => { if (!ended) video.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_IN_MS, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'forwards' }); };
+        if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(fadeIn); else fadeIn();
+      }, finish);
+    };
+    const appLoaded = new Promise(res => (document.readyState === 'complete' ? res() : addEventListener('load', res, { once: true })));
+    const decoderReady = new Promise(res => (video.readyState >= 4 ? res() : video.addEventListener('canplaythrough', res, { once: true })));
+    Promise.all([appLoaded, decoderReady])
+      .then(() => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res))))
+      .then(start);
+    setTimeout(start, START_MAX_WAIT_MS); // never wait on a slow start-up for long
   }
   if (preview) window.taliSplashPreview = { finish, video };
 })();
