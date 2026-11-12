@@ -64,9 +64,11 @@ function renderTitle(text, marks = []) {
 export function isPaletteOpen() { return !!dlg?.open; }
 export function closePalette() { if (dlg?.open) dlg.close(); }
 
-export function openPalette({ placeholder, items, emptyText = 'אין תוצאות', footer = '' }) {
+// onClose: נקרא כשהחלון נסגר מכל סיבה (גם אחרי בחירה, שקודם מריצה את run)
+export function openPalette({ placeholder, items, emptyText = 'אין תוצאות', footer = '', onClose }) {
   if (!dlg) dlg = build();
   if (dlg.open) dlg.close();
+  if (onClose) dlg.addEventListener('close', onClose, { once: true });
   const input = dlg.querySelector('input');
   const list = dlg.querySelector('.pal-list');
   dlg.querySelector('.pal-foot').textContent = footer;

@@ -411,13 +411,30 @@ function registerIpc() {
     return true;
   });
 
-  ipcMain.handle('create-note', async (_e, dir, name) => {
+  // content: תוכן התחלתי (מתבנית). בלי: קובץ ריק
+  ipcMain.handle('create-note', async (_e, dir, name, content = '') => {
     const clean = name.replace(/[\\/:*?"<>|]/g, '').trim() || 'ללא שם';
     const file = safe(path.join(dir, clean.toLowerCase().endsWith('.md') ? clean : clean + '.md'));
     try { await fs.access(file); throw new Error('כבר קיים קובץ בשם הזה'); }
     catch (err) { if (err.message === 'כבר קיים קובץ בשם הזה') throw err; }
-    await fs.writeFile(file, '', 'utf8');
+    await fs.writeFile(file, String(content || ''), 'utf8');
     return file;
+  });
+
+  // תבניות: התיקייה והפורמטים מההגדרות של אובסידיאן (.obsidian/templates.json), כדי ששתי התוכנות ישתמשו באותן.
+  // בלי הגדרה: תיקייה בשם Templates בראש הכספת, אם יש.
+  ipcMain.handle('templates', async () => {
+    if (!root) return { list: [] };
+    let conf = {};
+    try { conf = JSON.parse(await fs.readFile(path.join(root, '.obsidian', 'templates.json'), 'utf8')); } catch { /* אין הגדרה */ }
+    const rel = String(conf.folder || 'Templates').replace(/^[\\/]+|[\\/]+$/g, '');
+    let dir;
+    try { dir = safe(path.join(root, rel)); if (!(await fs.stat(dir)).isDirectory()) throw 0; } catch { return { folder: null, list: [] }; }
+    const files = await walkFiles(dir);
+    return {
+      folder: dir, dateFormat: conf.dateFormat || 'YYYY-MM-DD', timeFormat: conf.timeFormat || 'HH:mm',
+      list: files.map((f) => ({ path: f, name: path.basename(f).replace(/\.md$/i, '') })).sort((a, b) => a.name.localeCompare(b.name, 'he', { numeric: true })),
+    };
   });
 
   ipcMain.handle('create-folder', async (_e, dir, name) => {

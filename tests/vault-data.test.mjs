@@ -84,3 +84,13 @@ test('created date: frontmatter first, then a date line near the top (day-month-
   assert.equal(getCreatedDate('1\n2\n3\n4\n5\n6\n7\n8\n06-04-25\n'), null);
   assert.equal(getCreatedDate(''), null);
 });
+
+test('templates: Obsidian variables and moment-style formats', () => {
+  const { fillTemplate, formatDate } = require('../vault-data.js');
+  const now = new Date(2025, 3, 6, 9, 5, 7);
+  assert.equal(formatDate(now, 'DD-MM-YY'), '06-04-25');
+  assert.equal(formatDate(now, 'D.M.YYYY [בשעה] HH:mm:ss'), '6.4.2025 בשעה 09:05:07');
+  const t = '- קישורים: [[\n- תיוגים: \n{{date}}\n# {{title}} {{ time }} {{date:YYYY}}\n{{other}}';
+  assert.equal(fillTemplate(t, { title: 'ליפידים', now, dateFormat: 'DD-MM-YY', timeFormat: 'HH:mm' }),
+    '- קישורים: [[\n- תיוגים: \n06-04-25\n# ליפידים 09:05 2025\n{{other}}');
+});

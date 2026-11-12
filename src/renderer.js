@@ -5,7 +5,7 @@ import { renderTree, renderSearchResults, filterTree, countFiles } from './sideb
 import { createContextPanel, countWords } from './context-panel.js';
 import { setupContextMenus, closeContextMenu } from './context-menu.js';
 import { FLAG_LIST, flagName } from './flags.js';
-import { getFlag, setFlag, getCreatedDate } from '../vault-data.js';
+import { getFlag, setFlag, getCreatedDate, fillTemplate } from '../vault-data.js';
 import { resolveLink, extractLinks, getFrontmatterLinks, setFrontmatterLinks } from '../links.js';
 import { openLinkPicker } from './linkpicker.js';
 import { showLinkHubOffer } from './linkhub.js';
@@ -1093,6 +1093,7 @@ function showContextMenu(node, x, y) {
     menu.appendChild(flags);
   } else {
     add('filePlus', 'מסמך חדש בתיקייה', () => { state.selectedDir = node.path; newNote(); });
+    add('template', 'מסמך חדש מתבנית', () => { state.selectedDir = node.path; newNoteFromTemplate(); });
     add('edit', 'שינוי שם', () => renameNode(node), { keys: 'F2' });
   }
   add('trash', 'מחיקה (לסל המחזור)', () => deleteNode(node), { danger: true });
@@ -1205,6 +1206,58 @@ async function newNote(presetName) {
     await openNote(file);
     editorApi.editor.commands.focus();
   } catch (err) { setStatus(err.message); }
+}
+
+// ===== תבניות (התיקייה והפורמטים מ־.obsidian/templates.json, ראו 'templates' ב־main.js) =====
+// בוחרים תבנית בלוח החיפוש המהיר. מחזיר { text, conf } או null.
+async function pickTemplate(placeholder) {
+  const conf = await window.api.templates();
+  if (!conf.list.length) {
+    setStatus(conf.folder ? 'אין תבניות בתיקיית התבניות' : 'לא נמצאה תיקיית תבניות (Templates, או ההגדרה של אובסידיאן)');
+    return null;
+  }
+  const chosen = await new Promise((resolve) => {
+    let picked = false;
+    openPalette({
+      placeholder,
+      footer: '↑↓ בחירה · Enter בחירה · Esc ביטול',
+      emptyText: 'אין תבנית כזו',
+      items: (query) => conf.list
+        .map((t) => ({ t, m: fuzzy(query, t.name) }))
+        .filter((x) => x.m)
+        .sort((a, b) => (query.trim() ? b.m.score - a.m.score : 0))
+        .map(({ t, m }) => ({ title: t.name, marks: m.marks, run: () => { picked = true; resolve(t); } })),
+      onClose: () => { if (!picked) resolve(null); },
+    });
+  });
+  if (!chosen) return null;
+  return { text: await window.api.read(chosen.path), conf };
+}
+async function newNoteFromTemplate() {
+  if (!state.root) return;
+  const tpl = await pickTemplate('תבנית למסמך החדש…');
+  if (!tpl) return;
+  const name = await ask('שם המסמך:');
+  if (!name) return;
+  try {
+    const text = fillTemplate(tpl.text, { title: name, dateFormat: tpl.conf.dateFormat, timeFormat: tpl.conf.timeFormat });
+    const file = await window.api.createNote(targetDir(), name, text);
+    await refreshTree();
+    await openNote(file);
+    editorApi.editor.commands.focus('end');
+  } catch (err) { setStatus(err.message); }
+}
+// הוספת תבנית במקום הסמן במסמך הפתוח (כמו "Insert template" באובסידיאן)
+async function insertTemplate() {
+  if (!state.currentPath) return;
+  if (editorApi.isRaw()) { setStatus('הוספת תבנית עובדת בתצוגה המעוצבת'); return; }
+  const tpl = await pickTemplate('תבנית להוספה במקום הסמן…');
+  if (!tpl) return;
+  const text = fillTemplate(tpl.text, { title: noteName(state.currentPath), dateFormat: tpl.conf.dateFormat, timeFormat: tpl.conf.timeFormat });
+  // כשבחור גוש שלם (למשל קו מפריד בסוף המסמך), מוסיפים אחריו ולא במקומו
+  const sel = editorApi.editor.state.selection;
+  const chain = editorApi.editor.chain().focus();
+  (sel.node ? chain.insertContentAt(sel.to, text) : chain.insertContent(text)).run();
 }
 
 async function newFolder() {
@@ -1411,6 +1464,8 @@ const COMMANDS = [
   { title: 'מעבר מהיר למסמך', keys: 'Ctrl+O', run: openSwitcher, needs: 'root' },
   { title: 'לוח פקודות', keys: 'Ctrl+P', run: openCommands },
   { title: 'מסמך חדש', keys: 'Ctrl+N', run: () => newNote(), needs: 'root' },
+  { title: 'מסמך חדש מתבנית…', run: newNoteFromTemplate, needs: 'root' },
+  { title: 'הוספת תבנית במקום הסמן…', run: insertTemplate, needs: 'note' },
   { title: 'תיקייה חדשה', keys: 'Ctrl+Shift+N', run: newFolder, needs: 'root' },
   { title: 'חיפוש בכל המסמכים', keys: 'Ctrl+Shift+F', run: () => { $('search').focus(); $('search').select(); }, needs: 'root' },
   { title: 'שמירה', keys: 'Ctrl+S', run: flushSave, needs: 'note' },

@@ -148,6 +148,22 @@ function getFlag(text) {
   return FLAGS.includes(v) ? v : null;
 }
 
+// ----- תבניות, כמו בתוסף Templates של אובסידיאן -----
+// formatDate: חלק מהפורמט של moment.js (מה שאובסידיאן משתמש בו): YYYY YY MM M DD D HH H mm ss, ו־[טקסט] מילולי.
+function formatDate(d, fmt) {
+  const p = (n) => String(n).padStart(2, '0');
+  const map = { YYYY: d.getFullYear(), YY: p(d.getFullYear() % 100), MM: p(d.getMonth() + 1), M: d.getMonth() + 1, DD: p(d.getDate()), D: d.getDate(), HH: p(d.getHours()), H: d.getHours(), mm: p(d.getMinutes()), ss: p(d.getSeconds()) };
+  return String(fmt).replace(/\[([^\]]*)\]|YYYY|YY|MM|M|DD|D|HH|H|mm|ss/g, (t, lit) => (lit !== undefined ? lit : String(map[t])));
+}
+// {{title}}, {{date}}, {{time}}, {{date:FORMAT}}, {{time:FORMAT}}. ברירות המחדל של הפורמט מ־.obsidian/templates.json
+function fillTemplate(text, { title = '', now = new Date(), dateFormat = 'YYYY-MM-DD', timeFormat = 'HH:mm' } = {}) {
+  return String(text || '').replace(/\{\{\s*(title|date|time)\s*(?::([^}]*))?\}\}/gi, (_m, key, fmt) => {
+    const k = key.toLowerCase();
+    if (k === 'title') return title;
+    return formatDate(now, fmt?.trim() || (k === 'date' ? dateFormat : timeFormat));
+  });
+}
+
 // color: אחד מ־FLAGS, או null להסרה. שאר המאפיינים נשארים כמו שהם. אם הדגל היה המאפיין היחיד, גם --- יורדות.
 function setFlag(text, color) {
   const src = text || '';
@@ -164,4 +180,4 @@ function setFlag(text, color) {
   return `---${eol}${lines.join(eol)}${eol}---${m[2] || eol}${rest}`;
 }
 
-module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, FLAGS, getFlag, setFlag, isLinkHub, getCreatedDate };
+module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, FLAGS, getFlag, setFlag, isLinkHub, getCreatedDate, formatDate, fillTemplate };

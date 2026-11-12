@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('api', {
   backlinks: call('backlinks'),
   mtime: call('mtime'),
   fileTimes: call('file-times'),
+  templates: call('templates'),
   attachments: call('attachments'),
   openPath: call('open-path'),
   getPrefs: call('get-prefs'),
