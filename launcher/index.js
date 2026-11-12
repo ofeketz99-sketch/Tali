@@ -1,4 +1,4 @@
-// המשגר של Tali.exe (נמצא ב־C:\Users\ofeke\.tali\Tali\resources\app). הפרויקט: D:\Projects\Tali\Tali - App.
+// המשגר של Tali.exe (נמצא ב־D:\Projects\Tali\Tali\resources\app). הפרויקט: D:\Projects\Tali\Tali - App.
 // מריץ את הקוד ישירות מתיקיית הפרויקט, כך שכל שינוי בקוד נכנס בלי לארוז מחדש.
 // אם קובץ ב־src חדש יותר מ־dist/renderer.js, בונה קודם (esbuild), כמו start.cmd.
 // עדכון של הקובץ הזה: להעתיק אותו שוב ל־resources\app (ראו "הרצה" ב־AGENTS.md).

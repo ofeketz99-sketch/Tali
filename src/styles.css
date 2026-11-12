@@ -1511,3 +1511,16 @@ body[data-sidebar-mode="compact"] #flagged { display: none; }
 #pageWrap.dc-open.dc-roomy {
   grid-template-columns: calc(var(--dc-rail-w) + var(--dc-panel-w) + 10px) minmax(0, var(--page-width)) calc(var(--dc-rail-w) + var(--dc-panel-w) + 10px);
 }
+
+/* ----- שם המסמך מעל הדף (#docTitle, בתוך #page כדי שיוסתר יחד איתו) ----- */
+#pageWrap { padding-top: 62px; }
+body[data-focus] #pageWrap { padding-top: 78px; }
+#docTitle {
+  position: absolute; bottom: calc(100% + 10px); inset-inline-start: 6px; max-width: calc(100% - 12px);
+  padding: 2px 8px; margin: 0; border: 0; border-radius: 8px; background: none; box-shadow: none;
+  font: 600 19px/1.35 var(--font-heading, var(--font-ui)); color: var(--text); letter-spacing: -.2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: start; cursor: text;
+  transition: background .16s var(--ease), color .16s var(--ease);
+}
+#docTitle:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent-strong); transform: none; }
+#docTitle:empty { display: none; }

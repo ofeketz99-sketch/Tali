@@ -426,6 +426,12 @@ async function saveDroppedImages(files) {
 
 function setStatus(text) { $('status').textContent = text; }
 
+// שם המסמך הפתוח, מעל הדף. לחיצה: שינוי שם (כמו F2)
+function updateDocTitle() {
+  $('docTitle').textContent = state.currentPath ? noteName(state.currentPath) : '';
+}
+$('docTitle').addEventListener('click', () => { if (state.currentPath) renameNode(currentNode()); });
+
 // ספירת מילים בשורת המצב (בתצוגה המעוצבת: הטקסט המוצג, ב־Markdown: הטקסט הגולמי)
 function updateWordCount() {
   const out = $('wordCount');
@@ -649,6 +655,7 @@ async function openNote(p, { history = true } = {}) {
   void pg.offsetWidth;
   pg.classList.add('enter');
   setStatus(prettyPath(p));
+  updateDocTitle();
   updateWordCount();
   drawTree();
   refreshBacklinks();
@@ -755,7 +762,7 @@ async function renameNode(node) {
     }
     await refreshTree();
     if (!state.currentPath) { pageOverlay.setEnabled(false); $('page').hidden = true; $('empty').hidden = false; docPanel?.layout(); toggleFocusMode(false); }
-    else setStatus(prettyPath(state.currentPath));
+    else { setStatus(prettyPath(state.currentPath)); updateDocTitle(); }
     const others = changed.filter((p) => p !== to).length;
     if (others) setStatus(`הקישורים עודכנו ב־${others} מסמכים`);
   } catch (err) { setStatus(err.message); }

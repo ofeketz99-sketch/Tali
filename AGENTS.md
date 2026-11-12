@@ -13,16 +13,16 @@
 הפרויקט ב־`D:\Projects\Tali\Tali - App`, עם Git. התלויות ב־`node_modules` שבתוכו, כמו בכל פרויקט רגיל.
 (עד 11.11.2026 הוא היה ב־Google Drive, ושם npm לא הצליח לכתוב `node_modules`. לכן עבר לכונן D. עד 12.11.2026 הנתיב היה `D:\PROJECTS\Tali`; המשגר מנסה קודם את הנתיב החדש ואז את הישן.)
 
-- **הרצה רגילה:** `C:\Users\ofeke\.tali\Tali\Tali.exe`, או קיצור הדרך "Tali" בשולחן העבודה.
+- **הרצה רגילה:** `D:\Projects\Tali\Tali\Tali.exe` (ליד תיקיית הפרויקט, מחוץ ל־Git), או קיצור הדרך "Tali" בשולחן העבודה. עד 12.11.2026 הוא היה ב־`C:\Users\ofeke\.tali\Tali`.
   זה עותק של `electron.exe` בשם Tali, עם הסמל ופרטי התוכנה (נקבעו עם `rcedit`). בתוכו, ב־`resources\app`, יש משגר קטן (המקור: `launcher/`) שמריץ את `main.js` ישירות מ־`D:\Projects\Tali\Tali - App`, ובונה מחדש לבד אם קובץ ב־`src` חדש יותר מ־`dist/renderer.js`. לכן שינויים בקוד נכנסים בפתיחה הבאה, בלי לארוז מחדש.
-  שינוי ב־`launcher/`: להעתיק את הקבצים שוב ל־`C:\Users\ofeke\.tali\Tali\resources\app`. עדכון גרסת Electron: להעתיק מחדש את `node_modules\electron\dist`, לשנות את שם `electron.exe` ל־`Tali.exe`, למחוק `resources\default_app.asar`, ולהריץ `node_modules\rcedit\bin\rcedit-x64.exe` שוב (סמל ושם).
+  שינוי ב־`launcher/`: להעתיק את הקבצים שוב ל־`D:\Projects\Tali\Tali\resources\app`. עדכון גרסת Electron: להעתיק מחדש את `node_modules\electron\dist`, לשנות את שם `electron.exe` ל־`Tali.exe`, למחוק `resources\default_app.asar`, ולהריץ `node_modules\rcedit\bin\rcedit-x64.exe` שוב (סמל ושם).
 - **בנייה:** `npm run build`. **הרצה עם בנייה:** `npm start` או `start.cmd`. **פיתוח:** `npm run watch`, ורענון החלון עם Ctrl+R.
 - **בדיקות:** `npm test` (בדיקות יחידה). `npm run check` מריץ בדיקת תחביר לקבצי התהליך הראשי, בנייה ובדיקות. להריץ לפני כל שמירה ב־Git.
 - האפליקציה רצה בעותק אחד. אם Tali פתוח, הפעלה נוספת רק מביאה אותו לחזית. לבדיקות אוטומטיות בזמן ש־Tali פתוח צריך לעקוף את `requestSingleInstanceLock` בסקריפט הבדיקה, לא בקוד.
 
 התקנה במחשב חדש: `npm install`. אם `node_modules\electron\dist\electron.exe` חסר אחרי ההתקנה (קורה עם Node 26), פורסים ידנית את ה־zip של Electron מתיקיית ה־Cache שלו לתוך `node_modules\electron\dist` וכותבים `electron.exe` לקובץ `node_modules\electron\path.txt`.
 
-**זהירות מתוך Claude:** אפליקציית Claude לשולחן העבודה מפנה את `%LOCALAPPDATA%` ו־`%APPDATA%` לתיקייה פרטית שלה. קבצים שנכתבים לשם מתוך סשן של Claude לא קיימים מבחינת המשתמש. לכן Tali.exe ב־`C:\Users\ofeke\.tali` ולא ב־AppData.
+**זהירות מתוך Claude:** אפליקציית Claude לשולחן העבודה מפנה את `%LOCALAPPDATA%` ו־`%APPDATA%` לתיקייה פרטית שלה. קבצים שנכתבים לשם מתוך סשן של Claude לא קיימים מבחינת המשתמש. לכן Tali.exe לא נמצא ב־AppData.
 
 ## Git ו־GitHub
 
@@ -91,7 +91,7 @@
 | `src/splash-preview.html` | צפייה חוזרת בפתיח בלי לפתוח תיקיית הערות |
 | `tools/splash-render/` | הרינדור של הפתיח (Three.js בתוך Electron). לא נטען באפליקציה |
 | `tests/` | בדיקות יחידה (`node --test`) |
-| `launcher/` | המשגר של Tali.exe (מועתק ל־`C:\Users\ofeke\.tali\Tali\resources\app`) |
+| `launcher/` | המשגר של Tali.exe (מועתק ל־`D:\Projects\Tali\Tali\resources\app`) |
 | `start.cmd` | בנייה והפעלה מהתיקייה (לפיתוח) |
 
 `dist/` נוצר על ידי `esbuild` ואין לערוך אותו ידנית.
@@ -128,6 +128,11 @@
 - `position: sticky; top: 0`: הערך נמדד מתוך הריווח של `#pageWrap`, ולכן 0 הוא בגובה ראש הדף.
 - אחרי עריכה הלוח מתעדכן חצי שנייה אחרי שמפסיקים להקליד, בלי אנימציית כניסה (`scheduleRefresh`). המזהה `#ctx` והמחלקות `ctx-*` שייכים לתפריט הימני; ללוח ההקשר: `#docCtx` ו־`dc-*`.
 - הלוח לא כותב לקובץ בעצמו, חוץ מסימון משימה (דרך העורך) והסרת קישור מהמאפיינים.
+
+### שם המסמך מעל הדף
+
+- `#docTitle` (כפתור) הוא הילד הראשון של `#page`, וממוקם מעליו (`bottom: calc(100% + 10px)`), ולכן מוסתר יחד עם הדף בלי קוד נוסף. הרווח בשבילו: `padding-top` של `#pageWrap` (62px, ובמצב מיקוד 78px).
+- השם הוא שם הקובץ בלי `.md`. מתעדכן ב־`updateDocTitle()` בפתיחת מסמך ובשינוי שם. לחיצה עליו פותחת שינוי שם (כמו F2).
 
 ### שורת המצב
 
