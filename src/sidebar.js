@@ -4,10 +4,26 @@ import { icon as svg } from './icons.js';
 // opening: התיקייה שנפתחה עכשיו. הפריטים שלה נכנסים באנימציה, אחד אחרי השני.
 // onMove(path, destDir): גרירת הערה או תיקייה אל תיקייה (או אל שטח ריק בעץ = התיקייה הראשית, root).
 const DRAG_TYPE = 'application/x-tali-path';
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// יש בתיקייה (או בתת־תיקייה) לפחות מסמך אחד. העץ מכיל רק .md, ולכן תיקיית תמונות נראית ריקה.
+const notesCache = new WeakMap();
+function hasNotes(n) {
+  if (n.type === 'file') return true;
+  if (!notesCache.has(n)) notesCache.set(n, n.children.some(hasNotes));
+  return notesCache.get(n);
+}
 // highlight: מחרוזת לסימון בתוך השמות (סינון העץ לפי שם)
 export function renderTree(container, tree, { activePath, collapsed, opening, onOpen, onToggleDir, onContext, onSelectDir, onDelete, onMove, root, flagOf, highlight }) {
   container.innerHTML = '';
   container.appendChild(buildLevel(tree));
+  // פתיחה: התיקייה שנפתחה עכשיו גדלה מגובה 0 לגובה המלא (והפריטים נכנסים אחד אחרי השני, ב־CSS)
+  const opened = container.querySelector('.children.opening');
+  if (opened && !reduceMotion()) {
+    const h = opened.scrollHeight;
+    opened.style.overflow = 'hidden';
+    opened.animate([{ height: '0px' }, { height: h + 'px' }], { duration: Math.min(300, 140 + h / 5), easing: 'cubic-bezier(.2, .8, .3, 1)' })
+      .onfinish = () => { opened.style.overflow = ''; };
+  }
   if (onMove && !container.dataset.dropReady) {
     // שטח ריק בעץ: העברה לתיקייה הראשית. מוגדר פעם אחת (העץ נבנה מחדש הרבה).
     container.dataset.dropReady = '1';
@@ -28,11 +44,13 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
   container._root = root;
   const clearMarks = () => container.querySelectorAll('.drop-target').forEach((el) => el.classList.remove('drop-target'));
 
-  function buildLevel(nodes) {
+  function buildLevel(list) {
     const frag = document.createDocumentFragment();
+    // תיקייה בלי מסמכים בכלל (תמונות וקבצים מצורפים): דהויה ובסוף הרמה
+    const nodes = [...list.filter((n) => n.type !== 'dir' || hasNotes(n)), ...list.filter((n) => n.type === 'dir' && !hasNotes(n))];
     nodes.forEach((n, i) => {
       const row = document.createElement('div');
-      row.className = 'node ' + n.type + (n.path === activePath ? ' active' : '');
+      row.className = 'node ' + n.type + (n.path === activePath ? ' active' : '') + (n.type === 'dir' && !hasNotes(n) ? ' no-notes' : '');
       row.style.setProperty('--i', i);
       row.tabIndex = 0;
       row.dataset.path = n.path;
@@ -85,7 +103,18 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
         row.classList.toggle('collapsed', isCollapsed);
         // החץ מסתובב באנימציה (ב־CSS) בין פתוח לסגור
         icon.innerHTML = svg('chevron', 14);
-        row.addEventListener('click', () => { onSelectDir(n.path); onToggleDir(n.path); });
+        row.addEventListener('click', () => {
+          onSelectDir(n.path);
+          // סגירה: התוכן מתכווץ לגובה 0, ורק אז העץ נבנה מחדש
+          const kids = row.nextElementSibling;
+          if (!isCollapsed && kids?.classList.contains('children') && !reduceMotion()) {
+            row.classList.add('collapsed');
+            const h = kids.offsetHeight;
+            const anim = kids.animate([{ height: h + 'px', opacity: 1 }, { height: '0px', opacity: 0 }], { duration: Math.min(260, 120 + h / 6), easing: 'cubic-bezier(.4, 0, .2, 1)' });
+            kids.style.overflow = 'hidden';
+            anim.onfinish = () => onToggleDir(n.path);
+          } else onToggleDir(n.path);
+        });
         frag.appendChild(row);
         if (!isCollapsed) {
           const kids = document.createElement('div');

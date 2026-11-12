@@ -293,6 +293,35 @@ function setSidebarMode(next) {
   min.setAttribute('aria-expanded', next === 'expanded' ? 'true' : 'false');
 }
 $('btnSidebarMin').addEventListener('click', () => setSidebarMode(sidebarMode === 'compact' ? 'expanded' : 'compact'));
+
+// רוחב הסרגל בגרירת הקצה (200–520px), נשמר ב־tali:sidebar-width. לחיצה כפולה: חזרה ל־280.
+{
+  const SIDEBAR_DEFAULT = 280;
+  const clampW = (w) => Math.round(Math.min(520, Math.max(200, w)));
+  const setW = (w) => document.documentElement.style.setProperty('--sidebar-w', clampW(w) + 'px');
+  setW(Number(store.get('tali:sidebar-width', SIDEBAR_DEFAULT)) || SIDEBAR_DEFAULT);
+  const handle = $('sidebarResize');
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    const rect = $('sidebar').getBoundingClientRect();
+    const onRight = rect.left > window.innerWidth / 2; // מימין לשמאל הסרגל בצד ימין
+    document.body.classList.add('sidebar-resizing');
+    const move = (ev) => setW(onRight ? rect.right - ev.clientX : ev.clientX - rect.left);
+    const up = () => {
+      document.body.classList.remove('sidebar-resizing');
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+      handle.removeEventListener('pointercancel', up);
+      store.set('tali:sidebar-width', parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-w'), 10));
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+    handle.addEventListener('pointercancel', up);
+  });
+  handle.addEventListener('dblclick', () => { setW(SIDEBAR_DEFAULT); store.set('tali:sidebar-width', SIDEBAR_DEFAULT); });
+}
 setSidebarMode(sidebarMode);
 
 // ===== ציורים =====
