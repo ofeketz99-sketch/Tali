@@ -10,11 +10,12 @@
     "start": "npm run build && electron .",
     "watch": "esbuild src/renderer.js --bundle --outfile=dist/renderer.js --sourcemap --watch",
     "test": "node --test tests/overlay-data.test.mjs tests/stroke-smoothing.test.mjs tests/vault-data.test.mjs tests/theme-core.test.mjs",
-    "check": "node --check main.js && node --check preload.js && node --check links.js && node --check vault-data.js && node --check launcher/index.js && npm run build && npm test",
+    "check": "node --check main.js && node --check preload.js && node --check links.js && node --check vault-data.js && node --check launcher/index.js && node --check tools/make-exe.js && npm run build && npm test",
     "splash:emblem": "electron tools/splash-render/main.js -- emblem",
     "splash:preview": "electron tools/splash-render/main.js -- preview",
     "splash:render": "electron tools/splash-render/main.js -- video src/splash.webm 48",
-    "roundtrip": "electron tools/roundtrip/main.js --"
+    "roundtrip": "electron tools/roundtrip/main.js --",
+    "make-exe": "node tools/make-exe.js"
   },
   "dependencies": {
     "@tiptap/core": "^2.11.0",
