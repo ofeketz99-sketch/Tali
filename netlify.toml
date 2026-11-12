@@ -1,0 +1,4 @@
+[build]
+  publish = "website"
+
+# Publish only the static website, not the Electron source.
