@@ -4,7 +4,8 @@ import { icon as svg } from './icons.js';
 // opening: התיקייה שנפתחה עכשיו. הפריטים שלה נכנסים באנימציה, אחד אחרי השני.
 // onMove(path, destDir): גרירת הערה או תיקייה אל תיקייה (או אל שטח ריק בעץ = התיקייה הראשית, root).
 const DRAG_TYPE = 'application/x-tali-path';
-export function renderTree(container, tree, { activePath, collapsed, opening, onOpen, onToggleDir, onContext, onSelectDir, onDelete, onMove, root, flagOf }) {
+// highlight: מחרוזת לסימון בתוך השמות (סינון העץ לפי שם)
+export function renderTree(container, tree, { activePath, collapsed, opening, onOpen, onToggleDir, onContext, onSelectDir, onDelete, onMove, root, flagOf, highlight }) {
   container.innerHTML = '';
   container.appendChild(buildLevel(tree));
   if (onMove && !container.dataset.dropReady) {
@@ -69,7 +70,14 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
       icon.className = 'icon';
       const label = document.createElement('span');
       label.className = 'label';
-      label.textContent = n.type === 'file' ? n.name.replace(/\.md$/i, '') : n.name;
+      const text = n.type === 'file' ? n.name.replace(/\.md$/i, '') : n.name;
+      const at = highlight ? text.toLowerCase().indexOf(highlight.toLowerCase()) : -1;
+      if (at < 0) label.textContent = text;
+      else {
+        const mark = document.createElement('mark');
+        mark.textContent = text.slice(at, at + highlight.length);
+        label.append(text.slice(0, at), mark, text.slice(at + highlight.length));
+      }
       row.append(icon, label);
 
       if (n.type === 'dir') {
@@ -123,6 +131,22 @@ export function renderBacklinks(container, list, onOpen) {
     title: b.count > 1 ? `${b.name} (${b.count})` : b.name, snippet: b.snippet, index: i, onClick: () => onOpen(b.path),
   })));
 }
+
+// סינון העץ לפי שם: מסמך שהשם שלו מכיל את q, עם התיקיות שמעליו. תיקייה שהשם שלה מתאים נשארת עם כל התוכן.
+export function filterTree(nodes, q) {
+  const needle = q.toLowerCase();
+  const out = [];
+  for (const n of nodes) {
+    const name = (n.type === 'file' ? n.name.replace(/\.md$/i, '') : n.name).toLowerCase();
+    if (name.includes(needle)) out.push(n);
+    else if (n.type === 'dir') {
+      const kids = filterTree(n.children, q);
+      if (kids.length) out.push({ ...n, children: kids });
+    }
+  }
+  return out;
+}
+export const countFiles = (nodes) => nodes.reduce((s, n) => s + (n.type === 'file' ? 1 : countFiles(n.children)), 0);
 
 export function renderSearchResults(container, results, onOpen) {
   container.innerHTML = '';

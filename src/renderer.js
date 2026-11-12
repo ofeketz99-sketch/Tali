@@ -1,7 +1,7 @@
 // נקודת הכניסה של הממשק: מחברת בין העורך, הסרגל והקבצים.
 import { createEditor } from './editor.js';
 import { buildToolbar } from './toolbar.js';
-import { renderTree, renderSearchResults } from './sidebar.js';
+import { renderTree, renderSearchResults, filterTree, countFiles } from './sidebar.js';
 import { createContextPanel, countWords } from './context-panel.js';
 import { setupContextMenus, closeContextMenu } from './context-menu.js';
 import { FLAG_LIST, flagName } from './flags.js';
@@ -437,12 +437,40 @@ function updateDocTitle() {
   meta.hidden = !p;
   if (!p) return;
   const rel = dirname(p).slice(state.root.length + 1);
-  const folder = meta.querySelector('.dm-folder');
-  // נתיב ארוך: התיקייה הראשונה והאחרונה (הקרובה למסמך, החשובה), והנתיב המלא בריחוף
+  // פירורי לחם: כל תיקייה לחיצה ופותחת אותה בעץ. נתיב ארוך: הראשונה, "…" (לחיצה מרחיבה) והאחרונה
   const parts = rel ? rel.split(/[\\/]/) : [];
-  folder.querySelector('span').textContent = !parts.length ? 'התיקייה הראשית'
-    : parts.length > 2 ? `${parts[0]} › … › ${parts[parts.length - 1]}` : parts.join(' › ');
-  folder.dataset.tip = parts.length > 2 ? `${parts.join(' › ')} · הצגה בעץ` : 'הצגה בעץ';
+  const crumbs = meta.querySelector('.dm-folder > span');
+  crumbs.innerHTML = '';
+  const sep = () => { const s = document.createElement('i'); s.className = 'dm-sep'; s.textContent = '›'; return s; };
+  const crumb = (label, dir, tip) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.dataset.tip = tip;
+    b.addEventListener('click', () => revealDir(dir));
+    return b;
+  };
+  const dirAt = (i) => [state.root, ...parts.slice(0, i + 1)].join(state.root.includes('\\') ? '\\' : '/');
+  const renderCrumbs = (full) => {
+    crumbs.innerHTML = '';
+    if (!parts.length) { crumbs.append(crumb('התיקייה הראשית', state.root, 'הצגה בעץ')); return; }
+    parts.forEach((name, i) => {
+      if (!full && parts.length > 2 && i > 0 && i < parts.length - 1) {
+        if (i === 1) {
+          const more = document.createElement('button');
+          more.type = 'button';
+          more.textContent = '…';
+          more.dataset.tip = parts.slice(1, -1).join(' › ');
+          more.addEventListener('click', () => renderCrumbs(true));
+          crumbs.append(sep(), more);
+        }
+        return;
+      }
+      if (i) crumbs.append(sep());
+      crumbs.append(crumb(name, dirAt(i), 'הצגה בעץ'));
+    });
+  };
+  renderCrumbs(false);
   const date = meta.querySelector('.dm-date');
   const fromNote = getCreatedDate(state.diskText || '');
   const show = (ms, tip) => {
@@ -460,7 +488,6 @@ function updateDocTitle() {
   }
 }
 $('docTitle').addEventListener('click', () => { if (state.currentPath) renameNode(currentNode()); });
-$('docMeta').querySelector('.dm-folder').addEventListener('click', () => revealInTree());
 
 // ספירת מילים בשורת המצב (בתצוגה המעוצבת: הטקסט המוצג, ב־Markdown: הטקסט הגולמי)
 function updateWordCount() {
@@ -615,6 +642,9 @@ function ask(label, defaultValue = '', { confirmOnly = false, okText = 'אישו
 
 // ===== עץ הקבצים =====
 function drawTree() {
+  // בזמן חיפוש העץ מוצג מסונן (drawSearch), גם כשמשהו אחר מבקש לצייר אותו מחדש
+  const q = $('search').value.trim();
+  if (q) { clearTimeout(searchTimer); drawSearch(q); return; }
   const focusedPath = document.activeElement?.closest?.('#tree .node')?.dataset.path;
   renderTree($('tree'), state.tree, {
     activePath: state.currentPath,
@@ -1263,18 +1293,46 @@ async function openPatchNotes() {
 $('btnClosePatchNotes').addEventListener('click', () => $('patchNotesDialog').close());
 
 // ===== חיפוש =====
+// מיד: העץ מסונן לפי שם (עם התיקיות, פתוחות). אחרי הפסקה בהקלדה: התאמות בתוך התוכן, מתחת.
 let searchTimer = null;
+let searchSeq = 0;
+function drawSearch(q) {
+  const tree = $('tree');
+  tree.innerHTML = '';
+  const names = filterTree(state.tree, q);
+  const nameHead = document.createElement('h4');
+  nameHead.className = 'search-sec';
+  nameHead.textContent = names.length ? `בשם (${countFiles(names)})` : 'אין מסמך בשם הזה';
+  const nameBox = document.createElement('div');
+  const textHead = document.createElement('h4');
+  textHead.className = 'search-sec';
+  textHead.textContent = 'בתוך המסמכים…';
+  const textBox = document.createElement('div');
+  tree.append(nameHead, nameBox, textHead, textBox);
+  if (names.length) {
+    renderTree(nameBox, names, {
+      activePath: state.currentPath, collapsed: new Set(), highlight: q,
+      onOpen: async (p) => { $('search').value = ''; await openNote(p); },
+      onSelectDir: () => {}, onToggleDir: () => {}, onContext: showContextMenu, onDelete: deleteNode,
+      root: state.root, flagOf: (p) => state.flags.get(p) || null,
+    });
+  }
+  const seq = ++searchSeq;
+  searchTimer = setTimeout(async () => {
+    const inNames = new Set();
+    const walk = (ns) => ns.forEach((n) => (n.type === 'file' ? inNames.add(n.path) : walk(n.children)));
+    walk(names);
+    const results = (await window.api.search(q)).filter((r) => !inNames.has(r.path));
+    if (seq !== searchSeq || !textBox.isConnected) return;
+    textHead.textContent = results.length ? `בתוך המסמכים (${results.length})` : 'אין התאמות נוספות בתוך המסמכים';
+    if (results.length) renderSearchResults(textBox, results, async (p) => { $('search').value = ''; await openNote(p); });
+  }, 250);
+}
 $('search').addEventListener('input', (e) => {
   clearTimeout(searchTimer);
   const q = e.target.value.trim();
-  if (!q) { drawTree(); return; }
-  searchTimer = setTimeout(async () => {
-    const results = await window.api.search(q);
-    renderSearchResults($('tree'), results, async (p) => {
-      $('search').value = '';
-      await openNote(p);
-    });
-  }, 250);
+  if (!q) { searchSeq++; drawTree(); return; }
+  drawSearch(q);
 });
 
 // ===== עץ: הצגה, כיווץ ופתיחה =====
@@ -1290,6 +1348,19 @@ function revealInTree() {
   saveCollapsed();
   drawTree();
   document.querySelector('#tree .node.active')?.scrollIntoView({ block: 'center' });
+}
+// פותח תיקייה בעץ (וכל מה שמעליה), גולל אליה ומבליט אותה לרגע. התיקייה הראשית: גלילה לראש העץ.
+function revealDir(dir) {
+  if ($('search').value) $('search').value = '';
+  if (sidebarMode === 'compact') setSidebarMode('expanded');
+  for (const d of allDirs()) if (dir === d || dir.startsWith(d + '\\') || dir.startsWith(d + '/')) state.collapsed.delete(d);
+  saveCollapsed();
+  drawTree();
+  if (dir === state.root) { $('tree').scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const row = [...$('tree').querySelectorAll('.node.dir')].find((n) => n.dataset.path === dir);
+  if (!row) return;
+  row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash');
 }
 function collapseAll() { state.collapsed = new Set(allDirs()); saveCollapsed(); drawTree(); }
 function expandAll() { state.collapsed.clear(); saveCollapsed(); drawTree(); }
