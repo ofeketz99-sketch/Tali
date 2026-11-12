@@ -124,25 +124,129 @@ export function openGraph({ index, current, onOpen, store }) {
     store.set('tali:graph-forces', forces);
     reheat();
   });
-  panelBody.append(reset);
+  // צבע לפי תיקייה: בלי / אוטומטי / רמה 1–3. "אוטומטי" בוחר את הרמה הראשונה שבה הכספת מתחלקת באמת
+  // (לפחות 3 קבוצות, והגדולה פחות מ־60%), כי אצל המשתמש כמעט הכול בתוך "ישן".
+  let colorMode = store.get('tali:graph-color', 'auto');
+  if (!['none', 'auto', 1, 2, 3].includes(colorMode)) colorMode = 'auto';
+  const colorRow = document.createElement('div');
+  colorRow.className = 'gf-row';
+  colorRow.innerHTML = '<span>צבע לפי תיקייה</span><div class="vd-seg gf-seg"></div>';
+  const seg = colorRow.querySelector('.gf-seg');
+  for (const [val, label] of [['none', 'בלי'], ['auto', 'אוטומטי'], [1, 'רמה 1'], [2, '2'], [3, '3']]) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.classList.toggle('on', val === colorMode);
+    b.addEventListener('click', () => {
+      colorMode = val;
+      store.set('tali:graph-color', val);
+      seg.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+      isolate = null;
+      applyGroups();
+      draw();
+    });
+    seg.append(b);
+  }
+  panelBody.append(colorRow, reset);
   panel.append(panelBtn, panelBody);
 
   const legend = document.createElement('div');
   legend.className = 'graph-legend';
   legend.innerHTML = '<span><i class="gl-dot"></i>מסמך</span><span><i class="gl-tri"></i>פתק קישור</span><span><i class="gl-ghost"></i>מסמך רפאים</span>';
-  body.append(panel, legend);
+  // מקרא הקבוצות (תיקיות): לחיצה מבודדת קבוצה, לחיצה נוספת מחזירה הכול
+  const groupLegend = document.createElement('div');
+  groupLegend.className = 'graph-groups';
+  body.append(panel, legend, groupLegend);
+
+  // חיפוש בגרף: טקסט מדגיש לפי שם, #תגית מסננת לפי תגית. Enter מתמקד בתוצאות.
+  const search = document.createElement('input');
+  search.type = 'search';
+  search.className = 'graph-search';
+  search.placeholder = 'חיפוש בגרף… (#תגית)';
+  tools.prepend(search);
+  let query = '';
+  search.addEventListener('input', () => { query = search.value.trim().toLowerCase(); draw(); });
+  search.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); focusOn([...matching()]); } });
 
   const colors = {
     node: css('--accent'), current: css('--accent-strong'), ghost: css('--muted'),
     edge: css('--border'), edgeHi: css('--accent'), text: css('--text'), bg: css('--page-bg'),
+    groups: Array.from({ length: 8 }, (_, i) => css(`--graph-${i + 1}`)), other: css('--faint'),
   };
+  let isolate = null; // מפתח הקבוצה המבודדת
+
+  const groupKey = (n, level) => {
+    const dirs = n.rel.split('/').slice(0, -1);
+    return dirs.slice(0, level).join('/');
+  };
+  function chooseLevel() {
+    for (let level = 1; level <= 3; level++) {
+      const count = new Map();
+      for (const n of nodes) if (!n.ghost) count.set(groupKey(n, level), (count.get(groupKey(n, level)) || 0) + 1);
+      const real = nodes.filter((n) => !n.ghost).length || 1;
+      if (count.size >= 3 && Math.max(...count.values()) / real < 0.6) return level;
+    }
+    return 3;
+  }
+  // לכל נקודה: group (מפתח) ו־color. שמונה הקבוצות הגדולות מקבלות צבע, השאר אפור.
+  function applyGroups() {
+    groupLegend.innerHTML = '';
+    for (const n of nodes) { n.group = null; n.color = null; }
+    if (colorMode === 'none') return;
+    const level = colorMode === 'auto' ? chooseLevel() : colorMode;
+    const count = new Map();
+    for (const n of nodes) if (!n.ghost) { n.group = groupKey(n, level); count.set(n.group, (count.get(n.group) || 0) + 1); }
+    const top = [...count.entries()].sort((a, b) => b[1] - a[1]);
+    const colorOf = new Map(top.slice(0, 8).map(([k], i) => [k, colors.groups[i]]));
+    for (const n of nodes) if (n.group !== null) n.color = colorOf.get(n.group) || colors.other;
+    for (const [k, c] of top.slice(0, 8)) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'gg-item' + (isolate === k ? ' on' : '');
+      b.innerHTML = '<i></i><span></span><small></small>';
+      b.querySelector('i').style.background = colorOf.get(k);
+      b.querySelector('span').textContent = k ? k.split('/').pop() : 'התיקייה הראשית';
+      b.querySelector('small').textContent = c;
+      b.dataset.tip = (k || 'התיקייה הראשית').split('/').join(' › ');
+      b.addEventListener('click', () => { isolate = isolate === k ? null : k; applyGroups(); draw(); });
+      groupLegend.append(b);
+    }
+    if (top.length > 8) {
+      const more = document.createElement('div');
+      more.className = 'gg-more';
+      more.textContent = `ועוד ${top.length - 8} באפור`;
+      groupLegend.append(more);
+    }
+  }
+  // הנקודות שעוברות את החיפוש ואת הבידוד; null = אין סינון
+  function matching() {
+    if (!query && isolate === null) return null;
+    const tag = query.startsWith('#') ? query.slice(1) : null;
+    return new Set(nodes.filter((n) => {
+      if (isolate !== null && n.group !== isolate) return false;
+      if (!query) return true;
+      if (tag !== null) return !n.ghost && (n.tags || []).some((t) => t.toLowerCase().startsWith(tag));
+      return n.label.toLowerCase().includes(query);
+    }));
+  }
+  function focusOn(list) {
+    if (!list.length) return;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const n of list) { minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x); minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y); }
+    const w = canvas.clientWidth - 160, h = canvas.clientHeight - 160;
+    view.k = Math.max(0.25, Math.min(2.4, w / Math.max(1, maxX - minX), h / Math.max(1, maxY - minY)));
+    view.x = -(minX + maxX) / 2 * view.k;
+    view.y = -(minY + maxY) / 2 * view.k;
+    userMoved = true;
+    draw();
+  }
   let nodes = [], edges = [], byId = new Map();
   const view = { x: 0, y: 0, k: 1 };
   let alpha = 1, frame = 0, hover = null, drag = null;
 
   function build() {
     const all = new Map();
-    for (const n of index.notes) all.set(n.path, { id: n.path, label: n.name, ghost: false, hub: !!n.hub, links: n.links, missing: n.missing });
+    for (const n of index.notes) all.set(n.path, { id: n.path, label: n.name, rel: n.rel || n.name, tags: n.tags, ghost: false, hub: !!n.hub, links: n.links, missing: n.missing });
     const edgeList = [];
     for (const n of index.notes) {
       for (const to of n.links) if (all.has(to)) edgeList.push([n.path, to]);
@@ -168,6 +272,7 @@ export function openGraph({ index, current, onOpen, store }) {
     byId = new Map(nodes.map((n) => [n.id, n]));
     edges = edgeList.filter(([a, b]) => byId.has(a) && byId.has(b) && a !== b).map(([a, b]) => [byId.get(a), byId.get(b)]);
     for (const [a, b] of edges) { a.deg++; b.deg++; }
+    applyGroups();
     alpha = 1;
     kick();
   }
@@ -222,11 +327,13 @@ export function openGraph({ index, current, onOpen, store }) {
     g.translate(w / 2 + view.x, h / 2 + view.y);
     g.scale(view.k, view.k);
     const near = hover ? new Set([hover, ...edges.filter(([a, b]) => a === hover || b === hover).flat()]) : null;
+    const match = matching();
     g.lineWidth = 1 / view.k;
     for (const [a, b] of edges) {
       const hi = near && (a === hover || b === hover);
+      const out = match && !(match.has(a) && match.has(b));
       g.strokeStyle = hi ? colors.edgeHi : colors.edge;
-      g.globalAlpha = near && !hi ? 0.25 : hi ? 0.9 : 0.7;
+      g.globalAlpha = hi ? 0.9 : out ? 0.06 : near ? 0.25 : 0.7;
       if (b.ghost) g.setLineDash([4 / view.k, 3 / view.k]); else g.setLineDash([]);
       g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
     }
@@ -236,13 +343,14 @@ export function openGraph({ index, current, onOpen, store }) {
     g.textAlign = 'center';
     for (const n of nodes) {
       const r = radius(n);
-      g.globalAlpha = near && !near.has(n) ? 0.25 : 1;
+      const dim = match && !match.has(n) && n !== hover;
+      g.globalAlpha = dim ? 0.1 : near && !near.has(n) ? 0.25 : 1;
       if (n.hub) triangle(g, n.x, n.y, r);
       else { g.beginPath(); g.arc(n.x, n.y, r, 0, Math.PI * 2); }
       if (n.ghost) { g.fillStyle = colors.bg; g.fill(); g.strokeStyle = colors.ghost; g.setLineDash([2.5 / view.k, 2 / view.k]); g.lineWidth = 1.4 / view.k; g.stroke(); g.setLineDash([]); }
-      else { g.fillStyle = n.id === current ? colors.current : colors.node; g.fill(); }
+      else { g.fillStyle = n.id === current ? colors.current : n.color || colors.node; g.fill(); }
       if (n.id === current) { g.strokeStyle = colors.current; g.lineWidth = 2 / view.k; if (n.hub) triangle(g, n.x, n.y, r + 4 / view.k); else { g.beginPath(); g.arc(n.x, n.y, r + 3.5 / view.k, 0, Math.PI * 2); } g.stroke(); }
-      if (showAll || n === hover || n.id === current || (near && near.has(n))) {
+      if ((showAll && !dim) || n === hover || n.id === current || (near && near.has(n)) || (match && query && match.has(n) && match.size < 60)) {
         g.fillStyle = n.ghost ? colors.ghost : colors.text;
         g.fillText(n.label, n.x, n.y + r + 13 / view.k);
       }
