@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('api', {
   appVersion: call('app-version'),
   editCommand: call('edit-command'),
   pickFolder: call('pick-folder'),
+  pickNewNoteFolder: call('pick-new-note-folder'),
+  prepareNewNoteFolder: call('prepare-new-note-folder'),
   tree: call('tree'),
   read: call('read'),
   write: call('write'),
@@ -43,3 +45,4 @@ contextBridge.exposeInMainWorld('api', {
   inlineImages: call('inline-images'),
   openExternalFile: call('open-export'),
 });
+

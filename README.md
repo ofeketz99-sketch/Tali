@@ -13,6 +13,21 @@
 
 את הגרסה האחרונה מורידים מ־[Releases](https://github.com/ofeketz99-sketch/Tali/releases): `Tali-Setup-<גרסה>.exe` (מתקין) או `Tali-<גרסה>-portable.exe` (בלי התקנה). הקבצים לא חתומים, ולכן Windows יזהיר בהפעלה הראשונה ("מידע נוסף" ← "הפעל בכל זאת").
 
+## ערוץ פיתוח שמתעדכן בפתיחה
+
+זהו מסלול נפרד מהגרסה המותקנת. מתקינים אותו פעם אחת בכל מחשב, ואחר כך `Tali.exe` מעדכן את הקוד מענף `desktop-dev` בכל פתיחה:
+
+```powershell
+git clone --branch desktop-dev https://github.com/ofeketz99-sketch/Tali.git
+cd Tali
+npm install
+npm run make-exe
+```
+
+מפעילים את `Tali.exe` מתוך התיקייה `Tali-exe` שנוצרה ליד המאגר. המשגר מבצע `fetch` ועדכון fast-forward בלבד, מסנכרן תלויות כשה־lockfile השתנה ובונה את הממשק. הוא לעולם לא דורס עבודה מקומית: כשיש קבצים שלא נשמרו ב־Git, ענף אחר או היסטוריה שהתפצלה, העדכון מדולג והעותק המקומי נפתח. שגיאות רשת גם אינן חוסמות את הגרסה שכבר קיימת. יומן העדכון נמצא ב־`%LOCALAPPDATA%\Tali\launcher-update.log`.
+
+אפשר לכבות עדכון זמנית עם `TALI_AUTO_UPDATE=0`, לבחור ענף אחר עם `TALI_UPDATE_BRANCH`, או להצביע למאגר אחר עם `TALI_PROJECT`.
+
 ## הרצה מהקוד
 
 ```
@@ -26,7 +41,7 @@ npm start
 | `npm start` | בנייה והפעלה |
 | `npm run dist` | בונה מתקין וקובץ נייד ל־Windows ב־`release/` (electron-builder). פרסום גרסה: `AGENTS.md` |
 | `npm run release:manifest` | יוצר `release/latest.json` עבור אתר הורדות, אחרי בניית שני קבצי ה־EXE |
-| `npm run make-exe` | בונה `Tali.exe` (Windows בלבד) ב־`Tali-exe` ליד המאגר. הפרטים ב־`AGENTS.md` |
+| `npm run make-exe` | בונה משגר פיתוח `Tali.exe` שמתעדכן מענף `desktop-dev` (Windows בלבד) ב־`Tali-exe` ליד המאגר |
 | `npm run watch` | בנייה מתמשכת בזמן פיתוח (רענון חלון עם Ctrl+R) |
 | `npm test` | בדיקות יחידה |
 | `npm run check` | בדיקת תחביר, בנייה ובדיקות. להריץ לפני כל commit |

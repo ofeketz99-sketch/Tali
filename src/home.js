@@ -38,7 +38,7 @@ export function createHome({ el, store, api }) {
   async function render({ refresh = true } = {}) {
     const my = ++token;
     if (refresh || !cache) {
-      // מציירים מיד (ברכה וכרטיסים במצב טעינה, או הנתונים הקודמים), ורק אחר כך קוראים את הכספת.
+      // מציירים מיד חיווי סריקה נפרד, ורק אחר כך קוראים את הכספת.
       // בכספת גדולה, או בתיקייה מסונכרנת בענן שהקבצים בה עוד לא ירדו למחשב, הקריאה יכולה לקחת זמן רב
       if (!cache) draw(null, null, null);
       const infoPromise = Promise.all([
@@ -64,14 +64,40 @@ export function createHome({ el, store, api }) {
     el.innerHTML = '';
     el.classList.toggle('editing', editing);
 
+    // לפני שהאינדקס מוכן לא מציגים כרטיסים חלקיים. החיווי הקטן נשאר מרכזי ושקט,
+    // והקורא במסך מקבל הודעת מצב אחת בלבד.
+    if (!index) {
+      const loading = document.createElement('div');
+      loading.className = 'home-loading';
+      loading.setAttribute('role', 'status');
+      loading.setAttribute('aria-live', 'polite');
+      loading.innerHTML = `
+        <svg class="home-loading-icon" viewBox="0 0 112 104" aria-hidden="true" focusable="false">
+          <g class="home-loading-page home-loading-page-a">
+            <path d="M43 12h20l8 8v27H43z" />
+            <path d="M63 12v9h8" />
+          </g>
+          <g class="home-loading-page home-loading-page-b">
+            <path d="M43 12h20l8 8v27H43z" />
+            <path d="M63 12v9h8" />
+          </g>
+          <g class="home-loading-page home-loading-page-c">
+            <path d="M43 12h20l8 8v27H43z" />
+            <path d="M63 12v9h8" />
+          </g>
+          <g class="home-loading-archive">
+            <path d="M28 61h56l5 11v20H23V72z" />
+            <path d="M23 72h66" />
+            <path d="M47 81h18" />
+          </g>
+        </svg>
+        <p>סורק את תיקיית המסמכים…</p>`;
+      el.append(loading);
+      return;
+    }
+
     const head = document.createElement('div');
-    head.className = 'home-head';
-    const now = new Date();
-    const h = now.getHours();
-    const hello = h < 5 ? 'לילה טוב' : h < 12 ? 'בוקר טוב' : h < 17 ? 'צהריים טובים' : h < 21 ? 'ערב טוב' : 'לילה טוב';
-    head.innerHTML = `<div><h1 class="home-hello"></h1><p class="home-date"></p></div>`;
-    head.querySelector('.home-hello').textContent = hello;
-    head.querySelector('.home-date').textContent = now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' });
+    head.className = 'home-head home-head-tools';
     const custom = document.createElement('button');
     custom.type = 'button';
     custom.className = 'home-custom' + (editing ? ' on' : '');
@@ -137,7 +163,6 @@ export function createHome({ el, store, api }) {
     body.className = 'hc-body';
     c.append(body);
     if (key === 'updates') updates(body, head, info);
-    else if (!index) empty(body, 'טוען את המסמכים…');
     else if (key === 'followUp') followUps(body, head, index);
     else if (key === 'ghosts') ghosts(body, head, index);
     else boardCard(body, head, board);
@@ -255,3 +280,4 @@ export function createHome({ el, store, api }) {
 
   return { render, isEditing: () => editing };
 }
+
