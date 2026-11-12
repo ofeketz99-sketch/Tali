@@ -1625,8 +1625,8 @@ function pickNote(placeholder, cb) {
 
 // nav: קיצורי ניווט. לא פועלים בתוך שדה קלט (חיפוש וכו'), כדי ש־Ctrl+חצים ימשיכו לעבוד שם כרגיל
 const COMMANDS = [
-  { title: 'הכרטיסייה הבאה', keys: 'Ctrl+←', run: () => tabs.step(1), needs: 'note', nav: true },
-  { title: 'הכרטיסייה הקודמת', keys: 'Ctrl+→', run: () => tabs.step(-1), needs: 'note', nav: true },
+  { title: 'הכרטיסייה הבאה', keys: 'Ctrl+Alt+←', run: () => tabs.step(1), needs: 'note' },
+  { title: 'הכרטיסייה הקודמת', keys: 'Ctrl+Alt+→', run: () => tabs.step(-1), needs: 'note' },
   { title: 'הכרטיסייה הבאה ', keys: 'Ctrl+Tab', run: () => tabs.step(1), needs: 'note', hidden: true },
   { title: 'הכרטיסייה הקודמת ', keys: 'Ctrl+Shift+Tab', run: () => tabs.step(-1), needs: 'note', hidden: true },
   { title: 'סגירת הכרטיסייה', keys: 'Ctrl+W', run: () => state.currentPath && tabs.close(state.currentPath), needs: 'note' },
