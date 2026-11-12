@@ -1,6 +1,6 @@
 {
   "name": "tali",
-  "version": "6.2.0",
+  "version": "6.3.0",
   "productName": "Tali",
   "description": "Tali: אפליקציית הערות אישית. אובסידיאן פוגש וורד",
   "main": "main.js",
@@ -9,8 +9,8 @@
     "build": "esbuild src/renderer.js --bundle --outfile=dist/renderer.js --sourcemap --log-level=warning",
     "start": "npm run build && electron .",
     "watch": "esbuild src/renderer.js --bundle --outfile=dist/renderer.js --sourcemap --watch",
-    "test": "node --test tests/overlay-data.test.mjs tests/stroke-smoothing.test.mjs tests/vault-data.test.mjs tests/theme-core.test.mjs tests/new-note-folder.test.mjs",
-    "check": "node --check main.js && node --check preload.js && node --check links.js && node --check vault-data.js && node --check new-note-folder.js && node --check launcher/index.js && node --check tools/make-exe.js && npm run build && npm test",
+    "test": "node --test tests/overlay-data.test.mjs tests/stroke-smoothing.test.mjs tests/vault-data.test.mjs tests/theme-core.test.mjs tests/new-note-folder.test.mjs tests/launcher-update.test.mjs",
+    "check": "node --check main.js && node --check preload.js && node --check links.js && node --check vault-data.js && node --check new-note-folder.js && node --check launcher/index.js && node --check launcher/update-core.js && node --check tools/make-exe.js && npm run build && npm test",
     "splash:emblem": "electron tools/splash-render/main.js -- emblem",
     "splash:preview": "electron tools/splash-render/main.js -- preview",
     "splash:render": "electron tools/splash-render/main.js -- video src/splash.webm 48",
