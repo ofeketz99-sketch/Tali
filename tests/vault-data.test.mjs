@@ -94,3 +94,35 @@ test('templates: Obsidian variables and moment-style formats', () => {
   assert.equal(fillTemplate(t, { title: 'ליפידים', now, dateFormat: 'DD-MM-YY', timeFormat: 'HH:mm' }),
     '- קישורים: [[\n- תיוגים: \n06-04-25\n# ליפידים 09:05 2025\n{{other}}');
 });
+
+test('header to properties: the user\'s header becomes links/source/tags/created', () => {
+  const { headerToProps } = require('../vault-data.js');
+  const md = ' - קישורים: [[ביוכימיה]], [[כימיה|כימ]]\n- ביבליוגרפיה: [ויקיפדיה](https://he.wikipedia.org/wiki/ליפיד)\n- תיוגים: #כימיה #ביו\n06-04-25\n ----\n\n**מונח מטריה** לכלל.\n';
+  const r = headerToProps(md);
+  assert.equal(r.text, '---\nlinks:\n  - "[[ביוכימיה]]"\n  - "[[כימיה]]"\nsource: "[ויקיפדיה](https://he.wikipedia.org/wiki/ליפיד)"\ntags:\n  - כימיה\n  - ביו\ncreated: 2025-04-06\n---\n**מונח מטריה** לכלל.\n');
+});
+
+test('header to properties: variants, merging, CRLF and refusals', () => {
+  const { headerToProps } = require('../vault-data.js');
+  // ריק: "[[", "[]()" ותיוגים ריקים לא יוצרים מאפיינים, רק הכותרת יורדת
+  assert.equal(headerToProps('- קישורים: [[\n- ביבליוגרפיה: []()\n- תיוגים: \n12-11-26\n----\ntext').text, '---\ncreated: 2026-11-12\n---\ntext');
+  // תאריך ושעה כפריטי רשימה, --- כמפריד, CRLF נשמר
+  assert.equal(headerToProps('- קישורים: [[א]]\r\n- 11-07-26\r\n- 12:39\r\n--- \r\nskin').text, '---\r\nlinks:\r\n  - "[[א]]"\r\ncreated: 2026-07-11T12:39\r\n---\r\nskin');
+  // בלי קו מפריד: הכותרת נגמרת בשורה הראשונה שאינה שלה
+  assert.equal(headerToProps(' - קישורים:[[א]]\nגוף').text, '---\nlinks:\n  - "[[א]]"\n---\nגוף');
+  // מאפיינים קיימים: קישורים מתמזגים, created קיים לא נדרס
+  assert.equal(headerToProps('---\ncreated: 2024-01-01\nlinks:\n  - "[[ב]]"\n---\n- קישורים: [[א]], [[ב]]\n06-04-25\n----\nx').text,
+    '---\ncreated: 2024-01-01\nlinks:\n  - "[[ב]]"\n  - "[[א]]"\n---\nx');
+  // שורה לא מוכרת לפני הקו המפריד (מחבר:, {{date}}): לא ממירים
+  assert.ok(headerToProps('קישורים: [[א]]\nמחבר: מישהו\n---\n').skip);
+  assert.ok(headerToProps('- קישורים: [[\n- תיוגים: \n{{date}}\n----\n').skip);
+  assert.ok(headerToProps('# כותרת\n- קישורים: [[א]]\n').skip);
+});
+
+test('dates: ISO lines, with time, and date+time glued together', () => {
+  const { getCreatedDate, headerToProps } = require('../vault-data.js');
+  assert.equal(getCreatedDate('- קישורים: [[א]]\n2025-03-27 19:47\n---\n'), '2025-03-27');
+  assert.equal(getCreatedDate('- 2025-03-30\n'), '2025-03-30');
+  assert.equal(headerToProps('- קישורים: [[א]]\n- 11-07-2612:39\n---\nx').text, '---\nlinks:\n  - "[[א]]"\ncreated: 2026-07-11T12:39\n---\nx');
+  assert.equal(headerToProps('- קישורים: [[א]]\n2025-03-27 19:47\n---\nx').text, '---\nlinks:\n  - "[[א]]"\ncreated: 2025-03-27T19:47\n---\nx');
+});

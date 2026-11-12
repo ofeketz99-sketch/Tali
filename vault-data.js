@@ -1,6 +1,6 @@
 // ניתוח הערה בודדת לאינדקס של הכספת: תגיות, משימות וקישורים.
 // משותף ל־main.js (בונה את האינדקס) ולממשק (סימון תגיות בעורך). פונקציות טהורות, עם בדיקות.
-const { extractLinks, getFrontmatterLinks } = require('./links');
+const { extractLinks, getFrontmatterLinks, setFrontmatterLinks } = require('./links');
 
 const FM_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(\r?\n|$)/;
 
@@ -128,13 +128,15 @@ function getCreatedDate(text) {
   }
   const lines = src.replace(FM_RE, '').split('\n').slice(0, 8);
   for (const line of lines) {
-    if (/^\s*\d{1,2}[-./]\d{1,2}[-./](\d{2}|\d{4})\s*$/.test(line.replace(/\r$/, ''))) {
-      const d = parseDate(line);
-      if (d) return d;
-    }
+    const m = DATE_LINE.exec(line.replace(/\r$/, ''));
+    const d = m && parseDate(m[1]);
+    if (d) return d;
   }
   return null;
 }
+// שורה שכולה תאריך (אולי כפריט רשימה, אולי עם שעה): "06-04-25", "- 2025-03-28", "2025-03-27 19:47",
+// וגם תאריך ושעה צמודים בטעות ("11-07-2612:39"). קבוצות: 1 תאריך, 2–3 שעה.
+const DATE_LINE = /^\s*(?:[-*+]\s+)?(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[-./]\d{1,2}[-./](?:\d{4}|\d{2}))(?:\s*T?\s*(\d{1,2}):(\d{2}))?\s*$/;
 
 // ----- דגלים: "flag: red" במאפיינים, כך שהדגל עובר עם הקובץ (שינוי שם, העברה, סנכרון) -----
 const FLAGS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
@@ -146,6 +148,80 @@ function getFlag(text) {
   if (!line) return null;
   const v = line.replace(/^flag\s*:\s*/, '').trim().replace(/^["']|["']$/g, '').toLowerCase();
   return FLAGS.includes(v) ? v : null;
+}
+
+// ----- כותרת ידנית ← מאפיינים -----
+// הכותרת שהמשתמש כותב בראש ההערות (מהתבנית "פתקים רעיוניים"):
+//   - קישורים: [[א]], [[ב]]
+//   - ביבליוגרפיה: [ויקיפדיה](https://...)
+//   - תיוגים: #כימיה
+//   06-04-25          (ואולי "- 12:39")
+//   ----
+// הופכת למאפיינים links / source / tags / created. בזהירות: ממירים רק אם כל שורה עד הקו המפריד מוכרת.
+// אחרת מחזירים { skip: סיבה } והקובץ לא משתנה.
+const HEADER_FIELD = /^\s*(?:[-*+]\s+)*(קישורים|ביבליוגרפיה|תיוגים)\s*:\s*(.*?)\s*$/;
+const HEADER_TIME = /^\s*(?:[-*+]\s+)?(\d{1,2}):(\d{2})\s*$/;
+const HEADER_RULE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
+const yamlString = (s) => (/^[\p{L}\p{N} _.,()'-]+$/u.test(s) && !/^[\d.-]+$/.test(s) ? s : JSON.stringify(s));
+
+function headerToProps(text) {
+  const src = text || '';
+  const eol = /\r\n/.test(src) ? '\r\n' : '\n';
+  const fm = FM_RE.exec(src);
+  const head = fm ? src.slice(0, fm[0].length) : '';
+  const lines = src.slice(head.length).split(/\r?\n/);
+  let i = 0;
+  while (i < lines.length && !lines[i].trim()) i++;
+  if (i >= lines.length || !HEADER_FIELD.test(lines[i])) return { skip: 'אין כותרת בראש המסמך' };
+  const links = [], tags = [];
+  let source = '', date = null, time = null, end = -1;
+  for (; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    let m;
+    if (HEADER_RULE.test(line)) { end = i + 1; break; }
+    if ((m = HEADER_FIELD.exec(line))) {
+      const v = m[2];
+      if (m[1] === 'קישורים') for (const l of extractLinks(v)) { if (l.target && !links.includes(l.target)) links.push(l.target); }
+      else if (m[1] === 'ביבליוגרפיה') { if (v && !/^\[\]\(\)$/.test(v)) source = source ? `${source}, ${v}` : v; }
+      else for (const t of v.split(/[\s,]+/)) { const tag = t.replace(/^#/, ''); if (tag && !tags.includes(tag)) tags.push(tag); }
+    } else if ((m = DATE_LINE.exec(line)) && parseDate(m[1])) {
+      if (!date) { date = parseDate(m[1]); if (m[2] && !time) time = `${m[2].padStart(2, '0')}:${m[3]}`; }
+    }
+    else if ((m = HEADER_TIME.exec(line)) && !time) time = `${m[1].padStart(2, '0')}:${m[2]}`;
+    else {
+      // שורה לא מוכרת. אם אחריה (קרוב) יש קו מפריד, היא חלק מהכותרת ואי אפשר להמיר בבטחה.
+      if (lines.slice(i + 1, i + 8).some((l) => HEADER_RULE.test(l))) return { skip: `שורה לא מוכרת בכותרת: "${line.trim().slice(0, 40)}"` };
+      end = i;
+      break;
+    }
+  }
+  if (end < 0) end = lines.length;
+
+  // מיזוג עם המאפיינים הקיימים: קישורים מצטרפים, ושדה שכבר קיים לא נדרס
+  let fmText = head;
+  const existing = fm ? fm[1].split(/\r?\n/) : [];
+  const has = (key) => existing.some((l) => new RegExp(`^${key}\\s*:`).test(l));
+  const extra = [];
+  if (source && !has('source')) extra.push(`source: ${yamlString(source)}`);
+  if (tags.length && !has('tags')) extra.push('tags:', ...tags.map((t) => `  - ${yamlString(t)}`));
+  if (date && !has('created')) extra.push(`created: ${date}${time ? `T${time}` : ''}`);
+  if (links.length) {
+    const merged = [...new Set([...getFrontmatterLinks(fmText), ...links])];
+    fmText = setFrontmatterLinks(fmText || '', merged);
+  }
+  if (extra.length) {
+    const m2 = FM_RE.exec(fmText);
+    fmText = m2 ? `---\n${m2[1]}\n${extra.join('\n')}\n---\n` : `---\n${extra.join('\n')}\n---\n`;
+  }
+  fmText = fmText.replace(/\r?\n/g, eol);
+  let rest = lines.slice(end);
+  while (rest.length && !rest[0].trim()) rest.shift();
+  return {
+    text: fmText + rest.join(eol),
+    props: { links, source, tags, created: date ? `${date}${time ? `T${time}` : ''}` : null },
+    removed: lines.slice(0, end).join(eol).trim(),
+  };
 }
 
 // ----- תבניות, כמו בתוסף Templates של אובסידיאן -----
@@ -180,4 +256,4 @@ function setFlag(text, color) {
   return `---${eol}${lines.join(eol)}${eol}---${m[2] || eol}${rest}`;
 }
 
-module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, FLAGS, getFlag, setFlag, isLinkHub, getCreatedDate, formatDate, fillTemplate };
+module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, FLAGS, getFlag, setFlag, isLinkHub, getCreatedDate, formatDate, fillTemplate, headerToProps };

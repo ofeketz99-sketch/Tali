@@ -5,7 +5,7 @@ import { renderTree, renderSearchResults, filterTree, countFiles } from './sideb
 import { createContextPanel, countWords } from './context-panel.js';
 import { setupContextMenus, closeContextMenu } from './context-menu.js';
 import { FLAG_LIST, flagName } from './flags.js';
-import { getFlag, setFlag, getCreatedDate, fillTemplate } from '../vault-data.js';
+import { getFlag, setFlag, getCreatedDate, fillTemplate, headerToProps } from '../vault-data.js';
 import { resolveLink, extractLinks, getFrontmatterLinks, setFrontmatterLinks } from '../links.js';
 import { openLinkPicker } from './linkpicker.js';
 import { showLinkHubOffer } from './linkhub.js';
@@ -17,6 +17,7 @@ import { setupHoverPreview } from './hover-preview.js';
 import { openGraph, openGhosts, openTags, openTasks } from './vault-views.js';
 import { exportHtml, EXPORT_CSS } from './export.js';
 import { buildDocx } from './export-docx.js';
+import { openHeaderConvert } from './header-convert.js';
 
 // אייקונים בכפתורים שב־index.html: <span data-icon="plus">
 for (const el of document.querySelectorAll('[data-icon]')) el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon, 18));
@@ -1111,6 +1112,7 @@ function showContextMenu(node, x, y) {
     add('link', 'קישור לפתקים אחרים…', () => pickLinksFor(node.path));
     add('exportPdf', 'ייצוא ל־PDF', () => exportNote('pdf', node));
     add('exportWord', 'ייצוא ל־Word', () => exportNote('docx', node));
+    add('outline', 'העברת הכותרת למאפיינים', () => convertHeader(node.path));
     // דגל: שורת צבעים (וללא)
     const current = state.flags.get(node.path) || null;
     const flags = document.createElement('div');
@@ -1294,6 +1296,38 @@ async function insertTemplate() {
   const sel = editorApi.editor.state.selection;
   const chain = editorApi.editor.chain().focus();
   (sel.node ? chain.insertContentAt(sel.to, text) : chain.insertContent(text)).run();
+}
+
+// ===== כותרת ידנית ← מאפיינים (headerToProps ב־vault-data.js) =====
+async function convertHeader(p = state.currentPath) {
+  if (!p) return;
+  try {
+    await flushSave();
+    const text = await window.api.read(p);
+    const r = headerToProps(text);
+    if (r.skip) { setStatus(r.skip === 'אין כותרת בראש המסמך' ? 'אין במסמך כותרת להמרה' : `לא הומר: ${r.skip}`); return; }
+    const before = p === state.currentPath ? state.mtime : await window.api.mtime(p);
+    const after = await window.api.write(p, r.text, before);
+    if (p === state.currentPath) { state.mtime = after; await reloadFromDisk(); updateDocTitle(); }
+    setStatus('הכותרת הועברה למאפיינים');
+  } catch (err) { setStatus(err.message === 'CONFLICT' ? 'המסמך השתנה בחוץ. פתחו אותו מחדש ונסו שוב' : 'שגיאה: ' + err.message); }
+}
+async function convertAllHeaders() {
+  if (!state.root) return;
+  await flushSave();
+  const tpl = await window.api.templates().catch(() => ({}));
+  openHeaderConvert({
+    notes: allNotes().map((n) => ({ path: n.path, rel: n.rel })),
+    skipDir: tpl.folder || null,
+    read: (p) => window.api.read(p),
+    mtime: (p) => window.api.mtime(p),
+    write: (p, t, m) => window.api.write(p, t, m),
+    onDone: async (changed) => {
+      if (state.currentPath && changed.includes(state.currentPath)) { state.mtime = await window.api.mtime(state.currentPath); await reloadFromDisk(); updateDocTitle(); }
+      await refreshTree();
+      setStatus(`הכותרות הועברו למאפיינים ב־${changed.length} מסמכים`);
+    },
+  });
 }
 
 async function newFolder() {
@@ -1502,6 +1536,8 @@ const COMMANDS = [
   { title: 'מסמך חדש', keys: 'Ctrl+N', run: () => newNote(), needs: 'root' },
   { title: 'מסמך חדש מתבנית…', run: newNoteFromTemplate, needs: 'root' },
   { title: 'הוספת תבנית במקום הסמן…', run: insertTemplate, needs: 'note' },
+  { title: 'העברת הכותרת למאפיינים', run: () => convertHeader(), needs: 'note' },
+  { title: 'העברת הכותרות למאפיינים בכל המסמכים…', run: convertAllHeaders, needs: 'root' },
   { title: 'תיקייה חדשה', keys: 'Ctrl+Shift+N', run: newFolder, needs: 'root' },
   { title: 'חיפוש בכל המסמכים', keys: 'Ctrl+Shift+F', run: () => { $('search').focus(); $('search').select(); }, needs: 'root' },
   { title: 'שמירה', keys: 'Ctrl+S', run: flushSave, needs: 'note' },
