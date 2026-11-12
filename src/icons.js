@@ -6,7 +6,7 @@ import {
   FolderOpen, Plus, SlidersHorizontal, Search, SquarePlus, Check, Pencil, Copy, Link, Trash2, X, FilePlus,
   Palette, TableCellsMerge, TableCellsSplit, BetweenHorizontalStart, BetweenHorizontalEnd,
   BetweenVerticalStart, BetweenVerticalEnd, Heading, Pen, Slash, MoveUpRight, Square, Circle, Eraser,
-  Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
+  ArrowRight, ArrowLeft, Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
   PanelRightClose, PanelRightOpen, Waypoints, Ghost, Hash, FileDown, FileType, ListChecks, ListTree, Info, Reply, Ellipsis, Focus, Minimize2,
   Sigma, SquareSigma, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag, Keyboard, MessageSquareText,
 } from 'lucide';
@@ -32,7 +32,7 @@ const ICONS = {
   more: Ellipsis, focus: Focus, focusExit: Minimize2,
   // תפריט הלחיצה הימנית ונוסחאות
   math: Sigma, mathBlock: SquareSigma, h1: Heading1, h2: Heading2, h3: Heading3, paragraph: Pilcrow,
-  cut: Scissors, paste: ClipboardPaste, selectAll: TextSelect, chevronLeft: ChevronLeft, chevronRight: ChevronRight, flag: Flag,
+  cut: Scissors, paste: ClipboardPaste, selectAll: TextSelect, chevronLeft: ChevronLeft, chevronRight: ChevronRight, flag: Flag, arrowRight: ArrowRight, arrowLeft: ArrowLeft,
   // טבלה
   rowBefore: BetweenHorizontalStart, rowAfter: BetweenHorizontalEnd,
   colBefore: BetweenVerticalStart, colAfter: BetweenVerticalEnd,

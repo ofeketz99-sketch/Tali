@@ -3,7 +3,7 @@ import { createEditor } from './editor.js';
 import { buildToolbar } from './toolbar.js';
 import { renderTree, renderSearchResults, filterTree, countFiles } from './sidebar.js';
 import { createContextPanel, countWords } from './context-panel.js';
-import { setupContextMenus, closeContextMenu } from './context-menu.js';
+import { setupContextMenus, closeContextMenu, openContextMenu } from './context-menu.js';
 import { FLAG_LIST, flagName } from './flags.js';
 import { getFlag, setFlag, getCreatedDate, fillTemplate, headerToProps, isFollowUpHeading } from '../vault-data.js';
 import { resolveLink, extractLinks, getFrontmatterLinks, setFrontmatterLinks } from '../links.js';
@@ -215,7 +215,7 @@ const tabs = createTabs({
     try { el.innerHTML = renderNoteHtml(await window.api.read(p), { resolve: resolveTarget, fileUrl }); }
     catch { el.textContent = 'המסמך לא נמצא'; }
   },
-  onContext: (p, x, y) => showContextMenu({ type: 'file', path: p, name: p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1) }, x, y),
+  onContext: (p, x, y) => showTabMenu(p, x, y),
   onHome: () => goHome(),
   fileIcon: (p) => fileIconHtml(p),
 });
@@ -288,12 +288,14 @@ async function pickRoot() {
   } finally { setFolderLoading(false); }
 }
 // חזרה למסך הבית מתוך מסמך: הכרטיסיות נשארות, הפיצול נסגר
-async function goHome() {
+async function goHome({ history = true } = {}) {
   if (!state.root) return;
   await flushSave();
   rememberPosition();
+  if (history) pushHistory(HOME);
   if (tabs.split) tabs.unsplit();
   showEmpty();
+  updateNavButtons();
 }
 const pageOverlay = createPageOverlay({ page: $('page'), onChange: noteChanged });
 editorApi.setOverlayController(pageOverlay);
@@ -326,7 +328,11 @@ setupContextMenus({
   edit: toolbarApi.edit,
   isNoteOpen: () => !!state.currentPath,
   clipboard: (cmd) => window.api.editCommand(cmd),
-  flag: { list: FLAG_LIST, get: () => state.flags.get(state.currentPath) || null, set: (c) => setNoteFlag(state.currentPath, c) },
+  link: { open: (target, mode) => {
+    if (mode === 'side') { const found = resolveTarget(target); if (found && isNote(found)) return tabs.splitWith(found); }
+    return openLink(target, mode === 'tab' ? { newTab: true } : {});
+  } },
+  other: (e) => otherContextItems(e),
 });
 
 // ===== מצב מיקוד: רק הדף. הסרגלים, שורת המצב ולוח ההקשר מוסתרים. F11 או הכפתור בפינה יוצאים =====
@@ -898,10 +904,7 @@ async function openNote(p, { history = true } = {}) {
   rememberPosition();
   const md = await window.api.read(p);
   const mtime = await window.api.mtime(p);
-  if (history && state.currentPath && state.currentPath !== p) {
-    state.back.push(state.currentPath);
-    state.forward = [];
-  }
+  if (history) pushHistory(p);
   state.currentPath = p;
   state.mtime = mtime;
   state.diskText = md;
@@ -932,6 +935,7 @@ async function openNote(p, { history = true } = {}) {
   drawTree();
   refreshBacklinks();
   refreshLinksPanel();
+  updateNavButtons();
 }
 
 // ===== קישורים =====
@@ -971,15 +975,51 @@ async function openLink(target, opts = {}) {
 let backlinksToken = 0;
 function refreshBacklinks() { docPanel?.refreshBacklinks(); }
 
+// ===== אחורה / קדימה: בין מסמכים ומסך הבית, כמו בדפדפן =====
+// HOME מסמן את מסך הבית בהיסטוריה (state.currentPath הוא null כשהוא מוצג).
+const HOME = '\u0000home';
+const here = () => state.currentPath || HOME;
+function pushHistory(next) {
+  if (here() === next) return;
+  if (state.back[state.back.length - 1] !== here()) state.back.push(here());
+  if (state.back.length > 100) state.back.shift();
+  state.forward = [];
+}
 async function goHistory(dir) {
   const from = dir < 0 ? state.back : state.forward;
   const to = dir < 0 ? state.forward : state.back;
   const p = from.pop();
   if (!p) return;
-  if (state.currentPath) to.push(state.currentPath);
-  try { await openNote(p, { history: false }); }
-  catch { setStatus('המסמך כבר לא קיים'); }
+  to.push(here());
+  try {
+    if (p === HOME) await goHome({ history: false });
+    else await openNote(p, { history: false });
+  } catch { setStatus('המסמך כבר לא קיים'); }
+  updateNavButtons();
 }
+const navGroup = document.createElement('div');
+navGroup.className = 'tb-group tb-nav';
+const navButton = (ic, tip, dir) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'tb-btn';
+  b.innerHTML = icon(ic, 18);
+  b.dataset.tip = tip;
+  b.setAttribute('aria-label', tip);
+  b.addEventListener('mousedown', (e) => e.preventDefault());
+  b.addEventListener('click', () => goHistory(dir));
+  navGroup.append(b);
+  return b;
+};
+// בממשק מימין לשמאל "אחורה" מצביע ימינה
+const navBack = navButton('arrowRight', 'אחורה (Alt+←)', -1);
+const navForward = navButton('arrowLeft', 'קדימה (Alt+→)', 1);
+$('toolbar').prepend(navGroup);
+function updateNavButtons() {
+  navBack.disabled = !state.back.length;
+  navForward.disabled = !state.forward.length;
+}
+updateNavButtons();
 
 async function enterRoot(r) {
   if (!r) return;
@@ -999,6 +1039,7 @@ async function enterRoot(r) {
   state.selectedDir = null;
   state.back = [];
   state.forward = [];
+  updateNavButtons();
   state.recent = store.get('recent:' + r.root, []);
   state.collapsed = new Set(store.get('collapsed:' + r.root, []));
   await meta.load(); // סמלים וסדר ידני (.tali.json)
@@ -1292,76 +1333,83 @@ async function exportNote(format, node = currentNode()) {
   } catch (err) { setStatus('שגיאה בייצוא: ' + err.message); }
 }
 
-// ===== תפריט ימני =====
-// רוחב אחיד, אייקון לכל פעולה, קו דהוי בין פעולות. נפתח לכיוון פנים החלון ולא נחתך.
-function showContextMenu(node, x, y) {
-  const menu = $('ctx');
-  menu.innerHTML = '';
-  const add = (ic, text, fn, { keys, danger } = {}) => {
-    const item = document.createElement('div');
-    item.className = 'ctx-item' + (danger ? ' danger' : '');
-    item.setAttribute('role', 'menuitem');
-    item.innerHTML = `${icon(ic, 16)}<span class="ctx-label"></span>${keys ? `<kbd>${keys}</kbd>` : ''}`;
-    item.querySelector('.ctx-label').textContent = text;
-    item.addEventListener('click', () => { hideMenu(); fn(); });
-    menu.appendChild(item);
-  };
-  const isFile = node.type === 'file';
-  if (isFile) {
-    add('filePlus', 'פתיחה בכרטיסייה חדשה', () => openNote(node.path, { newTab: true }), { keys: 'Ctrl+לחיצה' });
-    add('splitView', 'פתיחה לצד', () => tabs.splitWith(node.path));
-    add('edit', 'שינוי שם', () => renameNode(node), { keys: 'F2' });
-    add('copy', 'שכפול', () => duplicateNode(node));
-    add('link', 'קישור לפתקים אחרים…', () => pickLinksFor(node.path));
-    add('exportPdf', 'ייצוא ל־PDF', () => exportNote('pdf', node));
-    add('exportWord', 'ייצוא ל־Word', () => exportNote('docx', node));
-    add('outline', 'העברת הכותרת למאפיינים', () => convertHeader(node.path));
-    // דגל: שורת צבעים (וללא)
-    const current = state.flags.get(node.path) || null;
-    const flags = document.createElement('div');
-    flags.className = 'ctx-flags';
-    flags.innerHTML = `${icon('flag', 16)}<span class="ctx-label">דגל</span>`;
-    for (const fl of [{ id: null, name: 'ללא דגל' }, ...FLAG_LIST]) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'ctx-flag' + (fl.id === current ? ' on' : '') + (fl.id ? '' : ' none');
-      if (fl.id) b.dataset.flag = fl.id;
-      b.dataset.tip = fl.name;
-      b.setAttribute('aria-label', fl.name);
-      b.addEventListener('click', (e) => { e.stopPropagation(); hideMenu(); setNoteFlag(node.path, fl.id); });
-      flags.append(b);
-    }
-    menu.appendChild(flags);
-  } else {
-    add('filePlus', 'מסמך חדש בתיקייה', () => { state.selectedDir = node.path; newNote(); });
-    add('template', 'מסמך חדש מתבנית', () => { state.selectedDir = node.path; newNoteFromTemplate(); });
-    add('edit', 'שינוי שם', () => renameNode(node), { keys: 'F2' });
-  }
-  // לשניהם: סמל, והזזה בתוך התיקייה (סדר ידני)
-  add('iconPick', meta.iconOf(node.path) ? 'שינוי הסמל…' : 'סמל…', () => pickIcon(node));
-  add('chevronUp', 'הזזה למעלה', () => stepItem(node.path, -1), { keys: 'Alt+↑' });
-  add('chevronDown', 'הזזה למטה', () => stepItem(node.path, 1), { keys: 'Alt+↓' });
-  add('trash', 'מחיקה (לסל המחזור)', () => deleteNode(node), { danger: true });
-
-  menu.hidden = false;
-  // מצמידים את הפינה לסמן, לכיוון פנים החלון (הסרגל בצד ימין, אז ברירת המחדל נפתחת שמאלה)
-  const w = menu.offsetWidth, h = menu.offsetHeight;
-  let left = x - w;
-  if (left < 8) left = Math.min(x, window.innerWidth - w - 8);
-  let top = y;
-  if (top + h > window.innerHeight - 8) top = Math.max(8, y - h);
-  menu.style.left = left + 'px';
-  menu.style.top = top + 'px';
+// ===== תפריט ימני של העץ, הכרטיסיות, מסך הבית ושאר האזורים =====
+// כולם משתמשים בתפריט של context-menu.js: אותו מראה, תפריטי משנה ומקלדת כמו בדף.
+function fileItems(node) {
+  const flag = state.flags.get(node.path) || null;
+  return [
+    { label: 'פתיחה בכרטיסייה חדשה', icon: 'filePlus', keys: 'Ctrl+לחיצה', run: () => openNote(node.path, { newTab: true }) },
+    { label: 'פתיחה לצד', icon: 'splitView', run: () => tabs.splitWith(node.path) },
+    'sep',
+    { label: 'שינוי שם', icon: 'edit', keys: 'F2', run: () => renameNode(node) },
+    { label: 'שכפול', icon: 'copy', run: () => duplicateNode(node) },
+    { label: 'קישור לפתקים אחרים…', icon: 'link', run: () => pickLinksFor(node.path) },
+    { label: 'דגל', icon: 'flag', sub: [
+      ...FLAG_LIST.map((fl) => ({ label: fl.name, dot: fl.id, active: () => flag === fl.id, run: () => setNoteFlag(node.path, fl.id) })),
+      { label: 'ללא דגל', dot: null, disabled: !flag, run: () => setNoteFlag(node.path, null) },
+    ] },
+    { label: 'ייצוא', icon: 'exportPdf', sub: [
+      { label: 'ייצוא ל־PDF', icon: 'exportPdf', run: () => exportNote('pdf', node) },
+      { label: 'ייצוא ל־Word', icon: 'exportWord', run: () => exportNote('docx', node) },
+    ] },
+    { label: 'העברת הכותרת למאפיינים', icon: 'outline', run: () => convertHeader(node.path) },
+  ];
 }
-function hideMenu() { $('ctx').hidden = true; }
-// לחיצה פנימית אינה סוגרת את המסגרת לפני שהפקד שנלחץ סיים את פעולתו.
-document.addEventListener('pointerdown', (e) => {
-  const menu = $('ctx');
-  if (!menu.hidden && !menu.contains(e.target)) hideMenu();
-}, true);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideMenu(); });
-window.addEventListener('blur', hideMenu);
-$('tree').addEventListener('scroll', hideMenu);
+function showContextMenu(node, x, y, before = []) {
+  const items = [...before];
+  if (node.type === 'file') items.push(...fileItems(node));
+  else items.push(
+    { label: 'מסמך חדש בתיקייה', icon: 'filePlus', run: () => { state.selectedDir = node.path; newNote(); } },
+    { label: 'מסמך חדש מתבנית', icon: 'template', run: () => { state.selectedDir = node.path; newNoteFromTemplate(); } },
+    'sep',
+    { label: 'שינוי שם', icon: 'edit', keys: 'F2', run: () => renameNode(node) },
+  );
+  // לשניהם: סמל, והזזה בתוך התיקייה (סדר ידני)
+  items.push(
+    { label: meta.iconOf(node.path) ? 'שינוי הסמל…' : 'סמל…', icon: 'iconPick', run: () => pickIcon(node) },
+    { label: 'הזזה למעלה', icon: 'chevronUp', keys: 'Alt+↑', run: () => stepItem(node.path, -1) },
+    { label: 'הזזה למטה', icon: 'chevronDown', keys: 'Alt+↓', run: () => stepItem(node.path, 1) },
+    'sep',
+    { label: 'מחיקה (לסל המחזור)', icon: 'trash', danger: true, run: () => deleteNode(node) },
+  );
+  openContextMenu(x, y, items);
+}
+// כרטיסייה: סגירה וסגירת האחרות, ואחריהן הפעולות של המסמך
+function showTabMenu(p, x, y) {
+  const name = p.split(/[\\/]/).pop();
+  showContextMenu({ type: 'file', path: p, name }, x, y, [
+    { label: 'סגירת הכרטיסייה', icon: 'close', keys: 'Ctrl+W', run: () => tabs.close(p) },
+    { label: 'סגירת הכרטיסיות האחרות', icon: 'close', disabled: tabs.list.length < 2, run: () => tabs.closeOthers(p) },
+    'sep',
+  ]);
+}
+// שטח ריק בעץ ומסך הבית: הפעולות הכלליות של הכספת
+function vaultItems() {
+  return [
+    { label: 'מסמך חדש', icon: 'filePlus', keys: 'Ctrl+N', run: () => { state.selectedDir = null; newNote(); } },
+    { label: 'מסמך חדש מתבנית', icon: 'template', run: () => { state.selectedDir = null; newNoteFromTemplate(); } },
+    { label: 'תיקייה חדשה', icon: 'folderPlus', run: () => { state.selectedDir = null; newFolder(); } },
+    'sep',
+    { label: 'כיווץ כל התיקיות', icon: 'collapseAll', run: collapseAll },
+    { label: 'רענון העץ', icon: 'history', run: () => refreshTree() },
+  ];
+}
+function otherContextItems(e) {
+  const t = e.target;
+  if (!state.root) return null;
+  if (t.closest('#tree') && !t.closest('.node')) return vaultItems();
+  if (t.closest('#home')) return [
+    { label: 'מסמך חדש', icon: 'filePlus', keys: 'Ctrl+N', run: () => { state.selectedDir = null; newNote(); } },
+    { label: 'מעבר מהיר למסמך', icon: 'search', keys: 'Ctrl+O', run: () => openSwitcher() },
+    'sep',
+    { label: 'החלפת תיקייה…', icon: 'folder', run: pickRoot },
+  ];
+  if (t.closest('#tabBar') && !t.closest('.tab')) return [
+    { label: 'מסמך חדש', icon: 'filePlus', keys: 'Ctrl+N', run: () => newNote() },
+    { label: 'מסך הבית', icon: 'home', keys: 'Alt+Home', run: () => goHome() },
+  ];
+  return null;
+}
 
 // ===== שכפול =====
 async function duplicateNode(node) {

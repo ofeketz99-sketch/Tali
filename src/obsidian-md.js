@@ -105,7 +105,11 @@ function setupMarkdownIt(md) {
   md.renderer.rules.html_block = (tokens, i, ...rest) => {
     const html = tokens[i].content;
     if (/\bdata-tali-image\s*=\s*["']?1\b/.test(html)) return defaultBlock(tokens, i, ...rest);
-    if (!html.includes('<!--') && tagNames(html).every((t) => KNOWN_BLOCK_TAGS.has(t))) return defaultBlock(tokens, i, ...rest);
+    // רשימת משימות עם כיוון נשמרת כ־HTML של TipTap, ובו <div> סביב התוכן של כל פריט.
+    // בלי החריג הזה הרשימה של Tali עצמה נטענת כגוש נעול שאי אפשר לערוך.
+    const taskListHtml = /^\s*<ul\b[^>]*\bdata-type=["']taskList["']/.test(html);
+    const known = (t) => KNOWN_BLOCK_TAGS.has(t) || (taskListHtml && t === 'div');
+    if (!html.includes('<!--') && tagNames(html).every(known)) return defaultBlock(tokens, i, ...rest);
     return `<div data-raw-html="${esc(html.replace(/\n+$/, ''))}"></div>`;
   };
   const defaultInline = md.renderer.rules.html_inline || ((t, i) => t[i].content);

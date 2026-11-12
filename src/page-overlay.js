@@ -13,7 +13,23 @@ const tools = [
   ['rect', 'מלבן', 'rectangle'],
   ['ellipse', 'עיגול', 'ellipse'],
   ['textbox', 'תיבת טקסט', 'textBox'],
+  ['eraser', 'מחק: גרירה על קו מוחקת אותו', 'eraser'],
 ];
+// עט אחד מחזיק עד 2500 נקודות ו־200 משיכות (overlay-data.js). לפני הגבול ממשיכים בישות חדשה
+// באותה קבוצה, כך שהציור לא נעצר באמצע ועדיין נבחר ונגרר כיחידה אחת.
+const PEN_POINTS = 2400, PEN_STROKES = 190;
+const QUICK_COLORS = ['#2a2d33', '#4b80bd', '#d0453f', '#3f9b5a', '#e0a526'];
+// מרחק מנקודה לקטע
+const segmentDistance = (px, py, ax, ay, bx, by) => {
+  const dx = bx - ax, dy = by - ay;
+  const len = dx * dx + dy * dy;
+  const t = len ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len)) : 0;
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+};
+// האם הנקודה (x, y) קרובה לקו שעובר דרך הנקודות pts
+const nearPolyline = (pts, x, y, reach) => pts.length === 1
+  ? Math.hypot(x - pts[0][0], y - pts[0][1]) <= reach
+  : pts.some((pt, i) => i > 0 && segmentDistance(x, y, pts[i - 1][0], pts[i - 1][1], pt[0], pt[1]) <= reach);
 const makeId = () => Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);
 const limit = (number, min, max) => Math.max(min, Math.min(max, number));
 const svgEl = (name, attrs = {}) => {
@@ -61,7 +77,40 @@ export function createPageOverlay({ page, onChange }) {
   toolbar.tabIndex = -1;
   document.body.append(toolbar);
 
-  const notify = () => { if (enabled) onChange(); };
+  // ===== ביטול וחזרה לשרטוטים (Ctrl+Z / Ctrl+Y) =====
+  // תמונת מצב לפני כל שינוי. הקלדה בתיבת טקסט מתאחדת לצעד אחד כל עוד מקלידים ברצף.
+  let undoStack = [], redoStack = [], snapshot = '[]', typingUntil = 0;
+  let undoButton = null, redoButton = null;
+  function updateHistoryButtons() {
+    if (undoButton) undoButton.disabled = !undoStack.length;
+    if (redoButton) redoButton.disabled = !redoStack.length;
+  }
+  const resetHistory = () => { undoStack = []; redoStack = []; snapshot = JSON.stringify(objects); updateHistoryButtons(); };
+  const notify = ({ typing = false } = {}) => {
+    if (!enabled) return;
+    const now = JSON.stringify(objects);
+    if (now !== snapshot) {
+      const merge = typing && Date.now() < typingUntil;
+      if (!merge) { undoStack.push(snapshot); if (undoStack.length > 200) undoStack.shift(); }
+      redoStack = [];
+      snapshot = now;
+      typingUntil = typing ? Date.now() + 1200 : 0;
+    }
+    updateHistoryButtons();
+    onChange();
+  };
+  function restore(from, to) {
+    if (!from.length) return false;
+    to.push(snapshot);
+    snapshot = from.pop();
+    objects = JSON.parse(snapshot);
+    sessionPen = null; drawing = null; typingUntil = 0;
+    if (selected && !objects.some((item) => item.id === selected)) selected = null;
+    render(); updateHistoryButtons(); onChange();
+    return true;
+  }
+  const undo = () => restore(undoStack, redoStack);
+  const redo = () => restore(redoStack, undoStack);
   const updateToolbar = () => {
     toolbar.hidden = !enabled || (!mode && !selected);
     root.classList.toggle('drawing', !!mode);
@@ -96,6 +145,12 @@ export function createPageOverlay({ page, onChange }) {
     toolbar.append(button);
     return button;
   };
+  undoButton = addButton(null, 'ביטול (Ctrl+Z)', 'undo', undo);
+  redoButton = addButton(null, 'חזרה (Ctrl+Y)', 'redo', redo);
+  updateHistoryButtons();
+  const historySeparator = document.createElement('span');
+  historySeparator.className = 'tali-overlay-separator';
+  toolbar.append(historySeparator);
   for (const [kind, name, ic] of tools) {
     addButton(kind, name, ic, () => setMode(mode === kind ? null : kind));
   }
@@ -115,7 +170,24 @@ export function createPageOverlay({ page, onChange }) {
       drawShapes(); notify();
     }
   });
-  toolbar.append(picker);
+  // צבעים מהירים: לחיצה אחת במקום חלון בחירת צבע
+  const swatches = document.createElement('span');
+  swatches.className = 'tali-overlay-swatches';
+  const paintSwatches = () => swatches.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.color === color));
+  for (const c of QUICK_COLORS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tali-overlay-swatch';
+    b.dataset.color = c;
+    b.style.setProperty('--swatch', c);
+    b.setAttribute('aria-label', 'צבע ' + c);
+    b.addEventListener('mousedown', (event) => event.preventDefault());
+    b.addEventListener('click', () => { picker.value = c; picker.dispatchEvent(new Event('input')); });
+    swatches.append(b);
+  }
+  toolbar.append(swatches, picker);
+  picker.addEventListener('input', paintSwatches);
+  paintSwatches();
   const thickness = document.createElement('input');
   thickness.type = 'range';
   thickness.min = '1'; thickness.max = '10'; thickness.step = '.5'; thickness.value = String(weight);
@@ -138,7 +210,7 @@ export function createPageOverlay({ page, onChange }) {
   });
   const hint = document.createElement('span');
   hint.className = 'tali-overlay-hint';
-  hint.textContent = 'גרירה לציור · Esc לסיום';
+  hint.textContent = 'Shift: קו ישר וצורה שווה · Ctrl+Z ביטול · Esc סיום';
   toolbar.append(hint);
 
   function setMode(next) {
@@ -383,7 +455,7 @@ export function createPageOverlay({ page, onChange }) {
       field.value = object.text;
       field.addEventListener('focus', () => select(object.id));
       field.addEventListener('input', () => {
-        object.text = field.value.slice(0, 20000); notify();
+        object.text = field.value.slice(0, 20000); notify({ typing: true });
       });
       const resize = document.createElement('span');
       resize.className = 'tali-overlay-resize';
@@ -400,6 +472,49 @@ export function createPageOverlay({ page, onChange }) {
   }
   function render() { drawShapes(); drawBoxes(); updateToolbar(); }
 
+  const penPoints = (object) => object.strokes.reduce((sum, item) => sum + item.length, 0);
+  // Shift: קו או חץ בזוויות של 45°, ריבוע ועיגול מושלמים
+  function constrain(kind, x, y) {
+    if (kind === 'rect' || kind === 'ellipse') {
+      const size = Math.max(Math.abs(x), Math.abs(y));
+      return [Math.sign(x || 1) * size, Math.sign(y || 1) * size];
+    }
+    const angle = Math.round(Math.atan2(y, x) / (Math.PI / 4)) * (Math.PI / 4);
+    const length = Math.hypot(x, y);
+    return [Math.round(Math.cos(angle) * length), Math.round(Math.sin(angle) * length)];
+  }
+  // המחק: כל משיכה של עט נמחקת לבד; קו, חץ, מלבן ועיגול נמחקים כשנוגעים בקו שלהם
+  function hitsShape(object, x, y, reach) {
+    if (object.kind === 'line' || object.kind === 'arrow') return nearPolyline([[0, 0], [object.dx, object.dy]], x, y, reach);
+    if (object.kind === 'rect') return nearPolyline([[0, 0], [object.dx, 0], [object.dx, object.dy], [0, object.dy], [0, 0]], x, y, reach);
+    if (object.kind === 'ellipse') {
+      const rx = Math.abs(object.dx) / 2 || 1, ry = Math.abs(object.dy) / 2 || 1;
+      const nx = (x - object.dx / 2) / rx, ny = (y - object.dy / 2) / ry;
+      return Math.abs(Math.hypot(nx, ny) - 1) * Math.min(rx, ry) <= reach;
+    }
+    return false;
+  }
+  function eraseAt(p) {
+    let changed = false;
+    for (const object of [...objects]) {
+      if (!shapeKinds.includes(object.kind)) continue;
+      const x = p.x - object.x, y = p.y - object.y, reach = 8 + object.weight / 2;
+      if (object.kind === 'pen') {
+        const strokes = object.strokes || (object.points ? [object.points] : []);
+        const keep = strokes.filter((stroke) => !nearPolyline(stroke, x, y, reach));
+        if (keep.length === strokes.length) continue;
+        changed = true;
+        object.strokes = keep;
+        delete object.points;
+        if (!keep.length) objects = objects.filter((item) => item !== object);
+      } else if (hitsShape(object, x, y, reach)) {
+        changed = true;
+        objects = objects.filter((item) => item !== object);
+      }
+    }
+    if (changed) { drawing.erased = true; sessionPen = null; drawShapes(); }
+  }
+
   function beginDrawing(event) {
     if (!enabled || !mode || event.button !== 0) return;
     event.preventDefault();
@@ -415,12 +530,24 @@ export function createPageOverlay({ page, onChange }) {
       notify();
       return true;
     }
+    if (mode === 'eraser') {
+      drawing = { pointerId: event.pointerId, eraser: true, erased: false };
+      if (event.currentTarget === svg) svg.setPointerCapture(event.pointerId);
+      eraseAt(p);
+      return true;
+    }
     let object, stroke;
     if (mode === 'pen') {
-      object = sessionPen && objects.includes(sessionPen) ? sessionPen : {
-        id: makeId(), kind: 'pen', x: Math.round(p.x), y: Math.round(p.y), color, weight, strokes: [],
-      };
-      if (object !== sessionPen) { objects.push(object); sessionPen = object; }
+      object = sessionPen && objects.includes(sessionPen) ? sessionPen : null;
+      const full = object && (object.strokes.length >= PEN_STROKES || penPoints(object) >= PEN_POINTS);
+      if (!object || full || object.color !== color || object.weight !== weight) {
+        // ישות חדשה באותה קבוצה: כשהעט מלא, או כשהצבע או העובי השתנו באמצע
+        let group;
+        if (object) group = object.group || (object.group = makeId().replace(/[^a-z0-9_-]/gi, ''));
+        object = { id: makeId(), kind: 'pen', x: Math.round(p.x), y: Math.round(p.y), color, weight, strokes: [], ...(group ? { group } : {}) };
+        objects.push(object);
+        sessionPen = object;
+      }
       stroke = [[Math.round(p.x - object.x), Math.round(p.y - object.y)]];
       object.strokes.push(stroke);
     } else {
@@ -435,6 +562,7 @@ export function createPageOverlay({ page, onChange }) {
   svg.addEventListener('pointerdown', beginDrawing);
   window.addEventListener('pointermove', (event) => {
     if (!drawing || drawing.pointerId !== event.pointerId) return;
+    if (drawing.eraser) { eraseAt(point(event)); return; }
     const events = drawing.object.kind === 'pen' && event.getCoalescedEvents
       ? event.getCoalescedEvents() : [event];
     for (const ev of events.length ? events : [event]) {
@@ -443,10 +571,10 @@ export function createPageOverlay({ page, onChange }) {
         const x = Math.round(p.x - drawing.object.x), y = Math.round(p.y - drawing.object.y);
         const points = drawing.stroke;
         const prev = points[points.length - 1];
-        const total = drawing.object.strokes.reduce((sum, item) => sum + item.length, 0);
-        if ((x - prev[0]) ** 2 + (y - prev[1]) ** 2 >= 4 && total < 2500) points.push([x, y]);
+        if ((x - prev[0]) ** 2 + (y - prev[1]) ** 2 >= 4 && penPoints(drawing.object) < 2500) points.push([x, y]);
       } else {
-        const x = Math.round(p.x - drawing.start.x), y = Math.round(p.y - drawing.start.y);
+        let x = Math.round(p.x - drawing.start.x), y = Math.round(p.y - drawing.start.y);
+        if (event.shiftKey) [x, y] = constrain(drawing.object.kind, x, y);
         drawing.object.dx = x;
         drawing.object.dy = y;
       }
@@ -455,14 +583,19 @@ export function createPageOverlay({ page, onChange }) {
   });
   const finish = (event) => {
     if (!drawing || drawing.pointerId !== event.pointerId) return;
+    if (drawing.eraser) {
+      const erased = drawing.erased;
+      drawing = null;
+      if (erased) notify();
+      return;
+    }
     const object = drawing.object;
     if (object.kind === 'pen') {
       const p = point(event);
       const end = [Math.round(p.x - object.x), Math.round(p.y - object.y)];
       const points = drawing.stroke;
       const prev = points[points.length - 1];
-      const total = object.strokes.reduce((sum, item) => sum + item.length, 0);
-      if (Math.hypot(end[0] - prev[0], end[1] - prev[1]) >= 1 && total < 2500) points.push(end);
+      if (Math.hypot(end[0] - prev[0], end[1] - prev[1]) >= 1 && penPoints(object) < 2500) points.push(end);
       if (points.length === 1) points.push([points[0][0] + 1, points[0][1] + 1]);
     } else if (Math.abs(object.dx) + Math.abs(object.dy) < 4) {
       object.dx = 45; object.dy = object.kind === 'line' ? 0 : 30;
@@ -470,7 +603,7 @@ export function createPageOverlay({ page, onChange }) {
     drawing = null;
     drawShapes();
     notify();
-    if (object.kind !== 'pen') { setMode(null); select(object.id); }
+    if (object.kind !== 'pen') { setMode(null); select(object.id); toolbar.focus({ preventScroll: true }); }
   };
   window.addEventListener('pointerup', finish);
   window.addEventListener('pointercancel', finish);
@@ -493,6 +626,18 @@ export function createPageOverlay({ page, onChange }) {
 
   window.addEventListener('keydown', (event) => {
     if (!enabled) return;
+    // בזמן ציור הפוקוס נשאר בעורך, אבל Ctrl+Z שייך לשרטוט. רק תיבת טקסט על הדף שומרת אותו לעצמה.
+    const inText = event.target.closest?.('textarea, input') || (!mode && event.target.closest?.('[contenteditable="true"]'));
+    if ((mode || selected) && !inText && (event.ctrlKey || event.metaKey) && !event.altKey) {
+      // לפי מיקום המקש (code), כך שזה עובד גם במקלדת עברית
+      const isUndo = event.code === 'KeyZ' && !event.shiftKey;
+      const isRedo = event.code === 'KeyY' || (event.code === 'KeyZ' && event.shiftKey);
+      if (isUndo || isRedo) {
+        (isUndo ? undo : redo)();
+        event.preventDefault(); event.stopPropagation();
+        return;
+      }
+    }
     if (event.key === 'Escape' && (mode || selected)) {
       setMode(null); select(null); event.preventDefault(); event.stopPropagation();
     }
@@ -509,6 +654,7 @@ export function createPageOverlay({ page, onChange }) {
     setItems: (items) => {
       objects = cleanOverlayObjects(items);
       selected = null; mode = null; drawing = null; sessionPen = null; render();
+      resetHistory();
     },
     setEnabled: (value) => {
       enabled = !!value;

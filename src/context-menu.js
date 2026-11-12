@@ -12,6 +12,8 @@ const SUB_CLOSE_DELAY = 260;
 let current = null; // { root, close }
 
 export function closeContextMenu() { current?.close(); }
+// תפריט משותף לכל האפליקציה (עץ, כרטיסיות, מסך הבית), באותו מראה ובאותה התנהגות מקלדת
+export function openContextMenu(x, y, items, opts) { openMenu(x, y, items, opts); }
 export const isContextMenuOpen = () => !!current;
 
 // items: [{ label, icon, keys, run, disabled, active, sub: items | (el) => void }, 'sep', { row: [items] }]
@@ -51,7 +53,7 @@ function openMenu(x, y, items, { onClose } = {}) {
       }
       const el = document.createElement('button');
       el.type = 'button';
-      el.className = 'cm-item' + (it.sub ? ' has-sub' : '') + (it.active?.() ? ' on' : '');
+      el.className = 'cm-item' + (it.sub ? ' has-sub' : '') + (it.active?.() ? ' on' : '') + (it.danger ? ' danger' : '');
       el.setAttribute('role', 'menuitem');
       el.disabled = !!it.disabled;
       el.innerHTML = `${it.dot !== undefined ? `<span class="flag-dot cm-dot"${it.dot ? ` data-flag="${it.dot}"` : ''}></span>` : icon(it.icon || 'plus', 16)}<span class="cm-label"></span>${it.keys ? `<kbd>${it.keys}</kbd>` : ''}${it.sub ? icon('chevronLeft', 14) : ''}`;
@@ -178,15 +180,48 @@ function openMenu(x, y, items, { onClose } = {}) {
 }
 
 // ---------- חיבור לאפליקציה ----------
-export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, flag }) {
+// link: { open(target, mode) } – mode: 'tab' | 'side'. other(e): תפריט לשאר האזורים, מחזיר items או null.
+export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link, other }) {
   const editor = editorApi.editor;
   const sel = () => editor.state.selection;
   const has = (name, attrs) => editor.isActive(name, attrs);
   const inCode = () => has('codeBlock');
 
-  function editorItems() {
-    const empty = sel().empty;
+  // קישור [[...]] שנלחץ: פתיחה, בכרטיסייה חדשה, לצד, והעתקה
+  function linkItems(target) {
     return [
+      { label: 'פתיחת הקישור', icon: 'link', run: () => link.open(target) },
+      { label: 'פתיחה בכרטיסייה חדשה', icon: 'filePlus', keys: 'Ctrl+לחיצה', run: () => link.open(target, 'tab') },
+      { label: 'פתיחה לצד', icon: 'splitView', run: () => link.open(target, 'side') },
+      { label: 'העתקת הקישור', icon: 'copy', run: () => navigator.clipboard?.writeText(`[[${target}]]`) },
+      'sep',
+    ];
+  }
+  // בתוך טבלה: פעולות השורות והעמודות, כמו בסרגל הטבלה
+  function tableItems() {
+    const can = editor.can();
+    const run = (cmd) => () => editor.chain().focus()[cmd]().run();
+    return [
+      { label: 'טבלה', icon: 'table', sub: [
+        { label: 'הוספת שורה מעל', icon: 'rowBefore', run: run('addRowBefore') },
+        { label: 'הוספת שורה מתחת', icon: 'rowAfter', run: run('addRowAfter') },
+        { label: 'הוספת עמודה מימין', icon: 'colBefore', run: run('addColumnBefore') },
+        { label: 'הוספת עמודה משמאל', icon: 'colAfter', run: run('addColumnAfter') },
+        'sep',
+        { label: 'מחיקת השורה', icon: 'deleteRow', disabled: !can.deleteRow(), run: run('deleteRow') },
+        { label: 'מחיקת העמודה', icon: 'deleteCol', disabled: !can.deleteColumn(), run: run('deleteColumn') },
+        { label: 'מחיקת הטבלה', icon: 'trash', run: run('deleteTable') },
+      ] },
+      'sep',
+    ];
+  }
+
+  function editorItems(target) {
+    const empty = sel().empty;
+    const wiki = link && target?.closest?.('[data-wikilink]')?.getAttribute('data-wikilink');
+    return [
+      ...(wiki ? linkItems(wiki) : []),
+      ...(has('table') ? tableItems() : []),
       { label: 'גזירה', icon: 'cut', keys: 'Ctrl+X', disabled: empty, run: () => clipboard('cut') },
       { label: 'העתקה', icon: 'copy', keys: 'Ctrl+C', disabled: empty, run: () => clipboard('copy') },
       { label: 'הדבקה', icon: 'paste', keys: 'Ctrl+V', run: () => clipboard('paste') },
@@ -244,10 +279,6 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, flag
         { label: 'תיבה צפה על הדף', icon: 'textBox', run: edit.floatingBox },
       ] },
       { label: 'הערה בצד לציטוט המסומן', icon: 'comment', disabled: empty || inCode(), run: edit.marginComment },
-      ...(flag ? [{ label: 'דגל למסמך', icon: 'flag', sub: [
-        ...flag.list.map((f) => ({ label: f.name, dot: f.id, run: () => flag.set(f.id), active: () => flag.get() === f.id })),
-        { label: 'ללא דגל', dot: null, disabled: !flag.get(), run: () => flag.set(null) },
-      ] }] : []),
       { label: 'ציור', icon: 'draw', sub: [
         { label: 'ציור כתמונה', icon: 'draw', run: edit.drawing },
         { label: 'שרטוט על הדף', icon: 'arrow', run: edit.pageDrawing },
@@ -278,7 +309,11 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, flag
     }
     // כל שטח הדף, כולל השוליים שלו (לא תיבת המאפיינים, ולא שכבת השרטוט כשהיא בעריכה)
     const page = document.getElementById('page');
-    if (!isNoteOpen() || editorApi.isRaw() || !page?.contains(t) || t.closest('.props-form, .tali-overlay-toolbar')) return;
+    if (!isNoteOpen() || editorApi.isRaw() || !page?.contains(t) || t.closest('.props-form, .tali-overlay-toolbar')) {
+      const items = other?.(e);
+      if (items?.length) { e.preventDefault(); openMenu(e.clientX, e.clientY, items); }
+      return;
+    }
     if (t.closest('.embed-tools, .table-bar')) return;
     e.preventDefault();
     // לחיצה מחוץ לבחירה: הסמן עובר למקום הלחיצה. בתוך הבחירה: הבחירה נשמרת והפעולה חלה עליה.
@@ -287,6 +322,6 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, flag
     if (pos && (pos.pos < from || pos.pos > to || from === to)) editor.commands.setTextSelection(pos.pos);
     // (בשוליים posAtCoords מחזיר את המקום הקרוב ביותר בטקסט)
     editor.commands.focus(undefined, { scrollIntoView: false });
-    openMenu(e.clientX, e.clientY, editorItems());
+    openMenu(e.clientX, e.clientY, editorItems(t));
   });
 }
