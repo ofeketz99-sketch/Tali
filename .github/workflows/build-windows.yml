@@ -1,10 +1,17 @@
 # בונה את Tali כקובץ התקנה וכקובץ נייד ל־Windows על שרת של GitHub, בלי להתקין כלום במחשב.
-# הרצה ידנית: לשונית Actions > "Build Windows" > Run workflow. התוצר מופיע בתחתית הריצה, תחת Artifacts.
-# שחרור: דוחפים תג כמו v5.9.0 (git tag v5.9.0 && git push origin v5.9.0), והקבצים נוספים ל־Release.
+# פרסום גרסה מהדפדפן, בלי מחשב פיתוח: לשונית Actions > "Build Windows" > Run workflow > Run workflow.
+#   הגרסה נלקחת מ־package.json (6.4.0 -> תג v6.4), והתג וה־Release נוצרים לבד.
+#   כדי רק לבנות בלי לפרסם, מבטלים את הסימון "Publish a release" (הקבצים יופיעו תחת Artifacts).
+# אפשרות נוספת: דוחפים תג כמו v6.4 (git tag v6.4 && git push origin v6.4).
 name: Build Windows
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish a release (version from package.json)'
+        type: boolean
+        default: true
   push:
     tags: ['v*']
 
@@ -35,10 +42,15 @@ jobs:
             release/*.yml
             release/latest.json
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # בתג: שם התג. בהרצה ידנית: הגרסה מ־package.json, באותה צורה כמו tools/release-manifest.js
+          if ($env:GITHUB_REF_TYPE -eq 'tag') { $tag = $env:GITHUB_REF_NAME }
+          else { $tag = 'v' + ((Get-Content package.json -Raw | ConvertFrom-Json).version -replace '\.0$', '') }
+          try { gh release view $tag *> $null } catch { }
+          if ($LASTEXITCODE -eq 0) { Write-Error "Release $tag already exists. Raise the version in package.json first."; exit 1 }
           $assets = Get-ChildItem release -File | Where-Object { ($_.Extension -in '.exe', '.blockmap', '.json') -or $_.Name -like 'latest*.yml' } | ForEach-Object { $_.FullName }
-          gh release create $env:GITHUB_REF_NAME @assets --title "Tali $env:GITHUB_REF_NAME" --generate-notes
+          gh release create $tag @assets --target $env:GITHUB_SHA --title "Tali $tag" --generate-notes

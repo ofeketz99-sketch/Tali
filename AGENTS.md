@@ -31,7 +31,7 @@
 ### פרסום גרסה (Release)
 
 1. מעלים גרסה ב־`package.json` וכותבים אותה ב־`CHANGELOG.md`, `npm run check`, commit ו־push ל־`main`.
-2. דוחפים תג, למשל `git tag v6.4 && git push origin v6.4`. ה־workflow `.github/workflows/build-windows.yml` רץ על שרת Windows של GitHub, בונה, מריץ בדיקות, ויוצר Release עם שני קבצי ה־EXE ו־`latest.json`. הקובץ האחרון הוא חוזה יציב לאתר הורדות (`releases/latest/download/latest.json`). אפשר גם להריץ ידנית (Actions ← Build Windows ← Run workflow), ואז הקבצים מופיעים כ־Artifacts בלי Release. המאגר פרטי, ולכן אתר חיצוני צריך אימות GitHub או מאגר/מראה ציבוריים; אסור להטמיע token בקוד האתר.
+2. **מהדפדפן (הדרך הפשוטה, מ־6.4):** ב־GitHub, לשונית Actions ← Build Windows ← Run workflow ← Run workflow. הגרסה נלקחת מ־`package.json` (6.4.0 ← תג `v6.4`), והתג וה־Release נוצרים לבד; אם Release בשם הזה כבר קיים, הריצה נכשלת עם הודעה. **או מהטרמינל:** דוחפים תג, למשל `git tag v6.4 && git push origin v6.4`. ה־workflow `.github/workflows/build-windows.yml` רץ על שרת Windows של GitHub, בונה, מריץ בדיקות, ויוצר Release עם שני קבצי ה־EXE ו־`latest.json`. הקובץ האחרון הוא חוזה יציב לאתר הורדות (`releases/latest/download/latest.json`). בהרצה ידנית בלי הסימון "Publish a release" הקבצים מופיעים רק כ־Artifacts, בלי Release. המאגר פרטי, ולכן אתר חיצוני צריך אימות GitHub או מאגר/מראה ציבוריים; אסור להטמיע token בקוד האתר.
 3. בנייה מקומית: `npm run dist` (התוצר ב־`release/`, מחוץ ל־Git). ב־Windows עובד ישירות. בלינוקס צריך Wine, כולל `wine32`, בגלל `rcedit` ובניית המתקין.
 
 **מסשן של Claude Code בענן:** אפשר לדחוף commits וענפים, אבל **לא** ליצור Release, לדחוף תגים או למחוק ענפים (החסימה בצד של Claude, לא בהרשאות ב־GitHub). את שלב 2 עושה המשתמש, או Claude Code שרץ במחשב שלו. לא להעלות קבצי `.exe` למאגר עצמו.
