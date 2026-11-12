@@ -1198,6 +1198,12 @@ body[data-sidebar-mode="compact"] .side-top #btnNote {
 .vd-action { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; font-size: 12px; border-radius: 8px; border: 1px solid var(--accent-line); background: var(--accent-soft); color: var(--accent-strong); }
 .ghost-row ul { list-style: none; margin: 0; padding: 0 10px 8px; }
 
+.title-only-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; }
+.title-only-row .vd-name { color: var(--text); }
+.title-only-row .vd-name::after { display: none; }
+.title-only-row:hover { border-color: var(--accent-line); background: var(--accent-soft); }
+.title-only-row .vd-action { flex: none; }
+
 /* תגיות */
 .tags-layout { display: grid; grid-template-columns: 220px 1fr; gap: 16px; min-height: 340px; }
 .tags-list { border-inline-end: 1px solid var(--border); padding-inline-end: 12px; max-height: 60vh; overflow: auto; }
