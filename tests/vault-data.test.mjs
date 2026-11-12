@@ -126,3 +126,13 @@ test('dates: ISO lines, with time, and date+time glued together', () => {
   assert.equal(headerToProps('- קישורים: [[א]]\n- 11-07-2612:39\n---\nx').text, '---\nlinks:\n  - "[[א]]"\ncreated: 2026-07-11T12:39\n---\nx');
   assert.equal(headerToProps('- קישורים: [[א]]\n2025-03-27 19:47\n---\nx').text, '---\nlinks:\n  - "[[א]]"\ncreated: 2025-03-27T19:47\n---\nx');
 });
+
+test('new notes get a hidden created date, without touching an existing one', () => {
+  const { withCreated, getCreatedDate } = require('../vault-data.js');
+  const now = new Date(2026, 10, 12, 9, 5);
+  assert.equal(withCreated('', now), '---\ncreated: 2026-11-12T09:05\n---\n');
+  assert.equal(getCreatedDate(withCreated('', now)), '2026-11-12');
+  assert.equal(withCreated('---\ntags: x\n---\nbody', now), '---\ncreated: 2026-11-12T09:05\ntags: x\n---\nbody');
+  assert.equal(withCreated('---\r\ncreated: 2020-01-01\r\n---\r\n', now), '---\r\ncreated: 2020-01-01\r\n---\r\n');
+  assert.equal(withCreated('- [[א]]\n', now), '---\ncreated: 2026-11-12T09:05\n---\n- [[א]]\n');
+});

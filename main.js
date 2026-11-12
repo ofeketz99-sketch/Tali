@@ -7,7 +7,7 @@ const { execFile } = require('child_process');
 const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 const { resolveLink, extractLinks, replaceLinks } = require('./links');
-const { extractTags, extractTasks, extractTargets, getFlag, isLinkHub } = require('./vault-data');
+const { extractTags, extractTasks, extractTargets, getFlag, isLinkHub, withCreated } = require('./vault-data');
 const os = require('os');
 
 // שם האפליקציה: Tali. ההגדרות נשארות בתיקייה המקורית (my-notes), כדי ששינוי השם לא ימחק אותן.
@@ -426,7 +426,8 @@ function registerIpc() {
     const file = safe(path.join(dir, clean.toLowerCase().endsWith('.md') ? clean : clean + '.md'));
     try { await fs.access(file); throw new Error('כבר קיים קובץ בשם הזה'); }
     catch (err) { if (err.message === 'כבר קיים קובץ בשם הזה') throw err; }
-    await fs.writeFile(file, String(content || ''), 'utf8');
+    // כל מסמך חדש (רגיל, מתבנית, מקישור רפאים, פתק קישור) מקבל created מוסתר: התאריך מעל הדף נשאר נכון גם אחרי העתקה
+    await fs.writeFile(file, withCreated(String(content || '')), 'utf8');
     return file;
   });
 

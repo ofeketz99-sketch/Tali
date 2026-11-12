@@ -150,6 +150,20 @@ function getFlag(text) {
   return FLAGS.includes(v) ? v : null;
 }
 
+// ----- תאריך יצירה אוטומטי למסמך חדש -----
+// created: YYYY-MM-DDTHH:mm (שעון מקומי) במאפיינים, כי זמן היצירה של הקובץ מתאפס בהעתקה ובסנכרון.
+// אם כבר יש created (למשל מתבנית), לא נוגעים.
+function withCreated(text, now = new Date()) {
+  const src = text || '';
+  const p = (n) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}T${p(now.getHours())}:${p(now.getMinutes())}`;
+  const eol = /\r\n/.test(src) ? '\r\n' : '\n';
+  const m = FM_RE.exec(src);
+  if (!m) return `---${eol}created: ${stamp}${eol}---${eol}${src}`;
+  if (m[1].split(/\r?\n/).some((l) => /^created\s*:/.test(l))) return src;
+  return `---${eol}created: ${stamp}${eol}${m[1]}${eol}---${m[2] || eol}${src.slice(m[0].length)}`;
+}
+
 // ----- כותרת ידנית ← מאפיינים -----
 // הכותרת שהמשתמש כותב בראש ההערות (מהתבנית "פתקים רעיוניים"):
 //   - קישורים: [[א]], [[ב]]
@@ -256,4 +270,4 @@ function setFlag(text, color) {
   return `---${eol}${lines.join(eol)}${eol}---${m[2] || eol}${rest}`;
 }
 
-module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, FLAGS, getFlag, setFlag, isLinkHub, getCreatedDate, formatDate, fillTemplate, headerToProps };
+module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, FLAGS, getFlag, setFlag, isLinkHub, getCreatedDate, formatDate, fillTemplate, headerToProps, withCreated };

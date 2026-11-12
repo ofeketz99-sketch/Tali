@@ -98,20 +98,31 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
 
   // מאפיינים: מוצגים בתיבה מעל הדף רק כשיש כאלה בקובץ.
   // השורות של links: לא מוצגות כאן (הן בלוח "קישורים"), ונשמרות בצד במקומן המקורי.
+  // גם created: לא מוצג (הוא התאריך מעל הדף), ונשמר במקומו. כך מסמך חדש לא נפתח עם תיבת מאפיינים.
   let linkLines = { block: [], at: -1 };
+  let createdLine = { block: [], at: -1 };
   const propsForm = attachPropsEditor(propsElement);
+  const splitCreated = (fm) => {
+    const lines = fm === '' ? [] : fm.split(/\r?\n/);
+    const at = lines.findIndex((l) => /^created\s*:/.test(l));
+    if (at < 0) return { rest: fm, block: [], at: -1 };
+    const block = lines.splice(at, 1);
+    return { rest: lines.join('\n'), block, at };
+  };
   const showProps = () => {
     const parts = splitLinksLines(frontmatter ?? '');
     linkLines = { block: parts.block, at: parts.at };
-    propsElement.value = parts.rest;
-    propsElement.hidden = frontmatter == null || raw || !parts.rest.trim();
+    const c = splitCreated(parts.rest);
+    createdLine = { block: c.block, at: c.at };
+    propsElement.value = c.rest;
+    propsElement.hidden = frontmatter == null || raw || !c.rest.trim();
     propsElement.dataset.blocked = raw ? '1' : '0';
     propsElement.style.height = 'auto';
     propsElement.style.height = propsElement.scrollHeight + 2 + 'px';
     propsForm.render();
   };
   propsElement.addEventListener('input', () => {
-    frontmatter = mergeLinksLines(propsElement.value, linkLines.block, linkLines.at);
+    frontmatter = mergeLinksLines(mergeLinksLines(propsElement.value, createdLine.block, createdLine.at), linkLines.block, linkLines.at);
     // כל המאפיינים נמחקו: גם השורות --- יורדות, במקום להשאיר בלוק ריק בראש הקובץ
     if (!frontmatter.trim()) frontmatter = null;
     propsElement.style.height = 'auto';
