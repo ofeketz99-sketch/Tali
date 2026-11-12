@@ -8,7 +8,7 @@
 // renderer.js קורא ל־opened() מתוך openNote, ול־remap/drop בשינוי שם, העברה ומחיקה.
 import { icon } from './icons.js';
 
-export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave, showEmpty, renderPreview, noteName, onContext, onHome }) {
+export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave, showEmpty, renderPreview, noteName, onContext, onHome, fileIcon }) {
   const bar = $('tabBar');
   const panesEl = $('panes');
   const pane0 = $('pane0');
@@ -63,7 +63,7 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
       t.setAttribute('role', 'tab');
       t.setAttribute('aria-selected', String(isActive));
       t.dataset.tip = p.slice(getRoot().length + 1).replace(/\.md$/i, '').split(/[\\/]/).join(' › ');
-      t.innerHTML = `${icon('file', 14)}<span class="tab-name"></span><button type="button" class="tab-close" aria-label="סגירת הכרטיסייה">${icon('close', 13)}</button>`;
+      t.innerHTML = `${fileIcon?.(p) || icon('file', 14)}<span class="tab-name"></span><button type="button" class="tab-close" aria-label="סגירת הכרטיסייה">${icon('close', 13)}</button>`;
       t.querySelector('.tab-name').textContent = noteName(p);
       t.addEventListener('mousedown', (e) => { if (e.button === 1) { e.preventDefault(); close(p); } });
       t.addEventListener('click', (e) => {
@@ -302,7 +302,7 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
   function refreshSide() { if (panes.length > 1) fillPreview(other()); }
 
   return {
-    opened, close, step, show, splitWith, toggleSplit, unsplit, remap, drop, cleared, restore, refreshSide,
+    opened, close, step, show, splitWith, toggleSplit, unsplit, remap, drop, cleared, restore, refreshSide, refresh: render,
     get list() { return list; }, get split() { return panes.length > 1; },
     activePath: () => panes[activePane],
   };

@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('api', {
   mtime: call('mtime'),
   fileTimes: call('file-times'),
   templates: call('templates'),
+  metaRead: call('meta-read'),
+  metaWrite: call('meta-write'),
   attachments: call('attachments'),
   openPath: call('open-path'),
   getPrefs: call('get-prefs'),

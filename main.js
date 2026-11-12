@@ -433,6 +433,18 @@ function registerIpc() {
     return file;
   });
 
+  // נתונים של Tali על הכספת, בקובץ נסתר בראש הכספת (.tali.json), כדי שיעברו איתה בסנכרון:
+  // icons: { "<נתיב יחסי עם /, מסמכים עם .md>": { name: "BookOpen", color?: "red" } }, order: { "<תיקייה יחסית>": [שמות] }
+  ipcMain.handle('meta-read', async () => {
+    if (!root) return {};
+    try { return JSON.parse(await fs.readFile(path.join(root, '.tali.json'), 'utf8')) || {}; } catch { return {}; }
+  });
+  ipcMain.handle('meta-write', async (_e, data) => {
+    if (!root) return false;
+    await fs.writeFile(path.join(root, '.tali.json'), JSON.stringify(data ?? {}, null, 2) + '\n', 'utf8');
+    return true;
+  });
+
   // תבניות: התיקייה והפורמטים מההגדרות של אובסידיאן (.obsidian/templates.json), כדי ששתי התוכנות ישתמשו באותן.
   // בלי הגדרה: תיקייה בשם Templates בראש הכספת, אם יש.
   ipcMain.handle('templates', async () => {

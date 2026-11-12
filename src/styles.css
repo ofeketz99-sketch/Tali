@@ -1730,3 +1730,27 @@ body[data-sidebar-mode="compact"] .tree-head { display: none; }
 /* כפתור הבית בסרגל הכרטיסיות */
 .tab-home { flex: none; margin-bottom: 4px; width: 28px; height: 26px; }
 .tab-home.on { color: var(--accent-strong); background: var(--accent-soft); }
+
+/* ----- סמלים בעץ (vault-meta) וגרירה לפני/אחרי ----- */
+#tree .node .cust-icon { display: inline-grid; place-items: center; flex: none; color: var(--muted); }
+#tree .node.dir .cust-icon { margin-inline-end: 4px; }
+#tree .node.file .icon.cust-icon { color: var(--muted); }
+#tree .node.active .cust-icon:not([style]) { color: var(--accent-strong); }
+#tree .node.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+#tree .node.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+/* בורר הסמלים */
+.icon-picker { width: min(620px, calc(100vw - 40px)); height: min(78vh, 680px); }
+.ip-top { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.ip-top .vd-filter { margin: 0; }
+.ip-colors { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ip-color { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 2px solid transparent; background: var(--c); cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08); }
+.ip-color.none { background: var(--input-bg); box-shadow: inset 0 0 0 1px var(--border); position: relative; }
+.ip-color.none::after { content: ""; position: absolute; inset: 9px 2px; background: var(--muted); transform: rotate(-45deg); }
+.ip-color.on { border-color: var(--text); }
+.ip-remove { align-self: flex-start; padding: 3px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg); color: var(--muted); font-size: 12.5px; cursor: pointer; }
+.ip-remove:disabled { opacity: .4; cursor: default; }
+.ip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 4px; color: var(--text); }
+.ip-icon { display: grid; place-items: center; height: 42px; padding: 0; border: 1px solid transparent; border-radius: 10px; background: none; color: inherit; cursor: pointer; }
+.ip-icon:hover { background: var(--accent-soft); border-color: var(--accent-line); transform: none; }
+.ip-icon.on { background: var(--accent-soft); border-color: var(--accent); }
+.ip-note { color: var(--muted); font-size: 12.5px; margin: 8px 2px 0; }

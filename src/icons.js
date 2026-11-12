@@ -8,7 +8,7 @@ import {
   BetweenVerticalStart, BetweenVerticalEnd, Heading, Pen, Slash, MoveUpRight, Square, Circle, Eraser,
   Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
   PanelRightClose, PanelRightOpen, Waypoints, Ghost, Hash, FileDown, FileType, ListChecks, ListTree, Info, Reply, Ellipsis, Focus, Minimize2,
-  Sigma, SquareSigma, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag,
+  Sigma, SquareSigma, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag,
 } from 'lucide';
 
 const ICONS = {
@@ -27,7 +27,7 @@ const ICONS = {
   // תצוגות כספת וייצוא
   graph: Waypoints, ghost: Ghost, tag: Hash, exportPdf: FileDown, exportWord: FileType, taskSection: ListChecks,
   // לוח ההקשר
-  outline: ListTree, info: Info, backlinks: Reply, calendar: CalendarDays, template: LayoutTemplate, split: Columns2, collapseAll: ChevronsDownUp, locate: LocateFixed, history: History, board: ClipboardList, chevronUp: ChevronUp, chevronDown: ChevronDown, eye: Eye, eyeOff: EyeOff, home: House,
+  outline: ListTree, info: Info, backlinks: Reply, calendar: CalendarDays, template: LayoutTemplate, split: Columns2, collapseAll: ChevronsDownUp, locate: LocateFixed, history: History, board: ClipboardList, chevronUp: ChevronUp, chevronDown: ChevronDown, eye: Eye, eyeOff: EyeOff, home: House, iconPick: Shapes,
   // סרגל: עוד, מצב מיקוד
   more: Ellipsis, focus: Focus, focusExit: Minimize2,
   // תפריט הלחיצה הימנית ונוסחאות
@@ -48,4 +48,21 @@ const cache = {};
 export function icon(name, size = 18) {
   const inner = cache[name] ??= toSvg(ICONS[name] || []);
   return `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+}
+
+// ===== כל הסט של Lucide: סמלים שהמשתמש בוחר לתיקיות ולמסמכים (כמו Iconize באובסידיאן) =====
+// השם נשמר כמו בספרייה (PascalCase, למשל "BookOpen"). כ־1,950 סמלים, כ־750KB בבנייה.
+import { icons as ALL_ICONS } from 'lucide';
+const anyCache = {};
+export const hasLucide = (name) => !!ALL_ICONS[name];
+export function lucide(name, size = 16) {
+  const node = ALL_ICONS[name];
+  if (!node) return '';
+  const inner = anyCache[name] ??= toSvg(node);
+  return `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+}
+// לחיפוש בבורר: השם במילים קטנות ("book open")
+let names = null;
+export function lucideNames() {
+  return names ??= Object.keys(ALL_ICONS).map((n) => ({ name: n, words: n.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2').toLowerCase() }));
 }

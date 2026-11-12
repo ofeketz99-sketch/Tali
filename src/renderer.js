@@ -12,7 +12,7 @@ import { showLinkHubOffer } from './linkhub.js';
 import { fileUrl, bumpImage } from './embed.js';
 import { openPaint } from './paint.js';
 import { createPageOverlay } from './page-overlay.js';
-import { icon } from './icons.js';
+import { icon, lucide } from './icons.js';
 import { setupHoverPreview } from './hover-preview.js';
 import { openGraph, openGhosts, openTags, openTasks, openRecent } from './vault-views.js';
 import { exportHtml, EXPORT_CSS } from './export.js';
@@ -20,6 +20,8 @@ import { buildDocx } from './export-docx.js';
 import { openHeaderConvert } from './header-convert.js';
 import { createTabs } from './tabs.js';
 import { createHome } from './home.js';
+import { createMeta } from './vault-meta.js';
+import { openIconPicker } from './icon-picker.js';
 import { renderNoteHtml } from './note-render.js';
 
 // אייקונים בכפתורים שב־index.html: <span data-icon="plus">
@@ -212,6 +214,7 @@ const tabs = createTabs({
   },
   onContext: (p, x, y) => showContextMenu({ type: 'file', path: p, name: p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1) }, x, y),
   onHome: () => goHome(),
+  fileIcon: (p) => fileIconHtml(p),
 });
 // אין מסמך פתוח: מסך הבית (או, לפני שנבחרה תיקייה, כפתור הבחירה)
 function showEmpty() {
@@ -749,12 +752,68 @@ function ask(label, defaultValue = '', { confirmOnly = false, okText = 'אישו
 }
 
 // ===== עץ הקבצים =====
+// ===== סמלים וסדר ידני בעץ (src/vault-meta.js, נשמר ב־.tali.json בכספת) =====
+const meta = createMeta({ api: window.api, getRoot: () => state.root });
+const sepOf = () => (state.root?.includes('\\') ? '\\' : '/');
+const baseOf = (p) => p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1);
+// השמות בתיקייה, בסדר שמוצג בעץ (אחרי הסדר הידני)
+function siblingNames(dir) {
+  const find = (nodes) => {
+    if (dir === state.root) return nodes;
+    for (const n of nodes) if (n.type === 'dir') { if (n.path === dir) return n.children; const f = find(n.children); if (f) return f; }
+    return null;
+  };
+  return (find(meta.sortTree(state.tree)) || []).map((n) => n.name);
+}
+// גרירה לפני/אחרי פריט אחר. מתיקייה אחרת: קודם מעבירים (עם עדכון הקישורים), ואז ממקמים
+async function reorderNode(src, target, where) {
+  const dir = dirname(target);
+  let path = src;
+  if (dirname(src) !== dir) {
+    await moveNode(src, dir);
+    path = dir + sepOf() + baseOf(src);
+    // ההעברה נכשלה (למשל שם תפוס): לא ממקמים
+    if (![...allDirs(), ...allNotes().map((n) => n.path)].includes(path)) return;
+  }
+  meta.placeIn(dir, siblingNames(dir), baseOf(path), baseOf(target), where);
+  drawTree();
+}
+// Alt+↑/↓ או מהתפריט: מקום אחד למעלה או למטה בתוך התיקייה
+function stepItem(p, dir) {
+  const parent = dirname(p);
+  const names = siblingNames(parent);
+  const i = names.indexOf(baseOf(p));
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= names.length) return;
+  meta.placeIn(parent, names, names[i], names[j], dir < 0 ? 'before' : 'after');
+  drawTree();
+  [...$('tree').querySelectorAll('.node')].find((r) => r.dataset.path === p)?.focus();
+}
+// סמל לתיקייה או למסמך
+function pickIcon(node) {
+  const name = node.name.replace(/\.md$/i, '');
+  openIconPicker({
+    title: `סמל ל״${name}״`, current: meta.iconOf(node.path), store,
+    onPick: (v) => { meta.setIcon(node.path, v); drawTree(); tabs.refresh?.(); },
+  });
+}
+// סמל של מסמך לכרטיסייה (או סמל הקובץ הרגיל)
+const fileIconHtml = (p, size = 14) => {
+  const c = meta.iconOf(p);
+  if (!c) return icon('file', size);
+  const svg = lucide(c.name, size);
+  return c.color ? svg.replace('<svg ', `<svg style="color: var(--flag-${c.color})" `) : svg;
+};
+
 function drawTree() {
   // בזמן חיפוש העץ מוצג מסונן (drawSearch), גם כשמשהו אחר מבקש לצייר אותו מחדש
   const q = $('search').value.trim();
   if (q) { clearTimeout(searchTimer); drawSearch(q); return; }
   const focusedPath = document.activeElement?.closest?.('#tree .node')?.dataset.path;
-  renderTree($('tree'), state.tree, {
+  renderTree($('tree'), meta.sortTree(state.tree), {
+    iconOf: (p) => meta.iconOf(p),
+    onReorder: reorderNode,
+    onStep: stepItem,
     activePath: state.currentPath,
     collapsed: state.collapsed,
     onOpen: openNote,
@@ -903,6 +962,7 @@ async function enterRoot(r) {
   state.forward = [];
   state.recent = store.get('recent:' + r.root, []);
   state.collapsed = new Set(store.get('collapsed:' + r.root, []));
+  await meta.load(); // סמלים וסדר ידני (.tali.json)
   $('page').hidden = true;
   setHome(true); docPanel?.layout(); toggleFocusMode(false);
   $('btnPickBig').hidden = true;
@@ -935,6 +995,7 @@ async function renameNode(node) {
     state.recent = state.recent.map(swap);
     if (state.currentPath) state.currentPath = swap(state.currentPath);
     tabs.remap(swap);
+    meta.remap(node.path, to);
     // אם הקישורים עודכנו גם בהערה הפתוחה, טוענים אותה מחדש מהדיסק
     if (state.currentPath && changed.includes(state.currentPath)) {
       await reloadFromDisk();
@@ -958,6 +1019,7 @@ async function deleteNode(node) {
     state.forward = state.forward.filter(keep);
     state.recent = state.recent.filter(keep);
     const gone = (p) => p === node.path || p.startsWith(node.path + '\\') || p.startsWith(node.path + '/');
+    meta.drop(node.path);
     if (state.currentPath && gone(state.currentPath)) { state.currentPath = null; state.dirty = false; }
     await refreshTree();
     // הכרטיסיות של מה שנמחק נסגרות. אם המסמך הפעיל נמחק, נפתחת כרטיסייה אחרת או המסך הריק
@@ -979,6 +1041,7 @@ async function moveNode(src, destDir) {
     state.recent = state.recent.map(swap);
     store.set('recent:' + state.root, state.recent);
     tabs.remap(swap);
+    meta.remap(src, to);
     if (state.currentPath) {
       state.currentPath = swap(state.currentPath);
       if (changed.includes(state.currentPath)) await reloadFromDisk();
@@ -1234,6 +1297,10 @@ function showContextMenu(node, x, y) {
     add('template', 'מסמך חדש מתבנית', () => { state.selectedDir = node.path; newNoteFromTemplate(); });
     add('edit', 'שינוי שם', () => renameNode(node), { keys: 'F2' });
   }
+  // לשניהם: סמל, והזזה בתוך התיקייה (סדר ידני)
+  add('iconPick', meta.iconOf(node.path) ? 'שינוי הסמל…' : 'סמל…', () => pickIcon(node));
+  add('chevronUp', 'הזזה למעלה', () => stepItem(node.path, -1), { keys: 'Alt+↑' });
+  add('chevronDown', 'הזזה למטה', () => stepItem(node.path, 1), { keys: 'Alt+↓' });
   add('trash', 'מחיקה (לסל המחזור)', () => deleteNode(node), { danger: true });
 
   menu.hidden = false;
@@ -1538,7 +1605,7 @@ function drawSearch(q) {
       activePath: state.currentPath, collapsed: new Set(), highlight: q,
       onOpen: async (p, o) => { $('search').value = ''; await openNote(p, o); },
       onSelectDir: () => {}, onToggleDir: () => {}, onContext: showContextMenu, onDelete: deleteNode,
-      root: state.root, flagOf: (p) => state.flags.get(p) || null,
+      root: state.root, flagOf: (p) => state.flags.get(p) || null, iconOf: (p) => meta.iconOf(p),
     });
   }
   const seq = ++searchSeq;

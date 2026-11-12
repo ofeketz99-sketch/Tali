@@ -1,5 +1,5 @@
 // עץ הקבצים והחיפוש בסרגל הצד.
-import { icon as svg } from './icons.js';
+import { icon as svg, lucide } from './icons.js';
 
 // opening: התיקייה שנפתחה עכשיו. הפריטים שלה נכנסים באנימציה, אחד אחרי השני.
 // onMove(path, destDir): גרירת הערה או תיקייה אל תיקייה (או אל שטח ריק בעץ = התיקייה הראשית, root).
@@ -13,7 +13,7 @@ function hasNotes(n) {
   return notesCache.get(n);
 }
 // highlight: מחרוזת לסימון בתוך השמות (סינון העץ לפי שם)
-export function renderTree(container, tree, { activePath, collapsed, opening, onOpen, onToggleDir, onContext, onSelectDir, onDelete, onMove, root, flagOf, highlight }) {
+export function renderTree(container, tree, { activePath, collapsed, opening, onOpen, onToggleDir, onContext, onSelectDir, onDelete, onMove, root, flagOf, highlight, iconOf, onReorder, onStep }) {
   container.innerHTML = '';
   container.appendChild(buildLevel(tree));
   // פתיחה: התיקייה שנפתחה עכשיו גדלה מגובה 0 לגובה המלא (והפריטים נכנסים אחד אחרי השני, ב־CSS)
@@ -42,12 +42,13 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
   }
   container._onMove = onMove;
   container._root = root;
-  const clearMarks = () => container.querySelectorAll('.drop-target').forEach((el) => el.classList.remove('drop-target'));
+  const clearMarks = () => container.querySelectorAll('.drop-target, .drop-before, .drop-after').forEach((el) => el.classList.remove('drop-target', 'drop-before', 'drop-after'));
 
   function buildLevel(list) {
     const frag = document.createDocumentFragment();
     // תיקייה בלי מסמכים בכלל (תמונות וקבצים מצורפים): דהויה ובסוף הרמה
-    const nodes = [...list.filter((n) => n.type !== 'dir' || hasNotes(n)), ...list.filter((n) => n.type === 'dir' && !hasNotes(n))];
+    // תיקייה בלי מסמכים: בסוף הרמה, אלא אם המשתמש סידר את הרמה הזו ידנית (list.custom, מ־vault-meta)
+    const nodes = list.custom ? [...list] : [...list.filter((n) => n.type !== 'dir' || hasNotes(n)), ...list.filter((n) => n.type === 'dir' && !hasNotes(n))];
     nodes.forEach((n, i) => {
       const row = document.createElement('div');
       row.className = 'node ' + n.type + (n.path === activePath ? ' active' : '') + (n.type === 'dir' && !hasNotes(n) ? ' no-notes' : '');
@@ -55,7 +56,15 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
       row.tabIndex = 0;
       row.dataset.path = n.path;
       row.addEventListener('keydown', (event) => {
-        if (event.key !== 'Delete' || event.target !== row) return;
+        if (event.target !== row) return;
+        // Alt+↑/↓ על שורה ממוקדת: הזזה למעלה/למטה בתוך התיקייה (סדר ידני)
+        if (event.altKey && !event.ctrlKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown') && onStep) {
+          event.preventDefault();
+          event.stopPropagation();
+          onStep(n.path, event.key === 'ArrowUp' ? -1 : 1);
+          return;
+        }
+        if (event.key !== 'Delete') return;
         event.preventDefault();
         event.stopPropagation();
         onDelete?.(n);
@@ -68,21 +77,42 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
           row.classList.add('dragging');
         });
         row.addEventListener('dragend', () => { row.classList.remove('dragging'); clearMarks(); container.classList.remove('drop-root'); });
-        if (n.type === 'dir') {
-          row.addEventListener('dragover', (e) => {
-            if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            if (!row.classList.contains('drop-target')) { clearMarks(); row.classList.add('drop-target'); }
-          });
-          row.addEventListener('dragleave', (e) => { if (!row.contains(e.relatedTarget)) row.classList.remove('drop-target'); });
-          row.addEventListener('drop', (e) => {
-            e.preventDefault();
-            clearMarks();
-            const src = e.dataTransfer.getData(DRAG_TYPE);
-            if (src && src !== n.path) onMove(src, n.path);
-          });
-        }
+        // איפה ייפול: בחלק העליון של השורה "לפני", בתחתון "אחרי" (סדר ידני, onReorder).
+        // תיקייה: רבע עליון/תחתון לפני/אחרי, והאמצע לתוכה (העברה, כמו קודם). תיקייה פתוחה: "אחרי" = לתוכה.
+        const zoneOf = (e) => {
+          const r = row.getBoundingClientRect();
+          const y = (e.clientY - r.top) / r.height;
+          if (!onReorder) return n.type === 'dir' ? 'into' : null;
+          if (n.type !== 'dir') return y < 0.5 ? 'before' : 'after';
+          if (y < 0.28) return 'before';
+          if (y > 0.72 && collapsed.has(n.path)) return 'after';
+          return 'into';
+        };
+        const mark = (zone) => {
+          const cls = zone === 'into' ? 'drop-target' : zone === 'before' ? 'drop-before' : 'drop-after';
+          if (!row.classList.contains(cls)) { clearMarks(); row.classList.add(cls); }
+        };
+        row.addEventListener('dragover', (e) => {
+          if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
+          const zone = zoneOf(e);
+          if (!zone) return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = 'move';
+          mark(zone);
+        });
+        row.addEventListener('dragleave', (e) => { if (!row.contains(e.relatedTarget)) row.classList.remove('drop-target', 'drop-before', 'drop-after'); });
+        row.addEventListener('drop', (e) => {
+          const zone = zoneOf(e);
+          if (!zone) return;
+          e.preventDefault();
+          e.stopPropagation();
+          clearMarks();
+          const src = e.dataTransfer.getData(DRAG_TYPE);
+          if (!src || src === n.path) return;
+          if (zone === 'into') onMove(src, n.path);
+          else onReorder(src, n.path, zone);
+        });
       }
       const icon = document.createElement('span');
       icon.className = 'icon';
@@ -97,12 +127,23 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
         label.append(text.slice(0, at), mark, text.slice(at + highlight.length));
       }
       row.append(icon, label);
+      // סמל שהמשתמש בחר (vault-meta): במסמך במקום סמל הקובץ, בתיקייה בין החץ לשם
+      const custom = iconOf?.(n.path);
+      const customSvg = custom ? lucide(custom.name, n.type === 'dir' ? 15 : 15) : '';
+      const paint = (el) => { if (custom?.color) el.style.color = `var(--flag-${custom.color})`; };
 
       if (n.type === 'dir') {
         const isCollapsed = collapsed.has(n.path);
         row.classList.toggle('collapsed', isCollapsed);
         // החץ מסתובב באנימציה (ב־CSS) בין פתוח לסגור
         icon.innerHTML = svg('chevron', 14);
+        if (customSvg) {
+          const ci = document.createElement('span');
+          ci.className = 'cust-icon';
+          ci.innerHTML = customSvg;
+          paint(ci);
+          label.before(ci);
+        }
         row.addEventListener('click', () => {
           onSelectDir(n.path);
           // סגירה: התוכן מתכווץ לגובה 0, ורק אז העץ נבנה מחדש
@@ -124,7 +165,8 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
           frag.appendChild(kids);
         }
       } else {
-        icon.innerHTML = svg('file', 15);
+        icon.innerHTML = customSvg || svg('file', 15);
+        if (customSvg) { icon.classList.add('cust-icon'); paint(icon); }
         // דגל (flags.js): נקודה בצבע אחרי השם
         const flag = flagOf?.(n.path);
         if (flag) { const dot = document.createElement('span'); dot.className = 'flag-dot'; dot.dataset.flag = flag; row.append(dot); }
