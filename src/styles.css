@@ -1681,15 +1681,31 @@ body[data-sidebar-mode="compact"] .tree-head { display: none; }
 .pane > .home-bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
 .pane > .home-bg[hidden] { display: none; }
 .pane > #pageWrap { position: relative; z-index: 1; }
-/* רקע דינמי: שלושה כתמים רכים בגווני הערכה, שנעים לאט מאוד (רק transform: חלק וזול) */
-.home-bg i { position: absolute; width: 46vmax; height: 46vmax; border-radius: 50%; filter: blur(70px); opacity: .5; will-change: transform; }
-.home-bg i:nth-child(1) { background: color-mix(in srgb, var(--accent) 45%, transparent); top: -18vmax; inset-inline-start: -10vmax; animation: home-drift-a 38s ease-in-out infinite alternate; }
-.home-bg i:nth-child(2) { background: color-mix(in srgb, var(--accent) 22%, var(--page-bg)); bottom: -22vmax; inset-inline-end: -12vmax; animation: home-drift-b 46s ease-in-out infinite alternate; }
-.home-bg i:nth-child(3) { width: 30vmax; height: 30vmax; background: color-mix(in srgb, var(--accent-strong) 18%, transparent); top: 30%; inset-inline-start: 38%; opacity: .35; animation: home-drift-c 54s ease-in-out infinite alternate; }
-@keyframes home-drift-a { to { transform: translate(14vmax, 10vmax) scale(1.12); } }
-@keyframes home-drift-b { to { transform: translate(-12vmax, -8vmax) scale(.9); } }
-@keyframes home-drift-c { to { transform: translate(-16vmax, 6vmax) scale(1.2); } }
-@media (prefers-reduced-motion: reduce) { .home-bg i { animation: none; } }
+/* רקע דינמי: גלים רחבים ושקופים כמו באיור שנבחר. התנועה משנה רק transform. */
+.home-waves {
+  position: absolute;
+  inset: -4%;
+  width: 108%;
+  height: 108%;
+  overflow: visible;
+  opacity: .92;
+  filter: saturate(.86);
+}
+.home-wave-layer {
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: transform;
+}
+.home-wave-layer path { stroke: none; }
+.home-wave-layer-a { fill: var(--accent); opacity: .22; animation: home-wave-a 36s ease-in-out infinite alternate; }
+.home-wave-layer-b { fill: var(--accent); opacity: .11; animation: home-wave-b 44s ease-in-out infinite alternate; }
+.home-wave-layer-c { fill: var(--accent); opacity: .16; animation: home-wave-c 50s ease-in-out infinite alternate; }
+.home-wave-layer-d { fill: var(--accent); opacity: .08; animation: home-wave-d 58s ease-in-out infinite alternate; }
+@keyframes home-wave-a { to { transform: translate3d(2.4%, -1.4%, 0) scale(1.025); } }
+@keyframes home-wave-b { to { transform: translate3d(-2.1%, 1.2%, 0) scale(1.018); } }
+@keyframes home-wave-c { to { transform: translate3d(1.6%, 1.5%, 0) scale(1.022); } }
+@keyframes home-wave-d { to { transform: translate3d(-1.5%, -.9%, 0) scale(1.015); } }
+@media (prefers-reduced-motion: reduce) { .home-wave-layer { animation: none; } }
 
 #home { grid-column: 1 / -1; width: min(1000px, 100%); margin: 0 auto; padding: 0 8px 40px; box-sizing: border-box; animation: page-in .3s var(--ease); }
 #home[hidden] { display: none; }
