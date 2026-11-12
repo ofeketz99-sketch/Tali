@@ -8,7 +8,11 @@
 - חיפוש מהיר, לוח פקודות, קיצורים שעובדים גם במקלדת עברית.
 - ימין לשמאל כברירת מחדל, ומצב כהה.
 
-## הרצה
+## התקנה
+
+את הגרסה האחרונה מורידים מ־[Releases](https://github.com/ofeketz99-sketch/Tali/releases): `Tali-Setup-<גרסה>.exe` (מתקין) או `Tali-<גרסה>-portable.exe` (בלי התקנה). הקבצים לא חתומים, ולכן Windows יזהיר בהפעלה הראשונה ("מידע נוסף" ← "הפעל בכל זאת").
+
+## הרצה מהקוד
 
 ```
 npm install
@@ -19,6 +23,7 @@ npm start
 | --- | --- |
 | `npm run build` | בונה את `dist/renderer.js` |
 | `npm start` | בנייה והפעלה |
+| `npm run dist` | בונה מתקין וקובץ נייד ל־Windows ב־`release/` (electron-builder). פרסום גרסה: `AGENTS.md` |
 | `npm run make-exe` | בונה `Tali.exe` (Windows בלבד) ב־`Tali-exe` ליד המאגר. הפרטים ב־`AGENTS.md` |
 | `npm run watch` | בנייה מתמשכת בזמן פיתוח (רענון חלון עם Ctrl+R) |
 | `npm test` | בדיקות יחידה |

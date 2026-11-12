@@ -1269,7 +1269,7 @@ function showContextMenu(node, x, y) {
   const isFile = node.type === 'file';
   if (isFile) {
     add('filePlus', 'פתיחה בכרטיסייה חדשה', () => openNote(node.path, { newTab: true }), { keys: 'Ctrl+לחיצה' });
-    add('split', 'פתיחה לצד', () => tabs.splitWith(node.path));
+    add('splitView', 'פתיחה לצד', () => tabs.splitWith(node.path));
     add('edit', 'שינוי שם', () => renameNode(node), { keys: 'F2' });
     add('copy', 'שכפול', () => duplicateNode(node));
     add('link', 'קישור לפתקים אחרים…', () => pickLinksFor(node.path));

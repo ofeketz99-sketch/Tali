@@ -93,7 +93,7 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
     splitBtn.className = 'icon-btn tab-split' + (panes.length > 1 ? ' on' : '');
     splitBtn.dataset.tip = panes.length > 1 ? 'ביטול הפיצול (Ctrl+\\)' : 'שני מסמכים זה לצד זה (Ctrl+\\)';
     splitBtn.setAttribute('aria-pressed', String(panes.length > 1));
-    splitBtn.innerHTML = icon('split', 16);
+    splitBtn.innerHTML = icon('splitView', 16);
     splitBtn.addEventListener('click', () => toggleSplit());
     bar.append(strip, splitBtn);
     bar.querySelector('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });

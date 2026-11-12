@@ -27,7 +27,7 @@ const ICONS = {
   // תצוגות כספת וייצוא
   graph: Waypoints, ghost: Ghost, tag: Hash, exportPdf: FileDown, exportWord: FileType, taskSection: ListChecks,
   // לוח ההקשר
-  outline: ListTree, info: Info, backlinks: Reply, calendar: CalendarDays, template: LayoutTemplate, split: Columns2, collapseAll: ChevronsDownUp, locate: LocateFixed, history: History, board: ClipboardList, chevronUp: ChevronUp, chevronDown: ChevronDown, eye: Eye, eyeOff: EyeOff, home: House, iconPick: Shapes,
+  outline: ListTree, info: Info, backlinks: Reply, calendar: CalendarDays, template: LayoutTemplate, splitView: Columns2, collapseAll: ChevronsDownUp, locate: LocateFixed, history: History, board: ClipboardList, chevronUp: ChevronUp, chevronDown: ChevronDown, eye: Eye, eyeOff: EyeOff, home: House, iconPick: Shapes,
   // סרגל: עוד, מצב מיקוד
   more: Ellipsis, focus: Focus, focusExit: Minimize2,
   // תפריט הלחיצה הימנית ונוסחאות

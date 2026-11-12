@@ -1,6 +1,6 @@
 {
   "name": "tali",
-  "version": "6.0.0",
+  "version": "6.1.0",
   "productName": "Tali",
   "description": "Tali: אפליקציית הערות אישית. אובסידיאן פוגש וורד",
   "main": "main.js",
@@ -15,7 +15,8 @@
     "splash:preview": "electron tools/splash-render/main.js -- preview",
     "splash:render": "electron tools/splash-render/main.js -- video src/splash.webm 48",
     "roundtrip": "electron tools/roundtrip/main.js --",
-    "make-exe": "node tools/make-exe.js"
+    "make-exe": "node tools/make-exe.js",
+    "dist": "npx --yes electron-builder@25.1.8 --win --x64 --publish never"
   },
   "dependencies": {
     "@tiptap/core": "^2.11.0",
