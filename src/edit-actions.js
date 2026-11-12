@@ -3,7 +3,7 @@
 // פעולה חדשה: מוסיפים כאן, ומשתמשים בה מכל המקומות. לא כותבים מימוש מקביל בתפריט אחר.
 import { TextSelection } from '@tiptap/pm/state';
 import { openTableGrid } from './table.js';
-import { FOLLOW_UP } from '../vault-data.js';
+import { FOLLOW_UP, isFollowUpHeading } from '../vault-data.js';
 
 export function createEditActions(editor, hooks = {}) {
   const chain = () => editor.chain().focus();
@@ -51,7 +51,7 @@ export function createEditActions(editor, hooks = {}) {
       let head = null, end = null, lastList = null;
       doc.forEach((node, offset) => {
         if (head == null) {
-          if (node.type.name === 'heading' && node.textContent.trim() === FOLLOW_UP) head = { offset, level: node.attrs.level };
+          if (node.type.name === 'heading' && isFollowUpHeading(node.textContent)) head = { offset, level: node.attrs.level };
         } else if (end == null) {
           if (node.type.name === 'heading' && node.attrs.level <= head.level) end = offset;
           else if (node.type.name === 'taskList') lastList = { offset, node };

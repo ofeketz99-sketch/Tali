@@ -5,7 +5,7 @@ import { renderTree, renderSearchResults, filterTree, countFiles } from './sideb
 import { createContextPanel, countWords } from './context-panel.js';
 import { setupContextMenus, closeContextMenu } from './context-menu.js';
 import { FLAG_LIST, flagName } from './flags.js';
-import { getFlag, setFlag, getCreatedDate, fillTemplate, headerToProps } from '../vault-data.js';
+import { getFlag, setFlag, getCreatedDate, fillTemplate, headerToProps, isFollowUpHeading } from '../vault-data.js';
 import { resolveLink, extractLinks, getFrontmatterLinks, setFrontmatterLinks } from '../links.js';
 import { openLinkPicker } from './linkpicker.js';
 import { showLinkHubOffer } from './linkhub.js';
@@ -19,6 +19,7 @@ import { exportHtml, EXPORT_CSS } from './export.js';
 import { buildDocx } from './export-docx.js';
 import { openHeaderConvert } from './header-convert.js';
 import { createTabs } from './tabs.js';
+import { createHome } from './home.js';
 import { renderNoteHtml } from './note-render.js';
 
 // אייקונים בכפתורים שב־index.html: <span data-icon="plus">
@@ -210,14 +211,15 @@ const tabs = createTabs({
     catch { el.textContent = 'המסמך לא נמצא'; }
   },
   onContext: (p, x, y) => showContextMenu({ type: 'file', path: p, name: p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1) }, x, y),
+  onHome: () => goHome(),
 });
-// אין מסמך פתוח: מסך ריק
+// אין מסמך פתוח: מסך הבית (או, לפני שנבחרה תיקייה, כפתור הבחירה)
 function showEmpty() {
   state.currentPath = null;
   state.dirty = false;
   pageOverlay.setEnabled(false);
   $('page').hidden = true;
-  $('empty').hidden = false;
+  setHome(true);
   docPanel?.layout();
   toggleFocusMode(false);
   setSaveState('');
@@ -225,6 +227,43 @@ function showEmpty() {
   updateDocTitle();
   tabs.cleared();
   drawTree();
+}
+
+// ===== מסך הבית (src/home.js) =====
+const home = createHome({
+  el: $('home'), store,
+  api: {
+    getRoot: () => state.root,
+    sep: () => (state.root.includes('\\') ? '\\' : '/'),
+    vaultIndex: () => window.api.vaultIndex(),
+    read: (p) => window.api.read(p),
+    write: (p, t) => window.api.write(p, t, null),
+    createNote: (dir, name, content) => window.api.createNote(dir, name, content),
+    openNote: (p) => openNote(p),
+    openTask: (p, t) => openTask(p, t),
+    toggleTask: (p, t, v) => toggleTask(p, t, v),
+    createGhost: (name) => openLink(name),
+    showTasks: (k) => showTasks(k),
+    showGhosts: () => showGhosts(),
+    onChanged: () => refreshTree(),
+  },
+});
+// on: בלי מסמך פתוח. לפני שנבחרה תיקייה מוצג רק כפתור הבחירה (#empty)
+function setHome(on) {
+  const show = on && !!state.root;
+  $('home').hidden = !show;
+  document.querySelector('.home-bg').hidden = !show;
+  $('empty').hidden = !on || !!state.root;
+  $('pageWrap').classList.toggle('home-mode', show);
+  if (show) home.render();
+}
+// חזרה למסך הבית מתוך מסמך: הכרטיסיות נשארות, הפיצול נסגר
+async function goHome() {
+  if (!state.root) return;
+  await flushSave();
+  rememberPosition();
+  if (tabs.split) tabs.unsplit();
+  showEmpty();
 }
 const pageOverlay = createPageOverlay({ page: $('page'), onChange: noteChanged });
 editorApi.setOverlayController(pageOverlay);
@@ -779,7 +818,7 @@ async function openNote(p, { history = true, newTab = false } = {}) {
   store.set('openedAt:' + state.root, Object.fromEntries(Object.entries(openedAt).sort((a, b) => b[1] - a[1]).slice(0, 300)));
   editorApi.setMarkdown(md);
   pageOverlay.setEnabled(!editorApi.isRaw());
-  $('empty').hidden = true;
+  setHome(false);
   $('page').hidden = false;
   restorePosition(p);
   setSaveState('saved');
@@ -865,7 +904,7 @@ async function enterRoot(r) {
   state.recent = store.get('recent:' + r.root, []);
   state.collapsed = new Set(store.get('collapsed:' + r.root, []));
   $('page').hidden = true;
-  $('empty').hidden = false; docPanel?.layout(); toggleFocusMode(false);
+  setHome(true); docPanel?.layout(); toggleFocusMode(false);
   $('btnPickBig').hidden = true;
   setSaveState('');
   $('wordCount').textContent = '';
@@ -874,7 +913,8 @@ async function enterRoot(r) {
   refreshFlags();
   // הכרטיסיות (והפיצול) מהפעם הקודמת בכספת הזו
   const known = new Set(allNotes().map((n) => n.path));
-  await tabs.restore((p) => known.has(p));
+  // מסך הבית בהפעלה: הכרטיסיות מהפעם הקודמת חוזרות לסרגל, אבל לא נפתחות
+  await tabs.restore((p) => known.has(p), { open: false });
 }
 
 // ===== שינוי שם ומחיקה (מהתפריט הימני, מהמקלדת או מלוח הפקודות) =====
@@ -900,7 +940,7 @@ async function renameNode(node) {
       await reloadFromDisk();
     }
     await refreshTree();
-    if (!state.currentPath) { pageOverlay.setEnabled(false); $('page').hidden = true; $('empty').hidden = false; docPanel?.layout(); toggleFocusMode(false); }
+    if (!state.currentPath) showEmpty();
     else { setStatus(prettyPath(state.currentPath)); updateDocTitle(); }
     const others = changed.filter((p) => p !== to).length;
     if (others) setStatus(`הקישורים עודכנו ב־${others} מסמכים`);
@@ -1109,7 +1149,7 @@ function insertTaskSection() {
   const ed = editorApi.editor;
   let headingEnd = null;
   ed.state.doc.forEach((node, offset) => {
-    if (node.type.name === 'heading' && node.textContent.trim() === TASK_SECTION) headingEnd = offset + node.nodeSize;
+    if (node.type.name === 'heading' && isFollowUpHeading(node.textContent)) headingEnd = offset + node.nodeSize;
   });
   if (headingEnd != null) {
     const after = ed.state.doc.nodeAt(headingEnd);
@@ -1696,6 +1736,7 @@ const COMMANDS = [
   { title: 'מה חדש (Patch Notes)', run: openPatchNotes },
   { title: 'גרף הקישורים', keys: 'Ctrl+G', run: showGraph, needs: 'root' },
   { title: 'מסמכים אחרונים', keys: 'Ctrl+Shift+H', run: showRecent, needs: 'root' },
+  { title: 'מסך הבית', keys: 'Alt+Home', run: goHome, needs: 'root' },
   { title: 'תגיות', run: () => showTags(), needs: 'root' },
   { title: 'משימות להמשך בכל המסמכים', keys: 'Ctrl+Shift+T', run: () => showTasks('followUp'), needs: 'root' },
   { title: 'תיבות סימון בכל המסמכים', run: () => showTasks('checks'), needs: 'root' },

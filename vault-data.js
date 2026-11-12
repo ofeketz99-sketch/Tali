@@ -53,6 +53,11 @@ function extractTags(text) {
 // הסעיף של המשימות להמשך: כותרת בשם הזה (בכל רמה), עד הכותרת הבאה באותה רמה או גבוהה ממנה.
 // תיבות סימון בתוכו הן "משימות להמשך" (followUp). כל השאר הן תיבות סימון רגילות של המסמך.
 const FOLLOW_UP = 'משימות להמשך';
+// גם הצורה מהתבנית של המשתמש באובסידיאן: "### #משימות_המשך" (תגית עם קו תחתון, בלי ל'). נמצאה ב־33 הערות.
+function isFollowUpHeading(text) {
+  const t = String(text || '').trim().replace(/^#/, '').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+  return t === FOLLOW_UP || t === 'משימות המשך';
+}
 
 // משימות: "- [ ] טקסט" / "- [x] טקסט" (גם * ו־+, וגם ממוספרות "1. [ ]"), מחוץ לגושי קוד.
 function extractTasks(text) {
@@ -65,7 +70,7 @@ function extractTasks(text) {
     const h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
     if (h) {
       const level = h[1].length;
-      if (h[2].trim() === FOLLOW_UP) section = level;
+      if (isFollowUpHeading(h[2])) section = level;
       else if (section && level <= section) section = 0;
       return;
     }
@@ -270,4 +275,4 @@ function setFlag(text, color) {
   return `---${eol}${lines.join(eol)}${eol}---${m[2] || eol}${rest}`;
 }
 
-module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, FLAGS, getFlag, setFlag, isLinkHub, getCreatedDate, formatDate, fillTemplate, headerToProps, withCreated };
+module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, isFollowUpHeading, FLAGS, getFlag, setFlag, isLinkHub, getCreatedDate, formatDate, fillTemplate, headerToProps, withCreated };

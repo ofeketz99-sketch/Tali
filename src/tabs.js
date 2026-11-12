@@ -8,7 +8,7 @@
 // renderer.js קורא ל־opened() מתוך openNote, ול־remap/drop בשינוי שם, העברה ומחיקה.
 import { icon } from './icons.js';
 
-export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave, showEmpty, renderPreview, noteName, onContext }) {
+export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave, showEmpty, renderPreview, noteName, onContext, onHome }) {
   const bar = $('tabBar');
   const panesEl = $('panes');
   const pane0 = $('pane0');
@@ -44,6 +44,15 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
   function render() {
     bar.hidden = !list.length;
     bar.innerHTML = '';
+    // מסך הבית: כפתור בתחילת הסרגל, מודגש כשאין מסמך פתוח
+    const homeBtn = document.createElement('button');
+    homeBtn.type = 'button';
+    homeBtn.className = 'icon-btn tab-home' + (panes.length ? '' : ' on');
+    homeBtn.dataset.tip = 'מסך הבית (Alt+Home)';
+    homeBtn.setAttribute('aria-label', 'מסך הבית');
+    homeBtn.innerHTML = icon('home', 16);
+    homeBtn.addEventListener('click', () => onHome?.());
+    bar.append(homeBtn);
     const strip = document.createElement('div');
     strip.className = 'tab-strip';
     list.forEach((p) => {
@@ -259,7 +268,8 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
   function cleared() { panes = []; render(); }
 
   // ----- שחזור בכניסה לכספת -----
-  async function restore(exists) {
+  // open: false (מ־5.7, מסך הבית בהפעלה): רק רשימת הכרטיסיות חוזרת, בלי לפתוח מסמך
+  async function restore(exists, { open = true } = {}) {
     restoring = true;
     if (pane1) unsplit();
     const s = store.get(key(), null) || {};
@@ -267,6 +277,7 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
     panes = [];
     activePane = 0;
     ratio = Number(s.ratio) || 0.5;
+    if (!open) { restoring = false; render(); return; }
     const want = (s.panes || []).filter(exists);
     const act = want.length > 1 ? Math.min(Math.max(0, s.activePane || 0), 1) : 0;
     const first = want[act] || list[0];

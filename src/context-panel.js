@@ -5,7 +5,7 @@
 // סגור: רק הפס. פתוח: עמודה לצד הדף. בחלון צר הלוח נפתח מעל הדף. בחלון רחב (dc-roomy) הלוח נפתח לבד
 // בלשונית האחרונה, והדף נשאר במרכז; אם המשתמש סגר אותו שם, הוא נשאר סגור.
 // תצוגה בלבד: הלוח לא כותב לקובץ, חוץ מסימון משימה (דרך העורך, כמו לחיצה על התיבה) והסרת קישור מהמאפיינים.
-import { extractTargets, extractTags, extractTasks, FOLLOW_UP } from '../vault-data.js';
+import { extractTargets, extractTags, extractTasks, FOLLOW_UP, isFollowUpHeading } from '../vault-data.js';
 import { FLAG_LIST } from './flags.js';
 import { getFrontmatterLinks } from '../links.js';
 
@@ -147,7 +147,7 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
     ed.state.doc.descendants((node, pos) => {
       if (node.type.name === 'heading') {
         const level = node.attrs.level;
-        if (node.textContent.trim() === FOLLOW_UP) section = level;
+        if (isFollowUpHeading(node.textContent)) section = level;
         else if (section && level <= section) section = 0;
         return false;
       }

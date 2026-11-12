@@ -136,3 +136,12 @@ test('new notes get a hidden created date, without touching an existing one', ()
   assert.equal(withCreated('---\r\ncreated: 2020-01-01\r\n---\r\n', now), '---\r\ncreated: 2020-01-01\r\n---\r\n');
   assert.equal(withCreated('- [[א]]\n', now), '---\ncreated: 2026-11-12T09:05\n---\n- [[א]]\n');
 });
+
+test('follow-up section also under the "### #משימות_המשך" heading from the user\'s template', () => {
+  const { extractTasks, isFollowUpHeading } = require('../vault-data.js');
+  assert.ok(isFollowUpHeading('#משימות_המשך'));
+  assert.ok(isFollowUpHeading('משימות להמשך'));
+  assert.ok(!isFollowUpHeading('משימות'));
+  const t = extractTasks('- [ ] רגילה\n---\n### #משימות_המשך \n- [ ] להמשך\n## אחר\n- [ ] רגילה 2\n');
+  assert.deepEqual(t.map((x) => [x.text, x.followUp]), [['רגילה', false], ['להמשך', true], ['רגילה 2', false]]);
+});
