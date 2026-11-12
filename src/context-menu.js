@@ -5,6 +5,7 @@
 // • בכל מקום אחר לא מתערבים: לעץ המסמכים יש תפריט משלו (renderer.js).
 // התפריט לא לוקח פוקוס: העורך שומר את הבחירה, והמקלדת נתפסת בשלב הלכידה כל עוד התפריט פתוח.
 import { icon } from './icons.js';
+import { moveBlock } from './list-keys.js';
 
 const SUB_OPEN_DELAY = 110;
 const SUB_CLOSE_DELAY = 260;
@@ -244,6 +245,10 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
         { label: 'רשימת משימות', icon: 'tasks', run: edit.taskList, active: () => has('taskList') },
         { label: 'כיוון ימין לשמאל', icon: 'alignRight', run: () => edit.listDirection('rtl') },
         { label: 'כיוון שמאל לימין', icon: 'alignLeft', run: () => edit.listDirection('ltr') },
+      ] },
+      { label: 'הזזת השורה', icon: 'grip', sub: [
+        { label: 'למעלה', icon: 'chevronUp', keys: 'Alt+↑', run: () => moveBlock(editor, -1) },
+        { label: 'למטה', icon: 'chevronDown', keys: 'Alt+↓', run: () => moveBlock(editor, 1) },
       ] },
       { label: 'ציטוט', icon: 'quote', disabled: inCode(), run: edit.quote, active: () => has('blockquote') },
       { label: 'בלוק קוד', icon: 'code', run: edit.codeBlock, active: () => has('codeBlock') },

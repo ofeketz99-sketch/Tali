@@ -1864,3 +1864,15 @@ body[data-sidebar-mode="compact"] .tree-head { display: none; }
 .ip-icon.on { background: var(--accent-soft); border-color: var(--accent); }
 .ip-note { color: var(--muted); font-size: 12.5px; margin: 8px 2px 0; }
 
+
+/* ===== ידית גרירה ליד שורות וגושים (block-handle.js) ===== */
+.block-handle {
+  position: fixed; z-index: 30; width: 18px; height: 22px; display: grid; place-items: center;
+  border-radius: 6px; color: var(--faint); cursor: grab; opacity: 0; pointer-events: none;
+  transition: opacity .15s var(--ease), background-color .15s var(--ease), color .15s var(--ease);
+}
+.block-handle.show { opacity: .75; pointer-events: auto; }
+.block-handle:hover { opacity: 1; background: var(--accent-soft); color: var(--accent-strong); }
+.block-handle.dragging { cursor: grabbing; opacity: .4; }
+body[data-focus] .block-handle { display: none; }
+.ProseMirror .ProseMirror-selectednode:not(img):not(.embed) { outline: 2px solid var(--accent-line); outline-offset: 3px; border-radius: 4px; }

@@ -23,6 +23,7 @@ import { Tags } from './tags.js';
 import { DirectionBulletList, DirectionOrderedList, DirectionTaskList } from './list-direction.js';
 import { markCompletedBoundaries, sortCompletedTaskLists } from './task-layout.js';
 import { ListBackspace } from './list-keys.js';
+import { BlockHandle } from './block-handle.js';
 import { attachPropsEditor } from './props-editor.js';
 import {
   ObsidianMarkdown, FaithfulText, FaithfulHardBreak, FaithfulHorizontalRule, FaithfulHeading, FaithfulLink,
@@ -86,6 +87,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       DirectionTaskList,
       TaskItem.configure({ nested: true }),
       ListBackspace,
+      BlockHandle,
       FaithfulLink,
       LocalImage.configure({ localSrc: links.localSrc }),
       Embed.configure({ resolve: links.resolve, onOpen: links.onOpen, onEditDrawing: links.onEditDrawing, read: links.read }),
