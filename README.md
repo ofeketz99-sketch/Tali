@@ -19,6 +19,7 @@ npm start
 | --- | --- |
 | `npm run build` | בונה את `dist/renderer.js` |
 | `npm start` | בנייה והפעלה |
+| `npm run make-exe` | בונה `Tali.exe` (Windows בלבד) ב־`Tali-exe` ליד המאגר. הפרטים ב־`AGENTS.md` |
 | `npm run watch` | בנייה מתמשכת בזמן פיתוח (רענון חלון עם Ctrl+R) |
 | `npm test` | בדיקות יחידה |
 | `npm run check` | בדיקת תחביר, בנייה ובדיקות. להריץ לפני כל commit |

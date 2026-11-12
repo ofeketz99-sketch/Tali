@@ -10,11 +10,12 @@
     "start": "npm run build && electron .",
     "watch": "esbuild src/renderer.js --bundle --outfile=dist/renderer.js --sourcemap --watch",
     "test": "node --test tests/overlay-data.test.mjs tests/stroke-smoothing.test.mjs tests/vault-data.test.mjs tests/theme-core.test.mjs",
-    "check": "node --check main.js && node --check preload.js && node --check links.js && node --check vault-data.js && node --check launcher/index.js && npm run build && npm test",
+    "check": "node --check main.js && node --check preload.js && node --check links.js && node --check vault-data.js && node --check launcher/index.js && node --check tools/make-exe.js && npm run build && npm test",
     "splash:emblem": "electron tools/splash-render/main.js -- emblem",
     "splash:preview": "electron tools/splash-render/main.js -- preview",
     "splash:render": "electron tools/splash-render/main.js -- video src/splash.webm 48",
-    "roundtrip": "electron tools/roundtrip/main.js --"
+    "roundtrip": "electron tools/roundtrip/main.js --",
+    "make-exe": "node tools/make-exe.js"
   },
   "dependencies": {
     "@tiptap/core": "^2.11.0",
@@ -50,5 +51,52 @@
   "allowScripts": {
     "electron@33.4.11": true,
     "esbuild@0.24.2": true
+  },
+  "build": {
+    "appId": "app.tali.notes",
+    "productName": "Tali",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "links.js",
+      "vault-data.js",
+      "CHANGELOG.md",
+      "package.json",
+      "src/**/*",
+      "!src/splash.webm",
+      "!src/splash-preview.html",
+      "dist/renderer.js",
+      "build/icon.ico",
+      "build/icon.png"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "artifactName": "Tali-Setup-${version}.exe"
+    },
+    "portable": {
+      "artifactName": "Tali-${version}-portable.exe"
+    }
   }
 }

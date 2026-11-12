@@ -7,9 +7,13 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-// הנתיב הנוכחי (מ־12.11.2026), ואחריו הנתיב הישן למקרה שהתיקייה תחזור לשם
-const PROJECT = ['D:\\Projects\\Tali\\Tali - App', 'D:\\PROJECTS\\Tali']
-  .find((p) => fs.existsSync(path.join(p, 'main.js'))) || 'D:\\Projects\\Tali\\Tali - App';
+// סדר החיפוש: משתנה סביבה TALI_PROJECT, אחר כך project.txt שליד המשגר (נכתב ב־npm run make-exe),
+// ואחריהם הנתיב הנוכחי של המשתמש (מ־12.11.2026) והנתיב הישן.
+const readProjectFile = () => {
+  try { return fs.readFileSync(path.join(__dirname, 'project.txt'), 'utf8').trim(); } catch { return ''; }
+};
+const CANDIDATES = [process.env.TALI_PROJECT, readProjectFile(), 'D:\\Projects\\Tali\\Tali - App', 'D:\\PROJECTS\\Tali'].filter(Boolean);
+const PROJECT = CANDIDATES.find((p) => fs.existsSync(path.join(p, 'main.js'))) || CANDIDATES[0];
 const DEPS = path.join(PROJECT, 'node_modules');
 
 if (!fs.existsSync(path.join(PROJECT, 'main.js'))) {
