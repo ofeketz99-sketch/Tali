@@ -98,6 +98,44 @@ function isLinkHub(text) {
   return links > 0 || getFrontmatterLinks(src).length > 0;
 }
 
+// תאריך היצירה כפי שכתוב בהערה עצמה, כי זמן היצירה של הקובץ מתאפס בכל העתקה או סנכרון.
+// 1) מאפיין created / date / תאריך (YYYY-MM-DD, או DD-MM-YY[YY]).
+// 2) שורה שכולה תאריך, בתחילת ההערה (8 השורות הראשונות של הגוף): "06-04-25" = 6 באפריל 2025.
+//    הפורמט יום־חודש־שנה: בכספת של המשתמש היום לפעמים גדול מ־12 והחודש אף פעם לא.
+// מחזיר "YYYY-MM-DD", או null.
+function parseDate(s) {
+  const v = String(s || '').trim().replace(/^["']|["']$/g, '');
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ].*)?$/.exec(v);
+  let y, mo, d;
+  if (m) [, y, mo, d] = m.map(Number);
+  else if ((m = /^(\d{1,2})[-./](\d{1,2})[-./](\d{2}|\d{4})$/.exec(v))) {
+    [, d, mo, y] = m.map(Number);
+    if (y < 100) y += 2000;
+  } else return null;
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCMonth() !== mo - 1) return null; // 31-02 וכו'
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+function getCreatedDate(text) {
+  const src = text || '';
+  const fm = FM_RE.exec(src);
+  if (fm) {
+    for (const line of fm[1].split(/\r?\n/)) {
+      const m = /^(created|date|תאריך)\s*:\s*(.+)$/i.exec(line);
+      if (m && parseDate(m[2])) return parseDate(m[2]);
+    }
+  }
+  const lines = src.replace(FM_RE, '').split('\n').slice(0, 8);
+  for (const line of lines) {
+    if (/^\s*\d{1,2}[-./]\d{1,2}[-./](\d{2}|\d{4})\s*$/.test(line.replace(/\r$/, ''))) {
+      const d = parseDate(line);
+      if (d) return d;
+    }
+  }
+  return null;
+}
+
 // ----- דגלים: "flag: red" במאפיינים, כך שהדגל עובר עם הקובץ (שינוי שם, העברה, סנכרון) -----
 const FLAGS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
 
@@ -126,4 +164,4 @@ function setFlag(text, color) {
   return `---${eol}${lines.join(eol)}${eol}---${m[2] || eol}${rest}`;
 }
 
-module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, FLAGS, getFlag, setFlag, isLinkHub };
+module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, FLAGS, getFlag, setFlag, isLinkHub, getCreatedDate };

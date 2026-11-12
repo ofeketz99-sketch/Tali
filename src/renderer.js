@@ -5,7 +5,7 @@ import { renderTree, renderSearchResults } from './sidebar.js';
 import { createContextPanel, countWords } from './context-panel.js';
 import { setupContextMenus, closeContextMenu } from './context-menu.js';
 import { FLAG_LIST, flagName } from './flags.js';
-import { getFlag, setFlag } from '../vault-data.js';
+import { getFlag, setFlag, getCreatedDate } from '../vault-data.js';
 import { resolveLink, extractLinks, getFrontmatterLinks, setFrontmatterLinks } from '../links.js';
 import { openLinkPicker } from './linkpicker.js';
 import { showLinkHubOffer } from './linkhub.js';
@@ -427,10 +427,37 @@ async function saveDroppedImages(files) {
 function setStatus(text) { $('status').textContent = text; }
 
 // שם המסמך הפתוח, מעל הדף. לחיצה: שינוי שם (כמו F2)
+// ולידו (#docMeta): התיקייה (לחיצה מראה בעץ) ותאריך היצירה.
+// התאריך: מתוך ההערה (getCreatedDate), ואם אין, המוקדם מבין זמן היצירה והשינוי של הקובץ,
+// כי העתקה או סנכרון מאפסים את זמן היצירה (ואז הוא אחרי זמן השינוי).
 function updateDocTitle() {
-  $('docTitle').textContent = state.currentPath ? noteName(state.currentPath) : '';
+  const p = state.currentPath;
+  $('docTitle').textContent = p ? noteName(p) : '';
+  const meta = $('docMeta');
+  meta.hidden = !p;
+  if (!p) return;
+  const rel = dirname(p).slice(state.root.length + 1);
+  const folder = meta.querySelector('.dm-folder');
+  folder.querySelector('span').textContent = rel ? rel.split(/[\\/]/).join(' › ') : 'התיקייה הראשית';
+  folder.dataset.tip = 'הצגה בעץ';
+  const date = meta.querySelector('.dm-date');
+  const fromNote = getCreatedDate(state.diskText || '');
+  const show = (ms, tip) => {
+    if (state.currentPath !== p) return;
+    date.querySelector('span').textContent = new Date(ms).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
+    date.dataset.tip = tip;
+    date.hidden = false;
+  };
+  if (fromNote) {
+    const [y, m, d] = fromNote.split('-').map(Number);
+    show(new Date(y, m - 1, d).getTime(), 'נוצר (לפי התאריך שבמסמך)');
+  } else {
+    date.hidden = true;
+    window.api.fileTimes(p).then((t) => show(Math.min(t.birth || t.mtime, t.mtime), 'נוצר (לפי הקובץ)')).catch(() => {});
+  }
 }
 $('docTitle').addEventListener('click', () => { if (state.currentPath) renameNode(currentNode()); });
+$('docMeta').querySelector('.dm-folder').addEventListener('click', () => revealInTree());
 
 // ספירת מילים בשורת המצב (בתצוגה המעוצבת: הטקסט המוצג, ב־Markdown: הטקסט הגולמי)
 function updateWordCount() {
@@ -805,6 +832,7 @@ async function moveNode(src, destDir) {
       state.currentPath = swap(state.currentPath);
       if (changed.includes(state.currentPath)) await reloadFromDisk();
       else state.mtime = await window.api.mtime(state.currentPath);
+      updateDocTitle();
     }
     state.collapsed.delete(destDir);
     saveCollapsed();

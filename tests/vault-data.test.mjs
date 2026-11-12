@@ -72,3 +72,15 @@ test('link hub: only a list of [[links]] (headings, frontmatter and comments all
   assert.equal(isLinkHub(''), false);
   assert.equal(isLinkHub('# רק כותרת\n'), false);
 });
+
+test('created date: frontmatter first, then a date line near the top (day-month-year)', () => {
+  const { getCreatedDate } = require('../vault-data.js');
+  assert.equal(getCreatedDate(' - קישורים: [[ביוכימיה]]\n- ביבליוגרפיה: x\n06-04-25\n ----\nטקסט'), '2025-04-06');
+  assert.equal(getCreatedDate('a\r\n21-09-2025\r\n'), '2025-09-21');
+  assert.equal(getCreatedDate('---\ncreated: 2024-01-31T10:00\n---\n06-04-25\n'), '2024-01-31');
+  assert.equal(getCreatedDate('---\nתאריך: 15.3.24\n---\n'), '2024-03-15');
+  assert.equal(getCreatedDate('31-02-25\n'), null);
+  assert.equal(getCreatedDate('בתאריך 06-04-25 קרה משהו\n'), null);
+  assert.equal(getCreatedDate('1\n2\n3\n4\n5\n6\n7\n8\n06-04-25\n'), null);
+  assert.equal(getCreatedDate(''), null);
+});

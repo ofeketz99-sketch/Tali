@@ -315,6 +315,8 @@ function registerIpc() {
   ipcMain.handle('read', async (_e, p) => fs.readFile(safe(p), 'utf8'));
 
   ipcMain.handle('mtime', async (_e, p) => mtimeOf(safe(p)));
+  // זמן היצירה והשינוי של הקובץ (לשורת המידע מעל הדף, כשאין תאריך בתוך ההערה)
+  ipcMain.handle('file-times', async (_e, p) => { const st = await fs.stat(safe(p)); return { birth: st.birthtimeMs, mtime: st.mtimeMs }; });
 
   // expectedMtime: מתי הקובץ נקרא. אם מאז הוא השתנה מבחוץ (אובסידיאן, סנכרון Drive),
   // לא דורסים אותו אלא מחזירים שגיאת CONFLICT, והממשק שואל מה לעשות.
