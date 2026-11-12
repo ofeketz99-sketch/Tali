@@ -619,3 +619,111 @@ export function openTasks({ index, onOpenTask, onToggle, store, kind: initialKin
   }
   draw();
 }
+
+// ===================== מסמכים אחרונים =====================
+// לפי סדר כרונולוגי, מהחדש לישן, בקבוצות: היום, אתמול, השבוע, החודש, ואחר כך לפי חודש.
+// שלושה סדרים: נפתחו (opened: [{ path, at }] מהממשק), נערכו (mtime מהאינדקס), נוצרו (created מהאינדקס).
+// מקלדת: חצים בין השורות, Enter פותח, הקלדה מסננת לפי שם.
+const KINDS = [['opened', 'נפתחו'], ['edited', 'נערכו'], ['created', 'נוצרו']];
+function dayGroup(ms, now = new Date()) {
+  if (!ms) return 'קודם לכן';
+  const d = new Date(ms);
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (ms >= start) return 'היום';
+  if (ms >= start - 864e5) return 'אתמול';
+  if (ms >= start - 6 * 864e5) return 'השבוע';
+  if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) return 'החודש';
+  return d.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
+}
+function when(ms, group) {
+  if (!ms) return '';
+  const d = new Date(ms);
+  if (group === 'היום' || group === 'אתמול') return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' });
+}
+
+export function openRecent({ index, opened, onOpen, store, current }) {
+  const { dlg, body, tools } = makeDialog('מסמכים אחרונים', 'recent-dialog', 'history');
+  let kind = store.get('tali:recent-kind', 'edited');
+  if (!KINDS.some(([k]) => k === kind)) kind = 'edited';
+  const seg = document.createElement('div');
+  seg.className = 'vd-seg';
+  for (const [id, label] of KINDS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.classList.toggle('on', id === kind);
+    b.addEventListener('click', () => { kind = id; store.set('tali:recent-kind', id); seg.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); sel = 0; draw(); filter.focus(); });
+    seg.append(b);
+  }
+  tools.append(seg);
+  const filter = document.createElement('input');
+  filter.type = 'search';
+  filter.className = 'vd-filter';
+  filter.placeholder = 'סינון לפי שם… (↑↓ בחירה · Enter פתיחה)';
+  const list = document.createElement('div');
+  list.className = 'recent-list';
+  body.append(filter, list);
+
+  const byPath = new Map(index.notes.map((n) => [n.path, n]));
+  const folder = (n) => (n.rel.includes('/') ? n.rel.slice(0, n.rel.lastIndexOf('/')).split('/').join(' › ') : '');
+  let rows = [], sel = 0;
+  function items() {
+    let out;
+    if (kind === 'opened') out = opened.filter((o) => byPath.has(o.path)).map((o) => ({ n: byPath.get(o.path), t: o.at || 0 }));
+    else out = index.notes.map((n) => ({ n, t: kind === 'edited' ? n.mtime : n.created })).sort((a, b) => (b.t || 0) - (a.t || 0));
+    const q = filter.value.trim().toLowerCase();
+    if (q) out = out.filter(({ n }) => n.name.toLowerCase().includes(q) || n.rel.toLowerCase().includes(q));
+    return out.slice(0, 300);
+  }
+  function draw() {
+    list.innerHTML = '';
+    rows = [];
+    const all = items();
+    if (!all.length) {
+      const e = document.createElement('p');
+      e.className = 'vd-intro';
+      e.textContent = kind === 'opened' ? 'עוד לא נפתחו מסמכים בכספת הזו.' : 'אין מסמכים.';
+      list.append(e);
+      return;
+    }
+    let group = null;
+    all.forEach(({ n, t }, i) => {
+      const g = dayGroup(t);
+      if (g !== group) {
+        group = g;
+        const h = document.createElement('h4');
+        h.className = 'recent-group';
+        h.textContent = g;
+        list.append(h);
+      }
+      const row = document.createElement('div');
+      row.className = 'vd-link recent-row' + (n.path === current ? ' current' : '');
+      row.style.setProperty('--i', Math.min(i, 14));
+      row.innerHTML = `<span class="ic">${icon('file', 15)}</span><span class="rr-name"></span><small class="rr-folder"></small><small class="rr-when"></small>`;
+      row.querySelector('.rr-name').textContent = n.name;
+      row.querySelector('.rr-folder').textContent = folder(n);
+      row.querySelector('.rr-when').textContent = when(t, g);
+      row.addEventListener('click', (e) => { dlg.close(); onOpen(n.path, { newTab: e.ctrlKey || e.metaKey }); });
+      row.addEventListener('mousemove', () => { if (sel !== rows.indexOf(row)) { sel = rows.indexOf(row); mark(); } });
+      rows.push(row);
+      list.append(row);
+    });
+    if (sel >= rows.length) sel = rows.length - 1;
+    mark();
+  }
+  function mark() {
+    rows.forEach((r, i) => r.classList.toggle('sel', i === sel));
+    rows[sel]?.scrollIntoView({ block: 'nearest' });
+  }
+  filter.addEventListener('input', () => { sel = 0; draw(); });
+  filter.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(rows.length - 1, sel + 1); mark(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(0, sel - 1); mark(); }
+    else if (e.key === 'Enter' && rows[sel]) { e.preventDefault(); rows[sel].dispatchEvent(new MouseEvent('click', { ctrlKey: e.ctrlKey })); }
+  });
+  // "נפתחו": המסמך הפתוח הוא הראשון, ולכן הבחירה מתחילה מהבא אחריו (כמו Alt+Tab)
+  draw();
+  if (kind === 'opened' && rows.length > 1 && opened[0]?.path === current) { sel = 1; mark(); }
+  filter.focus();
+}

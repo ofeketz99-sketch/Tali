@@ -14,7 +14,7 @@ import { openPaint } from './paint.js';
 import { createPageOverlay } from './page-overlay.js';
 import { icon } from './icons.js';
 import { setupHoverPreview } from './hover-preview.js';
-import { openGraph, openGhosts, openTags, openTasks } from './vault-views.js';
+import { openGraph, openGhosts, openTags, openTasks, openRecent } from './vault-views.js';
 import { exportHtml, EXPORT_CSS } from './export.js';
 import { buildDocx } from './export-docx.js';
 import { openHeaderConvert } from './header-convert.js';
@@ -67,7 +67,10 @@ document.addEventListener('pointerdown', (event) => {
     if (!el) return;
     target = el;
     timer = setTimeout(() => {
-      tip.textContent = el.dataset.tip;
+      // סוגריים עם אנגלית בסוף משפט בעברית ("(Ctrl+Shift+L)") מקבלים כיוון ימין לשמאל ומתהפכים.
+      // עוטפים אותם בבידוד שמאל לימין (LRI…PDI), כך שהם מוצגים כיחידה אחת בצורה הנכונה.
+      tip.textContent = el.dataset.tip.replace(/\([^()]*[A-Za-z0-9][^()]*\)/g, (m) => (/[֐-׿]/.test(m) ? m : `⁦${m}⁩`));
+      tip.dir = 'rtl';
       tip.hidden = false;
       const r = el.getBoundingClientRect();
       const w = tip.offsetWidth;
@@ -770,6 +773,10 @@ async function openNote(p, { history = true, newTab = false } = {}) {
   state.dirty = false;
   state.recent = [p, ...state.recent.filter((x) => x !== p)].slice(0, 30);
   store.set('recent:' + state.root, state.recent);
+  // מתי כל מסמך נפתח (לחלון "מסמכים אחרונים"), עד 300 מסמכים
+  const openedAt = store.get('openedAt:' + state.root, {}) || {};
+  openedAt[p] = Date.now();
+  store.set('openedAt:' + state.root, Object.fromEntries(Object.entries(openedAt).sort((a, b) => b[1] - a[1]).slice(0, 300)));
   editorApi.setMarkdown(md);
   pageOverlay.setEnabled(!editorApi.isRaw());
   $('empty').hidden = true;
@@ -958,6 +965,17 @@ async function showGraph() {
 async function showTags(initial) {
   if (!state.root) return;
   openTags({ index: await vaultIndex(), initial, onOpenNote: (p) => openNote(p) });
+}
+// מסמכים אחרונים: נפתחו (לפי openedAt, ובסדר של state.recent למה שאין לו זמן), נערכו, נוצרו
+async function showRecent() {
+  if (!state.root) return;
+  const at = store.get('openedAt:' + state.root, {}) || {};
+  const paths = [...new Set([...Object.keys(at).sort((a, b) => at[b] - at[a]), ...state.recent])];
+  openRecent({
+    index: await vaultIndex(), store, current: state.currentPath,
+    opened: paths.map((p) => ({ path: p, at: at[p] || 0 })),
+    onOpen: (p, o) => openNote(p, o),
+  });
 }
 async function showGhosts() {
   if (!state.root) return;
@@ -1386,6 +1404,7 @@ $('btnNote').addEventListener('click', () => newNote());
 $('btnFolder').addEventListener('click', newFolder);
 $('btnGraph').addEventListener('click', showGraph);
 $('btnTags').addEventListener('click', () => showTags());
+$('btnRecent').addEventListener('click', showRecent);
 $('btnTasks').addEventListener('click', () => showTasks());
 $('btnGhosts').addEventListener('click', showGhosts);
 $('btnFlagged').addEventListener('click', () => toggleFlagged());
@@ -1676,6 +1695,7 @@ const COMMANDS = [
   { title: 'הגדרות', keys: 'Ctrl+,', run: openSettings },
   { title: 'מה חדש (Patch Notes)', run: openPatchNotes },
   { title: 'גרף הקישורים', keys: 'Ctrl+G', run: showGraph, needs: 'root' },
+  { title: 'מסמכים אחרונים', keys: 'Ctrl+Shift+H', run: showRecent, needs: 'root' },
   { title: 'תגיות', run: () => showTags(), needs: 'root' },
   { title: 'משימות להמשך בכל המסמכים', keys: 'Ctrl+Shift+T', run: () => showTasks('followUp'), needs: 'root' },
   { title: 'תיבות סימון בכל המסמכים', run: () => showTasks('checks'), needs: 'root' },

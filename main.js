@@ -7,7 +7,7 @@ const { execFile } = require('child_process');
 const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 const { resolveLink, extractLinks, replaceLinks } = require('./links');
-const { extractTags, extractTasks, extractTargets, getFlag, isLinkHub, withCreated } = require('./vault-data');
+const { extractTags, extractTasks, extractTargets, getFlag, isLinkHub, withCreated, getCreatedDate } = require('./vault-data');
 const os = require('os');
 
 // שם האפליקציה: Tali. ההגדרות נשארות בתיקייה המקורית (my-notes), כדי ששינוי השם לא ימחק אותן.
@@ -164,7 +164,7 @@ async function vaultIndex() {
     let parsed = parseCache.get(file);
     if (!parsed || parsed.mtime !== st.mtimeMs) {
       const text = await fs.readFile(file, 'utf8');
-      parsed = { mtime: st.mtimeMs, targets: extractTargets(text), tags: [...new Set(extractTags(text).map((t) => t.tag))], tasks: extractTasks(text), flag: getFlag(text), hub: isLinkHub(text) };
+      parsed = { mtime: st.mtimeMs, targets: extractTargets(text), tags: [...new Set(extractTags(text).map((t) => t.tag))], tasks: extractTasks(text), flag: getFlag(text), hub: isLinkHub(text), created: getCreatedDate(text) };
       parseCache.set(file, parsed);
     }
     const links = [], missing = [];
@@ -179,6 +179,8 @@ async function vaultIndex() {
       rel: path.relative(root, file).replace(/\\/g, '/').replace(/\.md$/i, ''),
       links: [...new Set(links)], missing: [...new Set(missing.filter(Boolean))],
       tags: parsed.tags, tasks: parsed.tasks, flag: parsed.flag, hub: parsed.hub,
+      // תאריכים לחלון "מסמכים אחרונים": נערך (זמן השינוי), ונוצר (מתוך ההערה, ואם אין: המוקדם מבין יצירה ושינוי של הקובץ)
+      mtime: st.mtimeMs, created: parsed.created ? new Date(parsed.created + 'T00:00').getTime() : Math.min(st.birthtimeMs || st.mtimeMs, st.mtimeMs),
     });
   }
   return { notes };
