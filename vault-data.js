@@ -103,6 +103,19 @@ function isLinkHub(text) {
   return links > 0 || getFrontmatterLinks(src).length > 0;
 }
 
+// "מסמך כותרת": קובץ קיים שאין בו תוכן ממשי (שם הקובץ, וייתכן גם כותרת Markdown יחידה).
+// מאפיינים והערות נסתרות אינם תוכן; קישורים במאפיינים ושרטוטים צפים כן.
+function isTitleOnly(text) {
+  const src = String(text || '');
+  if (getFrontmatterLinks(src).length) return false;
+  let body = src.replace(FM_RE, '');
+  if (/<!--\s*TALI-OVERLAY:v\d+:/i.test(body)) return false;
+  body = body.replace(/<!--[\s\S]*?-->/g, '').replace(/%%[\s\S]*?%%/g, '').trim();
+  if (!body) return true;
+  // שורת כותרת יחידה היא עדיין שם, לא תוכן. קישור/תמונה בתוך הכותרת נחשבים תוכן.
+  return /^#{1,6}[ \t]+\S[^\r\n]*$/.test(body) && !/\[\[|!?\[[^\]]+\]\(/.test(body);
+}
+
 // תאריך היצירה כפי שכתוב בהערה עצמה, כי זמן היצירה של הקובץ מתאפס בכל העתקה או סנכרון.
 // 1) מאפיין created / date / תאריך (YYYY-MM-DD, או DD-MM-YY[YY]).
 // 2) שורה שכולה תאריך, בתחילת ההערה (8 השורות הראשונות של הגוף): "06-04-25" = 6 באפריל 2025.
@@ -275,4 +288,4 @@ function setFlag(text, color) {
   return `---${eol}${lines.join(eol)}${eol}---${m[2] || eol}${rest}`;
 }
 
-module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, isFollowUpHeading, FLAGS, getFlag, setFlag, isLinkHub, getCreatedDate, formatDate, fillTemplate, headerToProps, withCreated };
+module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, isFollowUpHeading, FLAGS, getFlag, setFlag, isLinkHub, isTitleOnly, getCreatedDate, formatDate, fillTemplate, headerToProps, withCreated };
