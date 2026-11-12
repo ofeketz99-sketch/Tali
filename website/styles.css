@@ -1,196 +1,168 @@
+/* אתר ההורדה של Tali: אותה שפה כמו מסך הבית באפליקציה (תכלת פסטלי, גלים רכים, תנועה "ג'לי" עדינה). */
 :root {
   color-scheme: light;
   --ink: #25353f;
-  --muted: #7f8e96;
-  --blue: #78bee7;
-  --blue-dark: #427ea4;
-  --edge: #d1e5f0;
+  --muted: #6f808a;
+  --accent: #6cb8e6;
+  --accent-strong: #3f7ea6;
+  --edge: #d6e6f1;
   --paper: #f5f6f4;
-  font-family: "Segoe UI", "Rubik", Arial, sans-serif;
+  --card: rgba(255, 255, 255, .78);
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --spring: cubic-bezier(.34, 1.45, .5, 1);
+  font-family: "Rubik", "Segoe UI", "Heebo", Arial, sans-serif;
   font-synthesis: none;
   color: var(--ink);
   background: var(--paper);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html, body { width: 100%; min-width: 280px; min-height: 100%; margin: 0; }
-body { overflow: hidden; }
-button { font: inherit; }
+html { scroll-behavior: smooth; }
+html, body { margin: 0; min-width: 280px; }
+body { overflow-x: hidden; }   /* בלי רקע ל־body: הוא היה מכסה את שכבת הגלים (z-index שלילי) */
 ::selection { background: #cce8f8; color: #233e52; }
 
 .skip-link {
-  position: absolute;
-  inset-inline-start: 12px;
-  top: -70px;
-  z-index: 10;
-  background: #fff;
-  border: 1px solid var(--edge);
-  border-radius: 9px;
-  padding: 10px 14px;
-  color: var(--ink);
+  position: absolute; inset-inline-start: 12px; top: -70px; z-index: 10;
+  background: #fff; border: 1px solid var(--edge); border-radius: 9px; padding: 10px 14px; color: var(--ink);
 }
 .skip-link:focus { top: 12px; }
 
-.page {
-  position: relative;
-  isolation: isolate;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
-  padding: 28px 20px;
+/* ----- רקע: ארבע שכבות גל, אותם איורים ואותה תנועה כמו בבית של האפליקציה ----- */
+.waves-bg {
+  position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
   background:
-    radial-gradient(ellipse 50% 60% at 50% 41%, #fefefd 0%, #f9faf8 60%, transparent 100%),
-    radial-gradient(ellipse 44% 56% at 9% 100%, #e6f1f7 0%, transparent 95%),
-    radial-gradient(ellipse 36% 54% at 95% 7%, #e5eff8 0%, transparent 96%),
+    radial-gradient(ellipse 55% 60% at 50% 38%, #fefefd 0%, #f9faf8 60%, transparent 100%),
     #f5f6f4;
 }
-.page::before {
-  content: "";
-  position: absolute;
-  inset: 22px;
-  border: 1px solid rgba(126, 161, 183, .10);
-  border-radius: 22px;
-  pointer-events: none;
+.waves {
+  position: absolute; inset: -4%; width: 108%; height: 108%; overflow: visible;
+  opacity: .92; filter: saturate(.86); transform-origin: center; will-change: transform;
+  animation: waves-drift 28s ease-in-out infinite alternate;
+}
+.wave { transform-box: fill-box; transform-origin: center; will-change: transform; fill: var(--accent); }
+.wave-a { opacity: .22; animation: wave-a 14s ease-in-out infinite alternate; }
+.wave-b { opacity: .11; animation: wave-b 18s ease-in-out infinite alternate; }
+.wave-c { opacity: .16; animation: wave-c 22s ease-in-out infinite alternate; }
+.wave-d { opacity: .08; animation: wave-d 26s ease-in-out infinite alternate; }
+@keyframes wave-a { to { transform: translate3d(6%, -3.5%, 0) scale(1.055); } }
+@keyframes wave-b { to { transform: translate3d(-5.2%, 3.2%, 0) scale(1.045); } }
+@keyframes wave-c { to { transform: translate3d(4.5%, 4%, 0) scale(1.052); } }
+@keyframes wave-d { to { transform: translate3d(-4%, -2.8%, 0) scale(1.04); } }
+@keyframes waves-drift {
+  from { transform: translate3d(-.8%, -.5%, 0) scale(1.01); }
+  to { transform: translate3d(1.2%, .8%, 0) scale(1.035); }
 }
 
-.atmosphere {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: -1;
-}
-.atmosphere::before,
-.atmosphere::after {
-  content: "";
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(8px);
-}
-.atmosphere::before {
-  width: min(80vw, 920px);
-  aspect-ratio: 1;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -49%);
-  background: radial-gradient(circle, rgba(211, 235, 250, .49), rgba(228, 244, 251, .18) 41%, transparent 68%);
-}
-.atmosphere::after {
-  width: min(36vw, 480px);
-  aspect-ratio: 1;
-  top: -22%;
-  right: -7%;
-  background: radial-gradient(circle, rgba(213, 230, 247, .44), transparent 70%);
-}
-.ring {
-  position: absolute;
-  width: min(88vmin, 780px);
-  aspect-ratio: 1;
-  left: 50%;
-  top: 47%;
-  border-radius: 50%;
-  border: 1px solid rgba(135, 180, 207, .15);
-  transform: translate(-50%, -50%) scaleX(1.5) rotate(-18deg);
-}
-.ring-two { width: min(116vmin, 1020px); opacity: .55; }
-.ring-three { width: min(145vmin, 1280px); opacity: .34; }
-
-.download-center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: min(100%, 500px);
-  transform: translateY(-1.7vh);
+/* ----- מסך ראשון ----- */
+.hero {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 100vh; min-height: 100dvh;
+  padding: 40px 20px 84px;
   text-align: center;
 }
-
-.brand {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
 .brand-icon {
-  width: clamp(98px, 13vmin, 148px);
-  height: auto;
-  aspect-ratio: 1;
-  object-fit: contain;
-  filter: drop-shadow(0 14px 22px rgba(72, 139, 183, .12));
+  width: clamp(104px, 14vmin, 150px); height: auto; aspect-ratio: 1; object-fit: contain;
+  filter: drop-shadow(0 16px 24px rgba(72, 139, 183, .16));
+  animation: rise-spring .9s var(--spring) .05s both, float 7s ease-in-out 1.2s infinite alternate;
 }
 .brand-name {
-  margin: 21px 0 0;
-  padding-inline: .08em;
-  color: #284557;
-  direction: ltr;
-  font-family: "Segoe UI", Arial, sans-serif;
-  font-size: clamp(70px, 12vmin, 112px);
-  font-weight: 660;
-  line-height: 1;
-  letter-spacing: -.065em;
+  margin: 22px 0 0; padding-inline: .08em;
+  color: #284557; direction: ltr;
+  font-family: "Rubik", "Segoe UI", Arial, sans-serif;
+  font-size: clamp(76px, 14vmin, 128px); font-weight: 600; line-height: 1; letter-spacing: -.05em;
+  animation: rise .8s var(--ease) .18s both;
 }
-
 .download-action {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  margin-top: clamp(38px, 8.2vh, 85px);
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  margin-top: clamp(34px, 7vh, 72px);
+  animation: rise .8s var(--ease) .32s both;
 }
 .download-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  width: min(100%, 284px);
-  min-height: 61px;
-  border: 1px solid #7db4d3;
-  border-radius: 16px;
+  position: relative; overflow: hidden; isolation: isolate;
+  display: inline-flex; align-items: center; justify-content: center; gap: 14px;
+  min-width: 286px; min-height: 62px; padding-inline: 32px;
+  border: 1px solid #7db4d3; border-radius: 18px;
   background: linear-gradient(150deg, #a9d9f1 0%, #82c2e6 53%, #72b3dc 100%);
-  box-shadow: 0 14px 34px rgba(79, 146, 187, .20), inset 0 1px rgba(255,255,255,.5);
-  color: #1c4b65;
-  font-size: 17px;
-  font-weight: 690;
-  letter-spacing: -.015em;
+  box-shadow: 0 14px 34px rgba(79, 146, 187, .22), inset 0 1px rgba(255, 255, 255, .5);
+  color: #1c4b65; font: inherit; font-size: 18px; font-weight: 600; letter-spacing: -.01em; text-decoration: none;
+  transition: transform .22s var(--spring), box-shadow .22s var(--ease);
 }
-.download-button svg {
-  width: 23px;
-  height: 23px;
-  flex: none;
+/* גל בהיר ורך בתוך הכפתור, כמו ב"מסמך חדש" באפליקציה: נע לאט בריחוף */
+.download-button::before {
+  content: ""; position: absolute; z-index: -1; inset-block: -60% -60%; inset-inline-start: -30%;
+  width: 70%; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0));
+  transform: translateX(0); transition: transform .9s var(--ease);
 }
-.download-button:disabled {
-  opacity: 1;
-  cursor: not-allowed;
+.download-button svg { width: 23px; height: 23px; flex: none; transition: transform .3s var(--spring); }
+.download-button:hover { transform: translateY(-3px); box-shadow: 0 20px 40px rgba(79, 146, 187, .28), inset 0 1px rgba(255, 255, 255, .5); }
+.download-button:hover::before { transform: translateX(120%); }   /* ב־RTL זה ימינה, כלומר לכיוון האייקון */
+.download-button:hover svg { transform: translateY(2px); }
+.download-button:active { transform: scale(.97); }
+.download-button:focus-visible, .scroll-cue:focus-visible { outline: 3px solid rgba(66, 126, 164, .45); outline-offset: 3px; }
+.download-meta { margin: 0; color: var(--muted); font-size: 14px; }
+.download-meta bdi { font-variant-numeric: tabular-nums; }
+
+.scroll-cue {
+  position: absolute; inset-inline: 0; bottom: 22px; margin-inline: auto; width: fit-content;
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px;
+  color: var(--accent-strong); font-size: 14px; text-decoration: none;
+  animation: fade 1s var(--ease) .9s both;
 }
-.download-status {
-  margin: 14px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
+.scroll-cue svg { width: 18px; height: 18px; animation: nudge 2.4s ease-in-out infinite; }
+
+/* ----- מה חדש ----- */
+.notes { width: min(100% - 40px, 720px); margin: 0 auto; padding: 24px 0 96px; }
+.notes > h2 { margin: 0 0 22px; font-size: 26px; font-weight: 600; letter-spacing: -.01em; color: #284557; }
+.note {
+  margin: 0 0 14px; padding: 20px 24px 18px;
+  background: var(--card); border: 1px solid var(--edge); border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(79, 130, 165, .07);
+  backdrop-filter: blur(6px);
+  animation: reveal both; animation-timeline: view(); animation-range: entry 0% entry 55%;
 }
+.note header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.note .ver {
+  padding: 2px 11px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 24%, #fff);
+  color: #1f5675; font-size: 14px; font-weight: 600; direction: ltr;
+}
+.note h3 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.5; }
+.note time { margin-inline-start: auto; color: var(--muted); font-size: 13px; direction: ltr; }
+.note ul { margin: 12px 0 0; padding: 0; list-style: none; }
+.note li { position: relative; margin: 0 0 9px; padding-inline-start: 18px; line-height: 1.75; color: #3a4b55; font-size: 15.5px; }
+.note li::before { content: ""; position: absolute; inset-inline-start: 0; top: .78em; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.note li strong { color: var(--ink); font-weight: 600; }
+.note code { padding: 1px 6px; border-radius: 6px; background: #eef3f6; font-size: .9em; direction: ltr; unicode-bidi: isolate; }
+.all-notes { margin: 18px 0 0; text-align: center; font-size: 14px; }
+.all-notes a { color: var(--accent-strong); }
+
+footer { padding: 0 20px 36px; text-align: center; color: var(--muted); font-size: 13px; }
+
+/* ----- תנועה ----- */
+@keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes rise-spring { from { opacity: 0; transform: translateY(22px) scale(.92); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes float { to { transform: translateY(-7px); } }
+@keyframes nudge { 50% { transform: translateY(4px); } }
+@keyframes reveal { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
 
 @media (max-width: 580px) {
-  .page { padding: 24px 24px; }
-  .page::before { inset: 11px; border-radius: 16px; }
-  .ring { width: 110vmin; }
-  .ring-two { width: 165vmin; }
-  .ring-three { width: 220vmin; }
-  .brand-name { margin-top: 14px; font-size: clamp(67px, 19vw, 87px); }
-  .download-action { margin-top: 45px; }
-  .download-button { min-height: 57px; }
+  .hero { padding-bottom: 76px; }
+  .brand-name { margin-top: 16px; font-size: clamp(70px, 22vw, 96px); }
+  .download-button { min-width: min(100%, 286px); }
+  .note { padding: 18px 18px 14px; border-radius: 16px; }
+  .note time { margin-inline-start: 0; }
 }
-
 @media (max-height: 480px) {
-  .page { padding-block: 14px; }
-  .download-center { transform: none; }
-  .brand-icon { width: 66px; }
-  .brand-name { font-size: 58px; margin-top: 5px; }
-  .download-action { margin-top: 20px; }
-  .download-button { min-height: 49px; }
-  .download-status { margin-top: 8px; }
+  .hero { padding-block: 20px 60px; }
+  .brand-icon { width: 64px; }
+  .brand-name { font-size: 56px; margin-top: 6px; }
+  .download-action { margin-top: 18px; }
+  .download-button { min-height: 50px; }
 }
-
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; }
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }

@@ -17,7 +17,8 @@
     "roundtrip": "electron tools/roundtrip/main.js --",
     "make-exe": "node tools/make-exe.js",
     "dist": "npx --yes electron-builder@25.1.8 --win --x64 --publish never",
-    "release:manifest": "node tools/release-manifest.js release"
+    "release:manifest": "node tools/release-manifest.js release",
+    "site:notes": "node tools/site-notes.js"
   },
   "dependencies": {
     "@tiptap/core": "^2.11.0",

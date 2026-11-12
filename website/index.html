@@ -4,37 +4,91 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f5f6f4">
-  <meta name="description" content="TALI — הורדה למחשב Windows.">
+  <meta name="description" content="Tali: אפליקציית הערות אישית. אובסידיאן פוגש וורד. הורדה ל־Windows.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="TALI — Download">
-  <meta property="og:description" content="הורדת TALI ל-Windows.">
-  <title>TALI — Download</title>
+  <meta property="og:title" content="Tali">
+  <meta property="og:description" content="אפליקציית הערות אישית. הורדה ל־Windows.">
+  <title>Tali</title>
   <link rel="icon" href="assets/logo.png" type="image/png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <a class="skip-link" href="#main">דלג לתוכן</a>
-  <main class="page" id="main">
-    <div class="atmosphere" aria-hidden="true">
-      <span class="ring ring-one"></span>
-      <span class="ring ring-two"></span>
-      <span class="ring ring-three"></span>
-    </div>
-    <section class="download-center" aria-labelledby="site-title">
-      <div class="brand">
-        <img class="brand-icon" src="assets/logo.png" width="132" height="132" alt="">
-        <h1 class="brand-name" id="site-title" lang="en" dir="ltr">TALI</h1>
-      </div>
+  <a class="skip-link" href="#notes">דלג למה חדש</a>
+
+  <div class="waves-bg" aria-hidden="true">
+    <svg class="waves" viewBox="0 0 1600 900" preserveAspectRatio="none" focusable="false">
+      <g class="wave wave-a"><path d="M-180 160 C180 180 400 490 760 545 C1090 596 1270 280 1780 230 L1780 430 C1360 480 1110 790 720 700 C350 615 120 355 -180 390 Z"/></g>
+      <g class="wave wave-b"><path d="M-190 350 C180 335 415 700 760 725 C1080 748 1275 400 1785 300 L1785 520 C1370 605 1100 920 700 850 C330 785 100 520 -190 550 Z"/></g>
+      <g class="wave wave-c"><path d="M-210 430 C150 380 390 570 680 615 C990 662 1240 560 1785 90 L1785 270 C1330 650 1045 790 680 735 C320 680 115 535 -210 650 Z"/></g>
+      <g class="wave wave-d"><path d="M-180 520 C170 470 390 620 690 675 C1040 740 1310 600 1780 215 L1780 365 C1345 760 1010 875 650 810 C300 748 95 640 -180 725 Z"/></g>
+    </svg>
+  </div>
+
+  <main>
+    <section class="hero" aria-labelledby="site-title">
+      <img class="brand-icon" src="assets/logo.png" width="150" height="150" alt="">
+      <h1 class="brand-name" id="site-title" lang="en" dir="ltr">Tali</h1>
+
       <div class="download-action">
-        <!-- No public installer URL exists yet. Do not turn this into a dead or private download link. -->
-        <button class="download-button" type="button" disabled aria-describedby="download-status">
+        <!-- כתובת ההורדה היא כאן, במקום אחד. כשיש קישור ציבורי ישיר למתקין, מחליפים רק את ה־href. -->
+        <a class="download-button" href="https://github.com/ofeketz99-sketch/Tali/releases/latest" rel="noopener">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 3v12m-5-5 5 5 5-5M5 18v3h14v-3"/>
           </svg>
-          <span>הורדה ל-Windows</span>
-        </button>
-        <p class="download-status" id="download-status">ההורדה עדיין לא זמינה</p>
+          <span>הורדה ל־Windows</span>
+        </a>
+        <p class="download-meta">גרסה <bdi dir="ltr"><!-- VERSION:START -->6.4<!-- VERSION:END --></bdi></p>
       </div>
+
+      <a class="scroll-cue" href="#notes">
+        <span>מה חדש</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </a>
+    </section>
+
+    <section class="notes" id="notes" aria-labelledby="notes-title">
+      <h2 id="notes-title">מה חדש</h2>
+      <!-- NOTES:START -->
+      <article class="note">
+        <header>
+          <span class="ver">6.4</span>
+          <h3>איחוד הענפים: ערוץ פיתוח מתעדכן, תיקיית מסמכים חדשים ואתר הורדות</h3>
+          <time datetime="2026-11-12">12.11.2026</time>
+        </header>
+        <ul>
+          <li><strong>תיקיית מסמכים חדשים:</strong> האפשרות "בתיקיית מסמכים חדשים" (מ־6.3) קיבלה בחירת תיקייה מתוך הכספת בהגדרות.</li>
+          <li><strong>מסך הבית:</strong> בזמן סריקת הכספת מוצג חיווי קווי של דפים שנכנסים למגירת ארכיון, במקום כרטיסים ריקים.</li>
+          <li><strong>כרטיסיות:</strong> פתיחת מסמך תמיד מוסיפה כרטיסייה וממקדת אותה.</li>
+          <li><strong>תפריטים:</strong> תפריט העץ נסגר רק בלחיצה מחוץ למסגרת, ולא לפני שפעולה פנימית הסתיימה.</li>
+        </ul>
+      </article>
+      <article class="note">
+        <header>
+          <span class="ver">6.3</span>
+          <h3>תיבות סימון תקינות, עט מאוחד וליטוש הממשק</h3>
+          <time datetime="2026-11-12">12.11.2026</time>
+        </header>
+        <ul>
+          <li><strong>תיקון תיבות סימון:</strong> <code>[ ]</code> ו־<code>[x]</code> חוזרות להיות תיבות משימה אמיתיות ולא תבליטים עם טקסט.</li>
+          <li><strong>עט יד חופשית:</strong> כל המשיכות הרצופות של העט נשמרות עכשיו כישות אחת אמיתית עם כמה strokes.</li>
+          <li><strong>ציור ושכבת דף:</strong> נשמרו התחלה מחוץ לדף, החלקת הקו, הערות צד מקושרות לציטוט ותיבות טקסט תחומות.</li>
+          <li><strong>מסמכים חדשים:</strong> בהגדרות ← מסמכים וקבצים נוספה אפשרות לשמור מסמכים לא משויכים בתיקיית <code>מסמכים חדשים</code>.</li>
+        </ul>
+      </article>
+      <article class="note">
+        <header>
+          <span class="ver">6.2</span>
+          <h3>שליטה בכתיבה, הערות שוליים וליטוש השרטוט</h3>
+          <time datetime="2026-11-12">12.11.2026</time>
+        </header>
+        <ul>
+          <li><strong>קיצורי מקלדת:</strong> עמוד חדש בהגדרות מאפשר להקליט, לבטל ולהחזיר לברירת המחדל כל קיצור של פקודה.</li>
+          <li><strong>רשימות מעורבות:</strong> לרשימות תבליטים, מספור ומשימות יש כפתורי RTL/LTR בסרגל ובתפריט הימני.</li>
+          <li><strong>משימות שבוצעו:</strong> אפשר לבחור בהגדרות להעביר משימות מסומנות לתחתית הרשימה שלהן, עם קו מפריד ותנועה קצרה.</li>
+          <li><strong>הערות שוליים:</strong> טקסט מסומן יכול לקבל הערה נגררת בשולי הדף, עם ציטוט וקו מקשר.</li>
+        </ul>
+      </article>
+      <!-- NOTES:END -->
     </section>
   </main>
 </body>
