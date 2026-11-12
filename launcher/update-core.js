@@ -1,6 +1,6 @@
 const BRANCH_RE = /^(?![./])(?!.*(?:\.\.|\/\/|@\{|\\))[A-Za-z0-9._/-]+$/;
 
-function normalizeUpdateBranch(value, fallback = 'dev') {
+function normalizeUpdateBranch(value, fallback = 'desktop-dev') {
   const branch = String(value || '').trim();
   return branch && BRANCH_RE.test(branch) && !branch.endsWith('/') && !branch.endsWith('.') ? branch : fallback;
 }

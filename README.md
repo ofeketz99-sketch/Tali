@@ -14,10 +14,10 @@
 
 ## ערוץ פיתוח שמתעדכן בפתיחה
 
-זהו מסלול נפרד מהגרסה המותקנת. מתקינים אותו פעם אחת בכל מחשב, ואחר כך `Tali.exe` מעדכן את הקוד מענף `dev` בכל פתיחה:
+זהו מסלול נפרד מהגרסה המותקנת. מתקינים אותו פעם אחת בכל מחשב, ואחר כך `Tali.exe` מעדכן את הקוד מענף `desktop-dev` בכל פתיחה:
 
 ```powershell
-git clone --branch dev https://github.com/ofeketz99-sketch/Tali.git
+git clone --branch desktop-dev https://github.com/ofeketz99-sketch/Tali.git
 cd Tali
 npm install
 npm run make-exe
@@ -39,7 +39,7 @@ npm start
 | `npm run build` | בונה את `dist/renderer.js` |
 | `npm start` | בנייה והפעלה |
 | `npm run dist` | בונה מתקין וקובץ נייד ל־Windows ב־`release/` (electron-builder). פרסום גרסה: `AGENTS.md` |
-| `npm run make-exe` | בונה משגר פיתוח `Tali.exe` שמתעדכן מענף `dev` (Windows בלבד) ב־`Tali-exe` ליד המאגר |
+| `npm run make-exe` | בונה משגר פיתוח `Tali.exe` שמתעדכן מענף `desktop-dev` (Windows בלבד) ב־`Tali-exe` ליד המאגר |
 | `npm run watch` | בנייה מתמשכת בזמן פיתוח (רענון חלון עם Ctrl+R) |
 | `npm test` | בדיקות יחידה |
 | `npm run check` | בדיקת תחביר, בנייה ובדיקות. להריץ לפני כל commit |

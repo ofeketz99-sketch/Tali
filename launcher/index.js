@@ -23,7 +23,7 @@ const PROJECT = CANDIDATES.find((candidate) => fs.existsSync(path.join(candidate
 const DEPS = PROJECT ? path.join(PROJECT, 'node_modules') : '';
 const UPDATE_BRANCH = normalizeUpdateBranch(
   process.env.TALI_UPDATE_BRANCH || readText(path.join(__dirname, 'branch.txt')),
-  'dev',
+  'desktop-dev',
 );
 const LOG_FILE = path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'Tali', 'launcher-update.log');
 
