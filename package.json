@@ -1,6 +1,6 @@
 {
   "name": "tali",
-  "version": "4.3.0",
+  "version": "4.4.0",
   "productName": "Tali",
   "description": "Tali: אפליקציית הערות אישית. אובסידיאן פוגש וורד",
   "main": "main.js",
@@ -13,7 +13,8 @@
     "check": "node --check main.js && node --check preload.js && node --check links.js && node --check vault-data.js && node --check launcher/index.js && npm run build && npm test",
     "splash:emblem": "electron tools/splash-render/main.js -- emblem",
     "splash:preview": "electron tools/splash-render/main.js -- preview",
-    "splash:render": "electron tools/splash-render/main.js -- video src/splash.webm 48"
+    "splash:render": "electron tools/splash-render/main.js -- video src/splash.webm 48",
+    "roundtrip": "electron tools/roundtrip/main.js --"
   },
   "dependencies": {
     "@tiptap/core": "^2.11.0",
