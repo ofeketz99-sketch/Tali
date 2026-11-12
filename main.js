@@ -93,7 +93,9 @@ async function readTree(dir) {
 }
 
 async function walkFiles(dir, acc = [], wantMd = true) {
-  for (const e of await fs.readdir(dir, { withFileTypes: true })) {
+  let entries;
+  try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return acc; } // תיקייה שאין גישה אליה: מדלגים
+  for (const e of entries) {
     if (e.name.startsWith('.')) continue;
     const full = path.join(dir, e.name);
     if (e.isDirectory()) await walkFiles(full, acc, wantMd);
@@ -163,7 +165,8 @@ async function vaultIndex() {
     try { st = await fs.stat(file); } catch { continue; }
     let parsed = parseCache.get(file);
     if (!parsed || parsed.mtime !== st.mtimeMs) {
-      const text = await fs.readFile(file, 'utf8');
+      let text;
+      try { text = await fs.readFile(file, 'utf8'); } catch { continue; } // קובץ שלא נקרא (נעול, בענן בלבד): מדלגים, ולא מפילים את כל האינדקס
       parsed = { mtime: st.mtimeMs, targets: extractTargets(text), tags: [...new Set(extractTags(text).map((t) => t.tag))], tasks: extractTasks(text), flag: getFlag(text), hub: isLinkHub(text), created: getCreatedDate(text) };
       parseCache.set(file, parsed);
     }

@@ -32,13 +32,20 @@ export function createHome({ el, store, api }) {
   async function render({ refresh = true } = {}) {
     const my = ++token;
     if (refresh || !cache) {
+      // מציירים מיד (ברכה וכרטיסים במצב טעינה, או הנתונים הקודמים), ורק אחר כך קוראים את הכספת.
+      // בכספת גדולה, או בתיקייה מסונכרנת בענן שהקבצים בה עוד לא ירדו למחשב, הקריאה יכולה לקחת זמן רב
+      if (!cache) draw(null, null);
       const index = await api.vaultIndex().catch(() => ({ notes: [] }));
       let board = null;
       try { board = await api.read(boardPath()); } catch { /* עוד לא נוצר */ }
       if (my !== token) return;
       cache = { index, board };
     }
-    const { index, board } = cache;
+    draw(cache.index, cache.board);
+  }
+
+  // index == null: הכספת עוד נטענת
+  function draw(index, board) {
     const { order, hidden } = layout();
     el.innerHTML = '';
     el.classList.toggle('editing', editing);
@@ -115,7 +122,8 @@ export function createHome({ el, store, api }) {
     const body = document.createElement('div');
     body.className = 'hc-body';
     c.append(body);
-    if (key === 'followUp') followUps(body, head, index);
+    if (!index) empty(body, 'טוען את המסמכים…');
+    else if (key === 'followUp') followUps(body, head, index);
     else if (key === 'ghosts') ghosts(body, head, index);
     else boardCard(body, head, board);
     return c;
