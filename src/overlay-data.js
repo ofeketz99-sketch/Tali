@@ -4,6 +4,9 @@ const TRAILER = /(?:\r?\n){2}<!-- TALI-OVERLAY:v1:([^\r\n]*?) -->[ \t]*(?:\r?\n)
 const TYPES = new Set(['pen', 'line', 'arrow', 'rect', 'ellipse', 'textbox', 'comment']);
 const finite = (n) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 100000;
 const bounded = (v, def, min, max) => finite(v) ? Math.min(max, Math.max(min, v)) : def;
+const cleanPoints = (input, max) => Array.isArray(input) ? input.slice(0, max)
+  .filter((p) => Array.isArray(p) && p.length === 2 && finite(p[0]) && finite(p[1]))
+  .map((p) => [p[0], p[1]]) : [];
 
 export function cleanOverlayObjects(input) {
   if (!Array.isArray(input)) return [];
@@ -30,10 +33,21 @@ export function cleanOverlayObjects(input) {
         } : {}),
       });
     } else if (object.kind === 'pen') {
-      const points = Array.isArray(object.points) ? object.points.slice(0, 2500)
-        .filter((p) => Array.isArray(p) && p.length === 2 && finite(p[0]) && finite(p[1]))
-        .map((p) => [p[0], p[1]]) : [];
-      if (points.length > 1) result.push({ ...base, points });
+      // Since 6.3 one pen entity can hold several separate pointer strokes. Older
+      // notes with one `points` array (and optional group id) remain compatible.
+      if (Array.isArray(object.strokes)) {
+        let remaining = 2500;
+        const strokes = [];
+        for (const inputStroke of object.strokes.slice(0, 200)) {
+          const stroke = cleanPoints(inputStroke, remaining);
+          if (stroke.length > 1) { strokes.push(stroke); remaining -= stroke.length; }
+          if (remaining < 2) break;
+        }
+        if (strokes.length) result.push({ ...base, strokes });
+      } else {
+        const points = cleanPoints(object.points, 2500);
+        if (points.length > 1) result.push({ ...base, points });
+      }
     } else {
       result.push({
         ...base,

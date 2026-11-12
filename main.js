@@ -430,6 +430,9 @@ function registerIpc() {
   ipcMain.handle('create-note', async (_e, dir, name, content = '') => {
     const clean = name.replace(/[\\/:*?"<>|]/g, '').trim() || 'ללא שם';
     const file = safe(path.join(dir, clean.toLowerCase().endsWith('.md') ? clean : clean + '.md'));
+    // The configurable "new documents" inbox may not exist yet. Creating a
+    // note is the single write boundary, so it also owns creation of its parent.
+    await fs.mkdir(path.dirname(file), { recursive: true });
     try { await fs.access(file); throw new Error('כבר קיים קובץ בשם הזה'); }
     catch (err) { if (err.message === 'כבר קיים קובץ בשם הזה') throw err; }
     // כל מסמך חדש (רגיל, מתבנית, מקישור רפאים, פתק קישור) מקבל created מוסתר: התאריך מעל הדף נשאר נכון גם אחרי העתקה

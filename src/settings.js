@@ -22,7 +22,7 @@ export const DEFAULTS = {
   pageWidth: 'normal',     // narrow | normal | wide | full
   pageLook: true,          // דף "מודפס" עם צל, או טקסט ישר על הרקע
   showBacklinks: true,
-  newNoteLocation: 'selected', // selected (התיקייה שנבחרה בעץ) | root
+  newNoteLocation: 'selected', // selected (התיקייה שנבחרה בעץ) | inbox (מסמכים חדשים) | root
   attachMode: 'folder',    // folder (תיקייה קבועה) | beside (ליד ההערה)
   attachFolder: 'attachments',
   hotkeys: {},             // command id -> shortcut; empty string disables a shortcut
@@ -187,7 +187,11 @@ function buildDialog() {
     row('משימות שבוצעו בסוף הרשימה', 'בעת סימון תיבת משימה היא עוברת, עם תנועה וקו מפריד, לסוף הרשימה שלה', check('completedTasksAtBottom')),
   );
   const files = el('section', { class: 'set-page', 'data-page': 'files', hidden: '' },
-    row('מסמך חדש נוצר', null, select('newNoteLocation', [['selected', 'בתיקייה שנבחרה בעץ'], ['root', 'בתיקייה הראשית']])),
+    row('מסמך חדש נוצר', null, select('newNoteLocation', [
+      ['selected', 'בתיקייה שנבחרה בעץ'],
+      ['inbox', 'בתיקיית „מסמכים חדשים”'],
+      ['root', 'בתיקייה הראשית'],
+    ])),
     row('תמונות מיובאות נשמרות', null, select('attachMode', [['folder', 'בתיקייה קבועה'], ['beside', 'ליד המסמך']], { onChange: refresh })),
     row('שם התיקייה לתמונות', 'בתוך התיקייה הראשית', folderInput),
   );

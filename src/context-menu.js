@@ -244,7 +244,7 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, flag
         { label: 'תיבה צפה על הדף', icon: 'textBox', run: edit.floatingBox },
       ] },
       { label: 'הערה בצד לציטוט המסומן', icon: 'comment', disabled: empty || inCode(), run: edit.marginComment },
-      ...(flag ? [{ label: 'דגל', icon: 'flag', sub: [
+      ...(flag ? [{ label: 'דגל למסמך', icon: 'flag', sub: [
         ...flag.list.map((f) => ({ label: f.name, dot: f.id, run: () => flag.set(f.id), active: () => flag.get() === f.id })),
         { label: 'ללא דגל', dot: null, disabled: !flag.get(), run: () => flag.set(null) },
       ] }] : []),

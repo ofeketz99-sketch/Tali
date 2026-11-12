@@ -74,3 +74,11 @@ test('margin comments preserve their quote but never join drawing groups', async
   assert.equal(restored.group, undefined);
   assert.deepEqual(groupedSelection([restored], 'c1'), [restored]);
 });
+
+test('one freehand entity preserves several separate strokes', () => {
+  const pen = { id: 'pen-1', kind: 'pen', x: 20, y: 30,
+    strokes: [[[0, 0], [10, 8], [20, 4]], [[35, 12], [44, 18]]],
+    color: '#4b80bd', weight: 2.5 };
+  const restored = splitOverlay(joinOverlay('Note', [pen])).objects;
+  assert.deepEqual(restored, [pen]);
+});

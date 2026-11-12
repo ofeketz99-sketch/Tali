@@ -31,7 +31,7 @@ export function createPageOverlay({ page, onChange }) {
     const saved = localStorage.getItem(lastToolKey);
     if (shapeKinds.includes(saved)) lastTool = saved;
   } catch { /* Storage can be disabled. */ }
-  let sessionId = null; // Only consecutive freehand strokes share a persistent ID.
+  let sessionPen = null; // Consecutive freehand strokes are stored in one entity.
   const root = document.createElement('div');
   root.className = 'tali-page-overlay';
   root.hidden = true;
@@ -144,11 +144,11 @@ export function createPageOverlay({ page, onChange }) {
   function setMode(next) {
     if (!enabled) return;
     if (next === 'pen') {
-      if (mode !== 'pen' || !sessionId) sessionId = makeId();
+      if (mode !== 'pen') sessionPen = null;
       lastTool = next;
       try { localStorage.setItem(lastToolKey, next); } catch { /* Nonessential preference. */ }
     } else {
-      sessionId = null;
+      sessionPen = null;
       if (shapeKinds.includes(next)) {
         lastTool = next;
         try { localStorage.setItem(lastToolKey, next); } catch { /* Nonessential preference. */ }
@@ -162,8 +162,8 @@ export function createPageOverlay({ page, onChange }) {
   }
   function openDrawing() {
     if (!enabled) return;
-    // Explicitly reopening starts a fresh group. Switching tools inside the bar does not.
-    sessionId = null;
+    // Explicitly reopening starts a fresh freehand entity.
+    sessionPen = null;
     setMode(lastTool);
   }
   const point = (event) => {
@@ -210,7 +210,10 @@ export function createPageOverlay({ page, onChange }) {
   }
 
   const pathOf = (object) => {
-    if (object.kind === 'pen') return smoothSvgStroke(object.points);
+    if (object.kind === 'pen') {
+      const strokes = object.strokes || (object.points ? [object.points] : []);
+      return strokes.map(smoothSvgStroke).filter(Boolean).join(' ');
+    }
     const shaft = 'M0 0 L' + object.dx + ' ' + object.dy;
     if (object.kind !== 'arrow') return shaft;
     const angle = Math.atan2(object.dy, object.dx);
@@ -412,12 +415,19 @@ export function createPageOverlay({ page, onChange }) {
       notify();
       return true;
     }
-    const object = { id: makeId(), kind: mode, x: Math.round(p.x), y: Math.round(p.y),
-      color, weight, ...(mode === 'pen' && sessionId ? { group: sessionId } : {}) };
-    if (mode === 'pen') object.points = [[0, 0], [0, 0]];
-    else { object.dx = 0; object.dy = 0; }
-    objects.push(object);
-    drawing = { pointerId: event.pointerId, object, start: p };
+    let object, stroke;
+    if (mode === 'pen') {
+      object = sessionPen && objects.includes(sessionPen) ? sessionPen : {
+        id: makeId(), kind: 'pen', x: Math.round(p.x), y: Math.round(p.y), color, weight, strokes: [],
+      };
+      if (object !== sessionPen) { objects.push(object); sessionPen = object; }
+      stroke = [[Math.round(p.x - object.x), Math.round(p.y - object.y)]];
+      object.strokes.push(stroke);
+    } else {
+      object = { id: makeId(), kind: mode, x: Math.round(p.x), y: Math.round(p.y), color, weight, dx: 0, dy: 0 };
+      objects.push(object);
+    }
+    drawing = { pointerId: event.pointerId, object, stroke, start: p };
     if (event.currentTarget === svg) svg.setPointerCapture(event.pointerId);
     drawShapes();
     return true;
@@ -429,13 +439,14 @@ export function createPageOverlay({ page, onChange }) {
       ? event.getCoalescedEvents() : [event];
     for (const ev of events.length ? events : [event]) {
       const p = point(ev);
-      const x = Math.round(p.x - drawing.start.x);
-      const y = Math.round(p.y - drawing.start.y);
       if (drawing.object.kind === 'pen') {
-        const points = drawing.object.points;
+        const x = Math.round(p.x - drawing.object.x), y = Math.round(p.y - drawing.object.y);
+        const points = drawing.stroke;
         const prev = points[points.length - 1];
-        if ((x - prev[0]) ** 2 + (y - prev[1]) ** 2 >= 4 && points.length < 2500) points.push([x, y]);
+        const total = drawing.object.strokes.reduce((sum, item) => sum + item.length, 0);
+        if ((x - prev[0]) ** 2 + (y - prev[1]) ** 2 >= 4 && total < 2500) points.push([x, y]);
       } else {
+        const x = Math.round(p.x - drawing.start.x), y = Math.round(p.y - drawing.start.y);
         drawing.object.dx = x;
         drawing.object.dy = y;
       }
@@ -447,16 +458,19 @@ export function createPageOverlay({ page, onChange }) {
     const object = drawing.object;
     if (object.kind === 'pen') {
       const p = point(event);
-      const end = [Math.round(p.x - drawing.start.x), Math.round(p.y - drawing.start.y)];
-      const prev = object.points[object.points.length - 1];
-      if (Math.hypot(end[0] - prev[0], end[1] - prev[1]) >= 1 && object.points.length < 2500) object.points.push(end);
-      if (object.points.length < 3) object.points.push([object.points[1][0] + 1, object.points[1][1] + 1]);
+      const end = [Math.round(p.x - object.x), Math.round(p.y - object.y)];
+      const points = drawing.stroke;
+      const prev = points[points.length - 1];
+      const total = object.strokes.reduce((sum, item) => sum + item.length, 0);
+      if (Math.hypot(end[0] - prev[0], end[1] - prev[1]) >= 1 && total < 2500) points.push(end);
+      if (points.length === 1) points.push([points[0][0] + 1, points[0][1] + 1]);
     } else if (Math.abs(object.dx) + Math.abs(object.dy) < 4) {
       object.dx = 45; object.dy = object.kind === 'line' ? 0 : 30;
     }
     drawing = null;
     drawShapes();
     notify();
+    if (object.kind !== 'pen') { setMode(null); select(object.id); }
   };
   window.addEventListener('pointerup', finish);
   window.addEventListener('pointercancel', finish);
@@ -494,12 +508,12 @@ export function createPageOverlay({ page, onChange }) {
     getItems: () => cleanOverlayObjects(objects),
     setItems: (items) => {
       objects = cleanOverlayObjects(items);
-      selected = null; mode = null; drawing = null; sessionId = null; render();
+      selected = null; mode = null; drawing = null; sessionPen = null; render();
     },
     setEnabled: (value) => {
       enabled = !!value;
       root.hidden = !enabled;
-      if (!enabled) { mode = null; selected = null; drawing = null; sessionId = null; }
+      if (!enabled) { mode = null; selected = null; drawing = null; sessionPen = null; }
       render();
     },
     setMode: (next) => setMode(next),

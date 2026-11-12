@@ -266,6 +266,27 @@ function setHome(on) {
   $('pageWrap').classList.toggle('home-mode', show);
   if (show) home.render();
 }
+function setFolderLoading(on) {
+  const loading = $('folderLoading');
+  loading.hidden = !on;
+  $('pageWrap').classList.toggle('folder-is-loading', on);
+  if (on) {
+    $('empty').hidden = true;
+    $('home').hidden = true;
+    $('page').hidden = true;
+    document.querySelector('.home-bg').hidden = false;
+  } else if (!state.root) {
+    $('empty').hidden = false;
+    document.querySelector('.home-bg').hidden = true;
+  }
+}
+async function pickRoot() {
+  setFolderLoading(true);
+  try {
+    const picked = await window.api.pickFolder();
+    if (picked) await enterRoot(picked);
+  } finally { setFolderLoading(false); }
+}
 // חזרה למסך הבית מתוך מסמך: הכרטיסיות נשארות, הפיצול נסגר
 async function goHome() {
   if (!state.root) return;
@@ -864,7 +885,9 @@ async function refreshTree() {
 }
 
 function targetDir() {
-  if (getPrefs().newNoteLocation === 'root') return state.root;
+  const location = getPrefs().newNoteLocation;
+  if (location === 'root') return state.root;
+  if (location === 'inbox') return state.root + (state.root.includes('\\') ? '\\' : '/') + 'מסמכים חדשים';
   return state.selectedDir || (state.currentPath ? dirname(state.currentPath) : state.root);
 }
 
@@ -988,6 +1011,7 @@ async function enterRoot(r) {
   const known = new Set(allNotes().map((n) => n.path));
   // מסך הבית בהפעלה: הכרטיסיות מהפעם הקודמת חוזרות לסרגל, אבל לא נפתחות
   await tabs.restore((p) => known.has(p), { open: false });
+  setFolderLoading(false);
 }
 
 // ===== שינוי שם ומחיקה (מהתפריט הימני, מהמקלדת או מלוח הפקודות) =====
@@ -1410,8 +1434,8 @@ var docPanel = createContextPanel({
 function refreshLinksPanel() { docPanel.refresh(); }
 
 // ===== כפתורים =====
-$('btnPick').addEventListener('click', async () => enterRoot(await window.api.pickFolder()));
-$('btnPickBig').addEventListener('click', async () => enterRoot(await window.api.pickFolder()));
+$('btnPick').addEventListener('click', pickRoot);
+$('btnPickBig').addEventListener('click', pickRoot);
 $('btnSettings').addEventListener('click', openSettings);
 
 async function newNote(presetName) {
@@ -1836,7 +1860,7 @@ const COMMANDS = [
   { title: 'הוספת מאפיינים', run: () => editorApi.addProperties(), needs: 'note' },
   { title: 'ייצוא ל־PDF', run: () => exportNote('pdf'), needs: 'note' },
   { title: 'ייצוא ל־Word', run: () => exportNote('docx'), needs: 'note' },
-  { title: 'החלפת תיקיית עבודה', run: async () => enterRoot(await window.api.pickFolder()) },
+  { title: 'החלפת תיקיית עבודה', run: pickRoot },
 ];
 // The default shortcut itself is a stable id for the existing command set. Custom values live in prefs.hotkeys.
 for (const command of COMMANDS) if (command.keys && !command.id) command.id = 'shortcut:' + command.keys;
@@ -1889,6 +1913,9 @@ window.addEventListener('beforeunload', () => { rememberPosition(); if (state.di
 // ===== התחלה =====
 (async () => {
   await loadPrefs();
-  const r = await window.api.init();
-  if (r) await enterRoot(r);
+  setFolderLoading(true);
+  try {
+    const r = await window.api.init();
+    if (r) await enterRoot(r);
+  } finally { setFolderLoading(false); }
 })();
