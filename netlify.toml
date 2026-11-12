@@ -1,14 +1,4 @@
 [build]
   publish = "website"
 
-# Only main should deploy. Skip branch deploys and pull-request previews.
-# Netlify's ignore command exits 0 to cancel a build.
-[context.branch-deploy]
-  ignore = "exit 0"
-
-[context.deploy-preview]
-  ignore = "exit 0"
-
-# Explicit safeguard for the development branch.
-[context.DEV]
-  ignore = "exit 0"
+# Publish only the static website, not the Electron source.
