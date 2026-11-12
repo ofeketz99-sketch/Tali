@@ -432,42 +432,86 @@ export function openGraph({ index, current, onOpen, store }) {
 // ===================== הערות רפאים =====================
 // קישורים להערות שלא קיימות עדיין: מכמה הערות מקשרים אליהן, ומאילו.
 export function openGhosts({ index, onOpenNote, onCreate }) {
-  const { body } = makeDialog('מסמכי רפאים', 'ghosts-dialog', 'ghost');
+  const { body, tools } = makeDialog('מסמכי רפאים', 'ghosts-dialog', 'ghost');
   const map = new Map();
-  for (const n of index.notes) for (const g of n.missing) {
+  for (const n of index.notes) for (const g of n.missing || []) {
     const key = g.toLowerCase();
     if (!map.has(key)) map.set(key, { name: g, sources: [] });
     map.get(key).sources.push(n);
   }
-  const list = [...map.values()].sort((a, b) => b.sources.length - a.sources.length || a.name.localeCompare(b.name, 'he'));
-  const intro = document.createElement('p');
-  intro.className = 'vd-intro';
-  intro.textContent = list.length
-    ? `${plural(list.length, 'מסמך אחד', 'מסמכים')} שמקשרים אליהם אבל עדיין לא נוצרו. לחיצה על "יצירה" יוצרת אותם.`
-    : 'אין מסמכי רפאים: כל הקישורים מובילים למסמכים קיימים.';
-  body.append(intro);
-  list.forEach((g, i) => {
-    const row = document.createElement('details');
-    row.className = 'vd-row ghost-row';
-    row.style.setProperty('--i', Math.min(i, 14));
-    const sum = document.createElement('summary');
-    sum.innerHTML = `<span class="vd-name"></span><span class="vd-count"></span><button type="button" class="vd-action">${icon('filePlus', 14)}<span>יצירה</span></button>`;
-    sum.querySelector('.vd-name').textContent = g.name;
-    sum.querySelector('.vd-count').textContent = `מקושרת מ־${plural(g.sources.length, 'מסמך אחד', 'מסמכים')}`;
-    sum.querySelector('.vd-action').addEventListener('click', (e) => { e.preventDefault(); body.closest('dialog').close(); onCreate(g.name); });
-    row.append(sum);
-    const ul = document.createElement('ul');
-    for (const s of g.sources) {
-      const li = document.createElement('li');
-      li.className = 'vd-link';
-      li.innerHTML = `${icon('file', 14)}<span></span>`;
-      li.querySelector('span').textContent = s.rel.split('/').join(' › ');
-      li.addEventListener('click', () => { body.closest('dialog').close(); onOpenNote(s.path); });
-      ul.append(li);
+  const missing = [...map.values()].sort((a, b) => b.sources.length - a.sources.length || a.name.localeCompare(b.name, 'he'));
+  const titles = index.notes.filter((n) => n.titleOnly)
+    .sort((a, b) => a.rel.localeCompare(b.rel, 'he'));
+  const options = [['missing', 'קישורים חסרים', missing.length], ['titles', 'מסמכי כותרת', titles.length]];
+  const seg = document.createElement('div');
+  seg.className = 'vd-seg';
+  let kind = missing.length || !titles.length ? 'missing' : 'titles';
+  for (const [id, label, count] of options) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = `${label} (${count})`;
+    b.classList.toggle('on', id === kind);
+    b.addEventListener('click', () => {
+      kind = id;
+      for (const button of seg.children) button.classList.toggle('on', button === b);
+      draw();
+    });
+    seg.append(b);
+  }
+  tools.append(seg);
+
+  function draw() {
+    body.replaceChildren();
+    const intro = document.createElement('p');
+    intro.className = 'vd-intro';
+    if (kind === 'titles') {
+      intro.textContent = titles.length
+        ? `${plural(titles.length, 'מסמך אחד', 'מסמכים')} שנוצרו אבל עדיין אין בהם תוכן. לחיצה פותחת את המסמך לעריכה.`
+        : 'אין מסמכי כותרת ללא תוכן.';
+      body.append(intro);
+      titles.forEach((n, i) => {
+        const row = document.createElement('div');
+        row.className = 'ghost-row title-only-row';
+        row.style.setProperty('--i', Math.min(i, 14));
+        row.innerHTML = `<span class="vd-name"></span><span class="vd-count"></span><button type="button" class="vd-action">${icon('file', 14)}<span>פתיחה</span></button>`;
+        row.querySelector('.vd-name').textContent = n.rel.split('/').join(' › ');
+        row.querySelector('.vd-count').textContent = 'ללא תוכן';
+        const open = () => { body.closest('dialog').close(); onOpenNote(n.path); };
+        row.querySelector('.vd-action').addEventListener('click', (event) => { event.stopPropagation(); open(); });
+        row.addEventListener('click', open);
+        body.append(row);
+      });
+      return;
     }
-    row.append(ul);
-    body.append(row);
-  });
+
+    intro.textContent = missing.length
+      ? `${plural(missing.length, 'מסמך אחד', 'מסמכים')} שמקשרים אליהם אבל עדיין לא נוצרו. לחיצה על "יצירה" יוצרת אותם.`
+      : 'אין מסמכי רפאים חסרים: כל הקישורים מובילים למסמכים קיימים.';
+    body.append(intro);
+    missing.forEach((g, i) => {
+      const row = document.createElement('details');
+      row.className = 'vd-row ghost-row';
+      row.style.setProperty('--i', Math.min(i, 14));
+      const sum = document.createElement('summary');
+      sum.innerHTML = `<span class="vd-name"></span><span class="vd-count"></span><button type="button" class="vd-action">${icon('filePlus', 14)}<span>יצירה</span></button>`;
+      sum.querySelector('.vd-name').textContent = g.name;
+      sum.querySelector('.vd-count').textContent = `מקושרת מ־${plural(g.sources.length, 'מסמך אחד', 'מסמכים')}`;
+      sum.querySelector('.vd-action').addEventListener('click', (e) => { e.preventDefault(); body.closest('dialog').close(); onCreate(g.name); });
+      row.append(sum);
+      const ul = document.createElement('ul');
+      for (const s of g.sources) {
+        const li = document.createElement('li');
+        li.className = 'vd-link';
+        li.innerHTML = `${icon('file', 14)}<span></span>`;
+        li.querySelector('span').textContent = s.rel.split('/').join(' › ');
+        li.addEventListener('click', () => { body.closest('dialog').close(); onOpenNote(s.path); });
+        ul.append(li);
+      }
+      row.append(ul);
+      body.append(row);
+    });
+  }
+  draw();
 }
 
 // ===================== תגיות =====================
