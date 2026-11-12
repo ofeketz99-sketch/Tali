@@ -174,12 +174,14 @@ export function createHome({ el, store, api }) {
     head.querySelector('.hc-count').textContent = missing.length + titles.length || '';
     if (!missing.length && !titles.length) return empty(body, 'אין קישורים חסרים או מסמכים ללא תוכן.');
 
+    const missingLimit = titles.length ? Math.min(missing.length, 5) : LIMIT;
+    const titleLimit = missing.length ? Math.min(titles.length, LIMIT - missingLimit) : LIMIT;
     if (missing.length) {
       const label = document.createElement('div');
       label.className = 'hc-subtitle';
       label.textContent = `קישורים חסרים · ${missing.length}`;
       body.append(label);
-      for (const g of missing.slice(0, LIMIT)) {
+      for (const g of missing.slice(0, missingLimit)) {
         const row = document.createElement('div');
         row.className = 'hc-ghost';
         row.innerHTML = `<span class="hc-text"></span><small></small><button type="button" class="hc-create" data-tip="יצירת המסמך">${icon('filePlus', 14)}</button>`;
@@ -194,7 +196,7 @@ export function createHome({ el, store, api }) {
       label.className = 'hc-subtitle';
       label.textContent = `מסמכי כותרת · ${titles.length}`;
       body.append(label);
-      for (const n of titles.slice(0, Math.max(0, LIMIT - Math.min(missing.length, LIMIT)))) {
+      for (const n of titles.slice(0, titleLimit)) {
         const row = document.createElement('div');
         row.className = 'hc-ghost hc-title-only';
         row.innerHTML = `<span class="hc-text"></span><small>ללא תוכן</small>`;
