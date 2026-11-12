@@ -11,7 +11,8 @@ function buildManifest(pkg, fileNames, repository = REPOSITORY) {
   const installer = pick(/^Tali-Setup-.*\.exe$/i);
   const portable = pick(/^Tali-(?!Setup).*portable\.exe$/i);
   if (!installer || !portable) throw new Error('Both the installer and portable EXE must exist before generating latest.json');
-  const tag = 'v' + pkg.version;
+  // Tali releases use v6.2 while package.json uses semver 6.2.0.
+  const tag = 'v' + pkg.version.replace(/\.0$/, '');
   const releases = `https://github.com/${repository}/releases`;
   const base = `${releases}/download/${tag}`;
   return {

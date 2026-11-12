@@ -10,12 +10,14 @@ test('release manifest exposes stable latest URL and versioned EXE assets', () =
     { name: 'tali', productName: 'Tali', version: '6.2.0' },
     ['builder-debug.yml', 'Tali-6.2.0-portable.exe', 'Tali-Setup-6.2.0.exe', 'latest.yml', 'win-unpacked'],
   );
+  assert.equal(manifest.tag, 'v6.2');
   assert.equal(manifest.latestManifestUrl, 'https://github.com/ofeketz99-sketch/Tali/releases/latest/download/latest.json');
   assert.equal(manifest.installer, 'Tali-Setup-6.2.0.exe');
   assert.equal(manifest.portable, 'Tali-6.2.0-portable.exe');
   assert.deepEqual(manifest.assets.map((asset) => asset.name), [
     'Tali-6.2.0-portable.exe', 'Tali-Setup-6.2.0.exe', 'latest.yml',
   ]);
+  assert.match(manifest.assets[0].url, /\/releases\/download\/v6\.2\//);
 });
 
 test('release manifest refuses an incomplete Windows build', () => {
