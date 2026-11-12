@@ -3,108 +3,39 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f1eee8">
-  <meta name="description" content="Tali — סביבת כתיבה ומחשבה למחשב. כתיבה עשירה, קישורים בין רעיונות וקובצי Markdown שנשארים שלך. ההורדה תיפתח בקרוב.">
+  <meta name="theme-color" content="#f5f6f4">
+  <meta name="description" content="TALI — הורדה למחשב Windows.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Download Tali — מקום למחשבות שלך">
-  <meta property="og:description" content="לחשוב בחופשיות. לכתוב בדרך שלך.">
-  <title>Download Tali — מקום למחשבות שלך</title>
+  <meta property="og:title" content="TALI — Download">
+  <meta property="og:description" content="הורדת TALI ל-Windows.">
+  <title>TALI — Download</title>
   <link rel="icon" href="assets/logo.png" type="image/png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <a class="skip" href="#main">דלג לתוכן הראשי</a>
-  <header class="header">
-    <div class="container navbar">
-      <a class="brand" href="#top" aria-label="Tali, לראש העמוד">
-        <img src="assets/logo.png" width="46" height="46" alt="">
-        <span><strong>Tali</strong><small>מרחב למחשבות</small></span>
-      </a>
-      <nav aria-label="ניווט ראשי"><a href="#preview">האפליקציה</a><a href="#features">היכולות</a><a href="#about">הרעיון</a></nav>
-      <a class="nav-download" href="#download">הורדה בקרוב <span aria-hidden="true">↙</span></a>
+  <a class="skip-link" href="#main">דלג לתוכן</a>
+  <main class="page" id="main">
+    <div class="atmosphere" aria-hidden="true">
+      <span class="ring ring-one"></span>
+      <span class="ring ring-two"></span>
+      <span class="ring ring-three"></span>
     </div>
-  </header>
-
-  <main id="main">
-    <section class="hero container" id="top">
-      <div class="hero-copy">
-        <div class="eyebrow"><i aria-hidden="true"></i> מקום אחד לכל מה שעובר לך בראש</div>
-        <h1>לחשוב בחופשיות.<br><em>לכתוב בדרך שלך.</em></h1>
-        <p class="lead">יש רעיונות שצריכים יותר מדף ריק. Tali נותנת למחשבות שלך מקום לצמוח — עם כתיבה עשירה, קישורים בין מסמכים וכל מה שצריך כדי להמשיך לחשוב.</p>
-        <div class="hero-actions">
-          <a class="button primary" href="#download">ההורדה תיפתח בקרוב <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 18v3h16v-3"/></svg></a>
-          <a class="button secondary" href="#features">להכיר את Tali <span aria-hidden="true">←</span></a>
-        </div>
-        <p class="platform"><span aria-hidden="true"></span> מיועדת ל-Windows · עדיין לא זמינה להורדה</p>
-        <div class="tags"><span>קבצים מקומיים</span><span>Markdown</span><span>מרחב מחשבה אישי</span></div>
+    <section class="download-center" aria-labelledby="site-title">
+      <div class="brand">
+        <img class="brand-icon" src="assets/logo.png" width="132" height="132" alt="">
+        <h1 class="brand-name" id="site-title" lang="en" dir="ltr">TALI</h1>
       </div>
-
-      <div class="preview-wrap" id="preview">
-        <div class="orb blue" aria-hidden="true"></div><div class="orb lilac" aria-hidden="true"></div>
-        <div class="app-preview" role="img" aria-label="המחשה עיצובית של הממשק הבהיר של Tali: עץ מסמכים, כלי עיצוב ודף כתיבה">
-          <div class="window-head">
-            <span class="window-brand"><img src="assets/logo.png" width="22" height="22" alt=""> Tali</span>
-            <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-          </div>
-          <div class="window-body">
-            <div class="app-sidebar" aria-hidden="true">
-              <div class="vault"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3z"/></svg> המרחב שלי <span>⌄</span></div>
-              <div class="new-note">＋ מסמך חדש <i></i></div>
-              <div class="search">⌕ &nbsp; חיפוש בשם ובתוכן...</div>
-              <div class="tree-heading">מסמכים</div>
-              <div class="note active">▤ &nbsp; הרעיון הבא</div>
-              <div class="note">▤ &nbsp; דברים לזכור</div>
-              <div class="note">▤ &nbsp; השראות</div>
-              <div class="note">▱ &nbsp; פרויקטים</div>
-              <div class="note child">▤ &nbsp; מחשבות קטנות</div>
-              <div class="note child">▤ &nbsp; ליום אחד</div>
-              <div class="app-sidebar-foot"><i></i> הכל שמור מקומית</div>
-            </div>
-            <div class="app-editor" aria-hidden="true">
-              <div class="tabs"><span>⌂</span><span class="tab">הרעיון הבא &nbsp; ×</span></div>
-              <div class="toolbar"><span class="select">פסקה ⌄</span><b>B</b><em>I</em><u>U</u><span class="sep"></span>≡ &nbsp; ☷ &nbsp; ☑ &nbsp; ▣ &nbsp; ···</div>
-              <div class="canvas">
-                <div class="paper">
-                  <div class="crumb">המחשבות שלי &nbsp; / &nbsp; רעיונות</div>
-                  <h2>הרעיון הבא מתחיל כאן<span>.</span></h2>
-                  <p>לפעמים כל מה שצריך הוא מקום אחד שבו אפשר לכתוב, לצייר, לקשר בין מחשבות — ולגלות לאן הן מובילות.</p>
-                  <h3>דברים ששווה לזכור</h3>
-                  <div class="check"><span></span> להתחיל לכתוב, גם בלי לדעת בדיוק מה</div>
-                  <div class="check done"><span>✓</span> לתת לרעיונות להתחבר</div>
-                  <div class="check"><span></span> להמשיך מאיפה שעצרתי</div>
-                  <svg class="scribble" viewBox="0 0 260 68" fill="none" aria-hidden="true"><path d="M6 43C44 7 84 65 122 33c22-18 34-23 55-9 19 14 39 3 67-14m-12-3 13 2-5 12" stroke="#85b9dc" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 55c32 10 64 5 81-8" stroke="#c1dff0" stroke-width="2" stroke-linecap="round"/></svg>
-                  <span class="scribble-caption">יש רעיונות שגדלים כשנותנים להם לזרום.</span>
-                </div>
-              </div>
-              <div class="status"><span>● &nbsp; כל השינויים נשמרו</span><span>Markdown · 64 מילים</span></div>
-            </div>
-          </div>
-        </div>
-        <p class="preview-note">המחשה עיצובית של סביבת העבודה · לא צילום מסך</p>
+      <div class="download-action">
+        <!-- No public installer URL exists yet. Do not turn this into a dead or private download link. -->
+        <button class="download-button" type="button" disabled aria-describedby="download-status">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v12m-5-5 5 5 5-5M5 18v3h14v-3"/>
+          </svg>
+          <span>הורדה ל-Windows</span>
+        </button>
+        <p class="download-status" id="download-status">ההורדה עדיין לא זמינה</p>
       </div>
-    </section>
-
-    <section class="features" id="features">
-      <div class="container">
-        <div class="section-head"><span class="kicker">למה Tali?</span><h2>כל הכלים למחשבה אחת זורמת.</h2><p>הדרך שלך לחשוב לא צריכה להתאים את עצמה לכלי. הכלי צריך להתאים את עצמו אליך.</p></div>
-        <div class="feature-grid">
-          <article class="feature-card"><div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div><h3>לכתוב כמו שנוח לך</h3><p>עורך עשיר עם כותרות, טבלאות, תמונות ונוסחאות. כל מה שצריך, בלי לוותר על הפשטות של מסמך.</p></article>
-          <article class="feature-card"><div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><circle cx="5" cy="18" r="2"/><path d="M7 6h10M7 8l10 8M7 18h10"/></svg></div><h3>לחבר בין רעיונות</h3><p>קישורים בין מסמכים, גרף קשרים וחיפוש נוח הופכים אוסף פתקים למרחב מחשבה אחד.</p></article>
-          <article class="feature-card"><div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5v8l-9 5-9-5V8zM3 8l9 5 9-5M12 13v8"/></svg></div><h3>לשמור על מה ששלך</h3><p>המסמכים נשארים בקובצי Markdown רגילים, בתיקייה שלך במחשב. בלי פורמט סגור.</p></article>
-        </div>
-      </div>
-    </section>
-
-    <section class="about container" id="about">
-      <div><span class="kicker">פשוט להישאר בשליטה</span><h2>הרעיונות שלך.<br><em>הקבצים שלך.</em></h2><p>Tali עובדת עם תיקייה רגילה של קובצי Markdown, כך שהמסמכים שלך נשארים נגישים גם מחוץ לאפליקציה. אין צורך להעביר את המחשבות שלך לענן כדי לעבוד.</p><span class="about-chip">✓ &nbsp; מסמכים מקומיים ונגישים</span></div>
-      <div class="file-art" aria-hidden="true"><div class="file-back"></div><div class="file-front"><div class="file-title"><i></i> the-next-idea.md <span>↗</span></div><div class="lines"><b></b><i></i><i></i><i></i><i></i><b></b></div><div class="file-foot"><span>MD</span><span>קובץ מקומי</span></div></div></div>
-    </section>
-
-    <section class="download container" id="download">
-      <div class="download-panel"><span class="kicker">Download Tali</span><img src="assets/logo.png" width="78" height="78" alt=""><h2>בקרוב, גם על המחשב שלך.</h2><p>אנחנו מכינים את הבית של Tali ברשת. כשהגרסה להורדה תהיה מוכנה, היא תופיע ממש כאן.</p><button type="button" disabled aria-describedby="download-help">הורדה ל-Windows &nbsp; ↓</button><small id="download-help">ההורדה עדיין לא זמינה. הכפתור יופעל בהמשך.</small></div>
     </section>
   </main>
-
-  <footer class="footer"><div class="container footer-inner"><span class="footer-brand"><img src="assets/logo.png" width="30" height="30" alt=""> <b>Tali</b> <small>מקום למחשבות שלך.</small></span><span>נוצר באהבה לפרטים הקטנים.</span><a href="#top">בחזרה למעלה ↑</a></div></footer>
 </body>
 </html>
