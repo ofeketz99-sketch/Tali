@@ -8,6 +8,7 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 const { resolveLink, extractLinks, replaceLinks } = require('./links');
 const { extractTags, extractTasks, extractTargets, getFlag, isLinkHub, withCreated, getCreatedDate } = require('./vault-data');
+const { resolveNewNoteFolderPath, relativeNewNoteFolderPath } = require('./new-note-folder');
 const os = require('os');
 
 // שם האפליקציה: Tali. ההגדרות נשארות בתיקייה המקורית (my-notes), כדי ששינוי השם לא ימחק אותן.
@@ -73,6 +74,19 @@ function safe(p) {
     throw new Error('הנתיב נמצא מחוץ לתיקיית העבודה');
   }
   return full;
+}
+
+// תיקיית ברירת המחדל למסמכים חדשים נשמרת כנתיב יחסי לכספת, כדי שהיא תמשיך לעבוד
+// גם אם הכספת הועברה למחשב או לכונן אחר.
+async function prepareNewNoteFolder(relative = 'מסמכים חדשים') {
+  const dir = resolveNewNoteFolderPath(root, relative);
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.access(dir, fs.constants.R_OK | fs.constants.W_OK);
+  } catch (err) {
+    throw new Error(`לא ניתן להשתמש בתיקיית המסמכים החדשים: ${err.message}`);
+  }
+  return dir;
 }
 
 async function readTree(dir) {
@@ -323,6 +337,23 @@ function registerIpc() {
     if (r.canceled || !r.filePaths[0]) return null;
     return await setRoot(r.filePaths[0]);
   });
+
+  ipcMain.handle('pick-new-note-folder', async (e) => {
+    if (!root) throw new Error('קודם בוחרים תיקיית מסמכים');
+    const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+      title: 'בחירת תיקיית מסמכים חדשים',
+      defaultPath: root,
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (r.canceled || !r.filePaths[0]) return null;
+    let selected;
+    try { selected = safe(r.filePaths[0]); }
+    catch { throw new Error('יש לבחור תיקייה מתוך תיקיית המסמכים של Tali'); }
+    try { await fs.access(selected, fs.constants.R_OK | fs.constants.W_OK); }
+    catch (err) { throw new Error(`לא ניתן להשתמש בתיקייה שנבחרה: ${err.message}`); }
+    return relativeNewNoteFolderPath(root, selected);
+  });
+  ipcMain.handle('prepare-new-note-folder', async (_e, relative) => prepareNewNoteFolder(relative));
 
   ipcMain.handle('tree', async () => ({ root, tree: await readTree(root) }));
 
@@ -597,3 +628,4 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+

@@ -25,8 +25,8 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
   const other = () => 1 - activePane;
 
   // ----- נקרא מ־openNote אחרי שמסמך נטען לחלונית הפעילה -----
-  // newTab: כרטיסייה חדשה ליד הנוכחית. אחרת: מסמך שכבר פתוח בכרטיסייה עובר אליה, וחדש מחליף את הכרטיסייה הנוכחית.
-  function opened(p, { newTab = false } = {}) {
+  // ברירת המחדל היא כרטיסייה חדשה ליד הנוכחית; מסמך שכבר פתוח רק מקבל מיקוד.
+  function opened(p, { newTab = true } = {}) {
     const prev = panes[activePane];
     if (!list.includes(p)) {
       const at = list.indexOf(prev);
@@ -307,3 +307,4 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
     activePath: () => panes[activePane],
   };
 }
+

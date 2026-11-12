@@ -463,7 +463,7 @@ async function applyLinkHub(pick, paths) {
     await flushSave();
     let hub = pick.path;
     if (!hub) {
-      try { hub = await window.api.createNote(targetDir(), pick.name); }
+      try { hub = await window.api.createNote(await noteTargetDir(), pick.name); }
       catch { hub = resolveTarget(pick.name); } // כבר קיים בשם הזה
       if (!hub) throw new Error('לא הצלחתי ליצור את הפתק');
       await refreshTree();
@@ -850,13 +850,16 @@ async function refreshTree() {
   refreshLinksPanel();
 }
 
-function targetDir() {
-  if (getPrefs().newNoteLocation === 'root') return state.root;
+async function noteTargetDir() {
+  const prefs = getPrefs();
+  if (prefs.newNoteLocation === 'root') return state.root;
+  if (prefs.newNoteLocation === 'folder') return window.api.prepareNewNoteFolder(prefs.newNoteFolder);
   return state.selectedDir || (state.currentPath ? dirname(state.currentPath) : state.root);
 }
+function folderTargetDir() { return state.selectedDir || (state.currentPath ? dirname(state.currentPath) : state.root); }
 
-// newTab: בכרטיסייה חדשה (Ctrl+לחיצה). בלי: מחליף את הכרטיסייה הנוכחית, או עובר לכרטיסייה שבה הוא כבר פתוח.
-async function openNote(p, { history = true, newTab = false } = {}) {
+// כל מסמך חדש נפתח בכרטיסייה משלו. אם הוא כבר פתוח, מנהל הכרטיסיות ממקד את הכרטיסייה הקיימת.
+async function openNote(p, { history = true } = {}) {
   await flushSave();
   rememberPosition();
   const md = await window.api.read(p);
@@ -889,7 +892,9 @@ async function openNote(p, { history = true, newTab = false } = {}) {
   setStatus(prettyPath(p));
   updateDocTitle();
   updateWordCount();
-  tabs.opened(p, { newTab });
+  // המדיניות מרוכזת כאן: מקורות כמו העץ וקישורי [[...]] עדיין שולחים לעיתים
+  // newTab:false לצורך התאימות הישנה, אבל פתיחה רגילה לעולם לא מחליפה טאב אחר.
+  tabs.opened(p, { newTab: true });
   drawTree();
   refreshBacklinks();
   refreshLinksPanel();
@@ -1314,7 +1319,11 @@ function showContextMenu(node, x, y) {
   menu.style.top = top + 'px';
 }
 function hideMenu() { $('ctx').hidden = true; }
-document.addEventListener('click', hideMenu);
+// לחיצה פנימית אינה סוגרת את המסגרת לפני שהפקד שנלחץ סיים את פעולתו.
+document.addEventListener('pointerdown', (e) => {
+  const menu = $('ctx');
+  if (!menu.hidden && !menu.contains(e.target)) hideMenu();
+}, true);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideMenu(); });
 window.addEventListener('blur', hideMenu);
 $('tree').addEventListener('scroll', hideMenu);
@@ -1406,7 +1415,7 @@ async function newNote(presetName) {
   const name = presetName || await ask('שם המסמך:');
   if (!name) return;
   try {
-    const file = await window.api.createNote(targetDir(), name);
+    const file = await window.api.createNote(await noteTargetDir(), name);
     await refreshTree();
     await openNote(file);
     editorApi.editor.commands.focus();
@@ -1446,7 +1455,7 @@ async function newNoteFromTemplate() {
   if (!name) return;
   try {
     const text = fillTemplate(tpl.text, { title: name, dateFormat: tpl.conf.dateFormat, timeFormat: tpl.conf.timeFormat });
-    const file = await window.api.createNote(targetDir(), name, text);
+    const file = await window.api.createNote(await noteTargetDir(), name, text);
     await refreshTree();
     await openNote(file);
     editorApi.editor.commands.focus('end');
@@ -1502,7 +1511,7 @@ async function newFolder() {
   const name = await ask('שם התיקייה:');
   if (!name) return;
   try {
-    await window.api.createFolder(targetDir(), name);
+    await window.api.createFolder(folderTargetDir(), name);
     await refreshTree();
   } catch (err) { setStatus(err.message); }
 }
@@ -1887,3 +1896,4 @@ window.addEventListener('beforeunload', () => { rememberPosition(); if (state.di
   const r = await window.api.init();
   if (r) await enterRoot(r);
 })();
+

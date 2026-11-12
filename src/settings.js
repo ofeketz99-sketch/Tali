@@ -7,7 +7,7 @@ import { buildThemeSection } from './theme-editor.js';
 import { DEFAULT_THEMES, DEFAULT_SCHEDULE, migratePrefs } from './theme-core.js';
 
 export const DEFAULTS = {
-  version: 3,
+  version: 4,
   // ערכות צבעים (theme-core.js). עד 3.7 היו כאן theme / paper / accent, ו־migratePrefs ממיר אותם.
   themeMode: 'day',        // day | night | system (לפי Windows) | schedule (לפי שעות)
   themes: { day: { ...DEFAULT_THEMES.day }, night: { ...DEFAULT_THEMES.night } },
@@ -21,7 +21,8 @@ export const DEFAULTS = {
   pageWidth: 'normal',     // narrow | normal | wide | full
   pageLook: true,          // דף "מודפס" עם צל, או טקסט ישר על הרקע
   showBacklinks: true,
-  newNoteLocation: 'selected', // selected (התיקייה שנבחרה בעץ) | root
+  newNoteLocation: 'folder', // selected (התיקייה שנבחרה בעץ) | root | folder (תיקיית מסמכים חדשים)
+  newNoteFolder: 'מסמכים חדשים', // נתיב יחסי לתיקיית העבודה; נוצר בעת הצורך
   attachMode: 'folder',    // folder (תיקייה קבועה) | beside (ליד ההערה)
   attachFolder: 'attachments',
 };
@@ -160,6 +161,35 @@ function buildDialog() {
 
   const folderInput = el('input', { type: 'text', placeholder: 'attachments', on: { change: () => setPref('attachFolder', folderInput.value.trim() || DEFAULTS.attachFolder) } });
   bind(() => { folderInput.value = prefs.attachFolder; folderInput.disabled = prefs.attachMode !== 'folder'; });
+  const noteFolderInput = el('input', { type: 'text', readonly: '', 'aria-label': 'תיקיית מסמכים חדשים' });
+  const noteFolderStatus = el('small', { class: 'set-folder-status', 'aria-live': 'polite' });
+  const noteFolderPick = el('button', { type: 'button' }, 'בחירה…');
+  noteFolderPick.addEventListener('click', async () => {
+    noteFolderPick.disabled = true;
+    noteFolderStatus.textContent = '';
+    try {
+      const picked = await window.api.pickNewNoteFolder();
+      if (picked == null) return;
+      setPref('newNoteFolder', picked);
+      noteFolderStatus.textContent = 'התיקייה נבחרה ונבדקה.';
+      refresh();
+    } catch (err) {
+      noteFolderStatus.textContent = err.message || 'לא ניתן לבחור את התיקייה.';
+      noteFolderStatus.classList.add('error');
+    } finally {
+      noteFolderPick.disabled = prefs.newNoteLocation !== 'folder';
+    }
+  });
+  const noteFolderControl = el('div', { class: 'set-folder-control' },
+    el('div', { class: 'set-folder-line' }, noteFolderInput, noteFolderPick), noteFolderStatus);
+  bind(() => {
+    const enabled = prefs.newNoteLocation === 'folder';
+    noteFolderInput.value = prefs.newNoteFolder || 'התיקייה הראשית';
+    noteFolderInput.disabled = !enabled;
+    noteFolderPick.disabled = !enabled;
+    if (!enabled) noteFolderStatus.textContent = '';
+    noteFolderStatus.classList.remove('error');
+  });
 
   const body = el('div', { class: 'set-body' },
     el('h3', {}, 'מראה'),
@@ -179,7 +209,12 @@ function buildDialog() {
       'כך ייראה הטקסט במסמכים. The quick brown fox jumps over the lazy dog.'),
 
     el('h3', {}, 'מסמכים וקבצים'),
-    row('מסמך חדש נוצר', null, select('newNoteLocation', [['selected', 'בתיקייה שנבחרה בעץ'], ['root', 'בתיקייה הראשית']])),
+    row('מסמך חדש נוצר', null, select('newNoteLocation', [
+      ['folder', 'בתיקיית מסמכים חדשים'],
+      ['selected', 'בתיקייה שנבחרה בעץ'],
+      ['root', 'בתיקייה הראשית'],
+    ], { onChange: refresh })),
+    row('תיקיית מסמכים חדשים', 'נשמרת ביחס לתיקיית העבודה ונוצרת אוטומטית אם חסרה', noteFolderControl),
     row('תמונות מיובאות נשמרות', null, select('attachMode', [['folder', 'בתיקייה קבועה'], ['beside', 'ליד המסמך']], { onChange: refresh })),
     row('שם התיקייה לתמונות', 'בתוך התיקייה הראשית', folderInput),
   );
@@ -217,3 +252,4 @@ function buildDialog() {
   function open() { pending.hidden = true; themes.open(); refresh(); }
   return { el: dlg, refresh, open };
 }
+
