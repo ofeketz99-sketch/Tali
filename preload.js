@@ -6,6 +6,7 @@ const call = (channel) => (...args) => ipcRenderer.invoke(channel, ...args);
 contextBridge.exposeInMainWorld('api', {
   // המחשב התעורר משינה או נפתחה נעילה (לבדיקה מחדש של ערכת הצבעים לפי שעה)
   onSystemWake: (fn) => ipcRenderer.on('system-wake', () => fn()),
+  onCloseTab: (fn) => ipcRenderer.on('close-tab', () => fn()),
   init: call('init'),
   patchNotes: call('patch-notes'),
   editCommand: call('edit-command'),

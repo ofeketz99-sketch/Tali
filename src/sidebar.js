@@ -128,7 +128,9 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
         // דגל (flags.js): נקודה בצבע אחרי השם
         const flag = flagOf?.(n.path);
         if (flag) { const dot = document.createElement('span'); dot.className = 'flag-dot'; dot.dataset.flag = flag; row.append(dot); }
-        row.addEventListener('click', () => onOpen(n.path));
+        // Ctrl+לחיצה או לחיצה באמצע: בכרטיסייה חדשה
+        row.addEventListener('click', (e) => onOpen(n.path, { newTab: e.ctrlKey || e.metaKey }));
+        row.addEventListener('auxclick', (e) => { if (e.button === 1) { e.preventDefault(); onOpen(n.path, { newTab: true }); } });
         frag.appendChild(row);
       }
       row.addEventListener('contextmenu', (e) => { e.preventDefault(); onContext(n, e.clientX, e.clientY); });

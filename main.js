@@ -539,6 +539,13 @@ function createWindow() {
     },
   });
   win.setMenuBarVisibility(false);
+  // Ctrl+W: בתפריט המובנה (המוסתר) של Electron זה סוגר את החלון. אצלנו: סגירת הכרטיסייה
+  win.webContents.on('before-input-event', (e, input) => {
+    if (input.type === 'keyDown' && (input.control || input.meta) && !input.shift && !input.alt && input.code === 'KeyW') {
+      e.preventDefault();
+      win.webContents.send('close-tab');
+    }
+  });
   // קישורים לאינטרנט נפתחים בדפדפן, לא בתוך האפליקציה
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^(https?|mailto):/i.test(url)) shell.openExternal(url);

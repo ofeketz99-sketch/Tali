@@ -18,6 +18,8 @@ import { openGraph, openGhosts, openTags, openTasks } from './vault-views.js';
 import { exportHtml, EXPORT_CSS } from './export.js';
 import { buildDocx } from './export-docx.js';
 import { openHeaderConvert } from './header-convert.js';
+import { createTabs } from './tabs.js';
+import { renderNoteHtml } from './note-render.js';
 
 // אייקונים בכפתורים שב־index.html: <span data-icon="plus">
 for (const el of document.querySelectorAll('[data-icon]')) el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon, 18));
@@ -192,6 +194,35 @@ const editorApi = createEditor({
 const hoverPreview = setupHoverPreview({
   resolve: resolveTarget, read: (p) => window.api.read(p), fileUrl, onOpen: openLink, isNote,
 });
+// כרטיסיות ופיצול (src/tabs.js)
+const tabs = createTabs({
+  $, store, noteName: (p) => noteName(p),
+  getRoot: () => state.root,
+  getCurrent: () => state.currentPath,
+  openNote: (p, opts) => openNote(p, opts),
+  flushSave: () => flushSave(),
+  showEmpty: () => showEmpty(),
+  renderPreview: async (el, p) => {
+    try { el.innerHTML = renderNoteHtml(await window.api.read(p), { resolve: resolveTarget, fileUrl }); }
+    catch { el.textContent = 'המסמך לא נמצא'; }
+  },
+  onContext: (p, x, y) => showContextMenu({ type: 'file', path: p, name: p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1) }, x, y),
+});
+// אין מסמך פתוח: מסך ריק
+function showEmpty() {
+  state.currentPath = null;
+  state.dirty = false;
+  pageOverlay.setEnabled(false);
+  $('page').hidden = true;
+  $('empty').hidden = false;
+  docPanel?.layout();
+  toggleFocusMode(false);
+  setSaveState('');
+  $('wordCount').textContent = '';
+  updateDocTitle();
+  tabs.cleared();
+  drawTree();
+}
 const pageOverlay = createPageOverlay({ page: $('page'), onChange: noteChanged });
 editorApi.setOverlayController(pageOverlay);
 const useOverlay = (tool) => {
@@ -461,9 +492,13 @@ function setStatus(text) { $('status').textContent = text; }
 // ולידו (#docMeta): התיקייה (לחיצה מראה בעץ) ותאריך היצירה.
 // התאריך: מתוך ההערה (getCreatedDate), ואם אין, המוקדם מבין זמן היצירה והשינוי של הקובץ,
 // כי העתקה או סנכרון מאפסים את זמן היצירה (ואז הוא אחרי זמן השינוי).
+// הרוחב שהשם תופס, כדי שהמידע ייקח את כל השאר (חשוב בחלונית צרה בפיצול)
+const measureTitle = () => $('page').style.setProperty('--title-w', $('docTitle').offsetWidth + 'px');
+new ResizeObserver(measureTitle).observe($('docTitle'));
 function updateDocTitle() {
   const p = state.currentPath;
   $('docTitle').textContent = p ? noteName(p) : '';
+  measureTitle();
   const meta = $('docMeta');
   meta.hidden = !p;
   if (!p) return;
@@ -719,7 +754,8 @@ function targetDir() {
   return state.selectedDir || (state.currentPath ? dirname(state.currentPath) : state.root);
 }
 
-async function openNote(p, { history = true } = {}) {
+// newTab: בכרטיסייה חדשה (Ctrl+לחיצה). בלי: מחליף את הכרטיסייה הנוכחית, או עובר לכרטיסייה שבה הוא כבר פתוח.
+async function openNote(p, { history = true, newTab = false } = {}) {
   await flushSave();
   rememberPosition();
   const md = await window.api.read(p);
@@ -748,6 +784,7 @@ async function openNote(p, { history = true } = {}) {
   setStatus(prettyPath(p));
   updateDocTitle();
   updateWordCount();
+  tabs.opened(p, { newTab });
   drawTree();
   refreshBacklinks();
   refreshLinksPanel();
@@ -756,9 +793,9 @@ async function openNote(p, { history = true } = {}) {
 // ===== קישורים =====
 // לחיצה על [[קישור]]: פותחת את ההערה, או יוצרת אותה אם עדיין לא קיימת.
 // קישור לקובץ שאינו הערה (תמונה, PDF) נפתח בתוכנה של המחשב.
-async function openLink(target) {
+async function openLink(target, opts = {}) {
   const found = resolveTarget(target);
-  if (found && isNote(found)) return openNote(found);
+  if (found && isNote(found)) return openNote(found, opts);
   if (found) {
     try { await window.api.openPath(found); } catch (err) { setStatus(err.message); }
     return;
@@ -828,6 +865,9 @@ async function enterRoot(r) {
   setStatus('תיקיית המסמכים: ' + $('vaultName').textContent);
   drawTree();
   refreshFlags();
+  // הכרטיסיות (והפיצול) מהפעם הקודמת בכספת הזו
+  const known = new Set(allNotes().map((n) => n.path));
+  await tabs.restore((p) => known.has(p));
 }
 
 // ===== שינוי שם ומחיקה (מהתפריט הימני, מהמקלדת או מלוח הפקודות) =====
@@ -841,12 +881,13 @@ async function renameNode(node) {
   try {
     await flushSave();
     const { to, changed } = await window.api.rename(node.path, name);
-    const swap = (p) => (p === node.path ? to : p);
+    // גם מסמכים בתוך תיקייה ששמה השתנה מקבלים את הנתיב החדש (עד 5.2 המסמך הפתוח נסגר)
+    const swap = (p) => (p === node.path ? to : p.startsWith(node.path + '\\') || p.startsWith(node.path + '/') ? to + p.slice(node.path.length) : p);
     state.back = state.back.map(swap);
     state.forward = state.forward.map(swap);
     state.recent = state.recent.map(swap);
-    if (state.currentPath === node.path) state.currentPath = to;
-    else if (state.currentPath && state.currentPath.startsWith(node.path)) state.currentPath = null;
+    if (state.currentPath) state.currentPath = swap(state.currentPath);
+    tabs.remap(swap);
     // אם הקישורים עודכנו גם בהערה הפתוחה, טוענים אותה מחדש מהדיסק
     if (state.currentPath && changed.includes(state.currentPath)) {
       await reloadFromDisk();
@@ -869,14 +910,12 @@ async function deleteNode(node) {
     state.back = state.back.filter(keep);
     state.forward = state.forward.filter(keep);
     state.recent = state.recent.filter(keep);
-    if (state.currentPath && state.currentPath.startsWith(node.path)) {
-      state.currentPath = null;
-      state.dirty = false;
-      pageOverlay.setEnabled(false);
-      $('page').hidden = true;
-      $('empty').hidden = false; docPanel?.layout(); toggleFocusMode(false);
-    }
+    const gone = (p) => p === node.path || p.startsWith(node.path + '\\') || p.startsWith(node.path + '/');
+    if (state.currentPath && gone(state.currentPath)) { state.currentPath = null; state.dirty = false; }
     await refreshTree();
+    // הכרטיסיות של מה שנמחק נסגרות. אם המסמך הפעיל נמחק, נפתחת כרטיסייה אחרת או המסך הריק
+    await tabs.drop(gone);
+    if (!state.currentPath && !$('page').hidden) showEmpty();
   } catch (err) { setStatus(err.message); }
 }
 
@@ -892,6 +931,7 @@ async function moveNode(src, destDir) {
     state.forward = state.forward.map(swap);
     state.recent = state.recent.map(swap);
     store.set('recent:' + state.root, state.recent);
+    tabs.remap(swap);
     if (state.currentPath) {
       state.currentPath = swap(state.currentPath);
       if (changed.includes(state.currentPath)) await reloadFromDisk();
@@ -1107,6 +1147,8 @@ function showContextMenu(node, x, y) {
   };
   const isFile = node.type === 'file';
   if (isFile) {
+    add('filePlus', 'פתיחה בכרטיסייה חדשה', () => openNote(node.path, { newTab: true }), { keys: 'Ctrl+לחיצה' });
+    add('split', 'פתיחה לצד', () => tabs.splitWith(node.path));
     add('edit', 'שינוי שם', () => renameNode(node), { keys: 'F2' });
     add('copy', 'שכפול', () => duplicateNode(node));
     add('link', 'קישור לפתקים אחרים…', () => pickLinksFor(node.path));
@@ -1435,7 +1477,7 @@ function drawSearch(q) {
   if (names.length) {
     renderTree(nameBox, names, {
       activePath: state.currentPath, collapsed: new Set(), highlight: q,
-      onOpen: async (p) => { $('search').value = ''; await openNote(p); },
+      onOpen: async (p, o) => { $('search').value = ''; await openNote(p, o); },
       onSelectDir: () => {}, onToggleDir: () => {}, onContext: showContextMenu, onDelete: deleteNode,
       root: state.root, flagOf: (p) => state.flags.get(p) || null,
     });
@@ -1485,6 +1527,41 @@ function revealDir(dir) {
   row.scrollIntoView({ block: 'center', behavior: 'smooth' });
   row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash');
 }
+// ===== ניווט מהיר במקלדת =====
+// Ctrl+↑/↓: המסמך הקודם/הבא מבין מה שגלוי עכשיו בעץ (תיקיות סגורות לא נכנסות; בחיפוש: התוצאות לפי שם)
+function stepNote(dir) {
+  const rows = [...$('tree').querySelectorAll('.node.file')];
+  if (!rows.length) return;
+  const i = rows.findIndex((r) => r.dataset.path === state.currentPath);
+  const target = i < 0 ? (dir > 0 ? rows[0] : rows[rows.length - 1]) : rows[i + dir];
+  if (!target) return;
+  openNote(target.dataset.path).then(() => {
+    [...$('tree').querySelectorAll('.node.file')].find((r) => r.dataset.path === target.dataset.path)?.scrollIntoView({ block: 'nearest' });
+  });
+}
+// Ctrl+Shift+↑/↓: התיקייה הקודמת/הבאה (לפי סדר העץ, גם סגורות) שיש בה מסמכים, פותחת אותה ואת המסמך הראשון בה
+function stepFolder(dir) {
+  const folders = [];
+  const direct = (nodes) => nodes.find((n) => n.type === 'file');
+  if (direct(state.tree)) folders.push({ path: state.root, first: direct(state.tree).path });
+  const walk = (nodes) => { for (const n of nodes) if (n.type === 'dir') { const f = direct(n.children); if (f) folders.push({ path: n.path, first: f.path }); walk(n.children); } };
+  walk(state.tree);
+  if (!folders.length) return;
+  const cur = state.currentPath ? dirname(state.currentPath) : state.selectedDir || null;
+  const i = folders.findIndex((f) => f.path === cur);
+  const target = i < 0 ? (dir > 0 ? folders[0] : folders[folders.length - 1]) : folders[i + dir];
+  if (!target) return;
+  if ($('search').value) $('search').value = '';
+  for (const d of allDirs()) if (target.path === d || target.path.startsWith(d + '\\') || target.path.startsWith(d + '/')) state.collapsed.delete(d);
+  saveCollapsed();
+  state.selectedDir = target.path;
+  openNote(target.first).then(() => {
+    const row = [...$('tree').querySelectorAll('.node.dir')].find((n) => n.dataset.path === target.path);
+    if (row) { row.scrollIntoView({ block: 'nearest' }); row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash'); }
+    else $('tree').scrollTo({ top: 0 });
+  });
+}
+
 function collapseAll() { state.collapsed = new Set(allDirs()); saveCollapsed(); drawTree(); }
 function expandAll() { state.collapsed.clear(); saveCollapsed(); drawTree(); }
 
@@ -1530,7 +1607,35 @@ function openSwitcher() {
 // ===== פקודות וקיצורי מקלדת =====
 // keys: מה שמוצג. הזיהוי לפי המקש הפיזי (e.code), כך שזה עובד גם כשהמקלדת בעברית.
 const rawButton = () => $('btnRaw');
+// בחירת מסמך בחלון החיפוש המהיר (למשל: איזה מסמך לפתוח לצד)
+function pickNote(placeholder, cb) {
+  openPalette({
+    placeholder,
+    footer: '↑↓ בחירה · Enter בחירה · Esc ביטול',
+    emptyText: 'אין מסמכים',
+    items: (query) => allNotes()
+      .filter((n) => n.path !== state.currentPath)
+      .map((n) => ({ n, m: fuzzy(query, n.name) }))
+      .filter((x) => x.m)
+      .sort((a, b) => (query.trim() ? b.m.score - a.m.score : 0))
+      .slice(0, 50)
+      .map(({ n, m }) => ({ title: n.name, marks: m.marks, hint: n.rel.includes('/') ? n.rel.slice(0, n.rel.lastIndexOf('/')).split('/').join(' › ') : '', run: () => cb(n.path) })),
+  });
+}
+
+// nav: קיצורי ניווט. לא פועלים בתוך שדה קלט (חיפוש וכו'), כדי ש־Ctrl+חצים ימשיכו לעבוד שם כרגיל
 const COMMANDS = [
+  { title: 'הכרטיסייה הבאה', keys: 'Ctrl+←', run: () => tabs.step(1), needs: 'note', nav: true },
+  { title: 'הכרטיסייה הקודמת', keys: 'Ctrl+→', run: () => tabs.step(-1), needs: 'note', nav: true },
+  { title: 'הכרטיסייה הבאה ', keys: 'Ctrl+Tab', run: () => tabs.step(1), needs: 'note', hidden: true },
+  { title: 'הכרטיסייה הקודמת ', keys: 'Ctrl+Shift+Tab', run: () => tabs.step(-1), needs: 'note', hidden: true },
+  { title: 'סגירת הכרטיסייה', keys: 'Ctrl+W', run: () => state.currentPath && tabs.close(state.currentPath), needs: 'note' },
+  { title: 'שני מסמכים זה לצד זה / ביטול', keys: 'Ctrl+\\', run: () => tabs.toggleSplit((cb) => pickNote('מסמך לפתוח לצד…', cb)), needs: 'note' },
+  { title: 'פתיחת מסמך לצד…', run: () => pickNote('מסמך לפתוח לצד…', (p) => tabs.splitWith(p)), needs: 'note' },
+  { title: 'המסמך הבא בעץ', keys: 'Ctrl+↓', run: () => stepNote(1), needs: 'root', nav: true },
+  { title: 'המסמך הקודם בעץ', keys: 'Ctrl+↑', run: () => stepNote(-1), needs: 'root', nav: true },
+  { title: 'התיקייה הבאה', keys: 'Ctrl+Shift+↓', run: () => stepFolder(1), needs: 'root', nav: true },
+  { title: 'התיקייה הקודמת', keys: 'Ctrl+Shift+↑', run: () => stepFolder(-1), needs: 'root', nav: true },
   { title: 'מעבר מהיר למסמך', keys: 'Ctrl+O', run: openSwitcher, needs: 'root' },
   { title: 'לוח פקודות', keys: 'Ctrl+P', run: openCommands },
   { title: 'מסמך חדש', keys: 'Ctrl+N', run: () => newNote(), needs: 'root' },
@@ -1587,7 +1692,7 @@ function openCommands() {
     items: (query) => {
       const list = [];
       for (const c of COMMANDS) {
-        if (!available(c) || c.run === openCommands) continue;
+        if (!available(c) || c.run === openCommands || c.hidden) continue;
         const m = fuzzy(query, c.title);
         if (m) list.push({ score: m.score, title: c.title, marks: m.marks, keys: c.keys, run: c.run });
       }
@@ -1597,7 +1702,7 @@ function openCommands() {
 }
 
 // "Ctrl+Shift+N" -> בדיקה מול אירוע מקלדת
-const CODE_OF = { ',': 'Comma', '←': 'ArrowLeft', '→': 'ArrowRight' };
+const CODE_OF = { ',': 'Comma', '←': 'ArrowLeft', '→': 'ArrowRight', '↑': 'ArrowUp', '↓': 'ArrowDown', '\\': 'Backslash' };
 function matchesKeys(e, keys) {
   const parts = keys.split('+');
   const key = parts.pop();
@@ -1614,6 +1719,8 @@ window.addEventListener('keydown', (e) => {
   if (topDialog() && !isPaletteOpen()) return;
   for (const c of COMMANDS) {
     if (!c.keys || !matchesKeys(e, c.keys)) continue;
+    // ניווט ב־Ctrl+חצים: לא בתוך שדה קלט קטן (חיפוש, שם, מאפיינים), שם החצים מזיזים את הסמן
+    if (c.nav && e.target instanceof HTMLInputElement) return;
     // בתוך חלון החיפוש המהיר עובדים רק המעברים בינו לבין לוח הפקודות
     if (isPaletteOpen() && c.run !== openSwitcher && c.run !== openCommands) return;
     e.preventDefault();
@@ -1623,6 +1730,8 @@ window.addEventListener('keydown', (e) => {
     return;
   }
 }, true);
+// Ctrl+W מגיע מ־main.js (שם הוא נחסם, כי Electron סוגר בו את החלון). בזמן דיאלוג: לא עושים כלום
+window.api.onCloseTab(() => { if (!topDialog() && state.currentPath) tabs.close(state.currentPath); });
 // כפתורי אחורה/קדימה בעכבר
 window.addEventListener('mouseup', (e) => {
   if (e.button === 3) goHistory(-1);

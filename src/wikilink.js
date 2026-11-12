@@ -120,7 +120,8 @@ export const WikiLink = Node.create({
       dom.addEventListener('mousedown', (e) => { if (e.button === 0) e.preventDefault(); });
       dom.addEventListener('click', (e) => {
         e.preventDefault();
-        this.options.onOpen(node.attrs.target);
+        // Ctrl+לחיצה: בכרטיסייה חדשה
+        this.options.onOpen(node.attrs.target, { newTab: e.ctrlKey || e.metaKey });
       });
       return { dom, update: (n) => n.type === node.type && n.attrs.target === node.attrs.target && n.attrs.alias === node.attrs.alias && (mark(), true) };
     };
