@@ -207,6 +207,8 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, flag
         { label: 'רשימת תבליטים', icon: 'bullets', run: edit.bulletList, active: () => has('bulletList') },
         { label: 'רשימה ממוספרת', icon: 'numbers', run: edit.orderedList, active: () => has('orderedList') },
         { label: 'רשימת משימות', icon: 'tasks', run: edit.taskList, active: () => has('taskList') },
+        { label: 'כיוון ימין לשמאל', icon: 'alignRight', run: () => edit.listDirection('rtl') },
+        { label: 'כיוון שמאל לימין', icon: 'alignLeft', run: () => edit.listDirection('ltr') },
       ] },
       { label: 'ציטוט', icon: 'quote', disabled: inCode(), run: edit.quote, active: () => has('blockquote') },
       { label: 'בלוק קוד', icon: 'code', run: edit.codeBlock, active: () => has('codeBlock') },
@@ -241,6 +243,7 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, flag
         { label: 'תיבה בתוך הפסקה', icon: 'quote', disabled: inCode(), run: edit.textBox },
         { label: 'תיבה צפה על הדף', icon: 'textBox', run: edit.floatingBox },
       ] },
+      { label: 'הערה בצד לציטוט המסומן', icon: 'comment', disabled: empty || inCode(), run: edit.marginComment },
       ...(flag ? [{ label: 'דגל', icon: 'flag', sub: [
         ...flag.list.map((f) => ({ label: f.name, dot: f.id, run: () => flag.set(f.id), active: () => flag.get() === f.id })),
         { label: 'ללא דגל', dot: null, disabled: !flag.get(), run: () => flag.set(null) },

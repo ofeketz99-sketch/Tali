@@ -8,7 +8,7 @@ import {
   BetweenVerticalStart, BetweenVerticalEnd, Heading, Pen, Slash, MoveUpRight, Square, Circle, Eraser,
   Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
   PanelRightClose, PanelRightOpen, Waypoints, Ghost, Hash, FileDown, FileType, ListChecks, ListTree, Info, Reply, Ellipsis, Focus, Minimize2,
-  Sigma, SquareSigma, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag,
+  Sigma, SquareSigma, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag, Keyboard, MessageSquareText,
 } from 'lucide';
 
 const ICONS = {
@@ -19,10 +19,10 @@ const ICONS = {
   insert: SquarePlus, chevron: ChevronDown, bold: Bold, italic: Italic, underline: Underline, strike: Strikethrough,
   // קבצים וסרגל צד
   file: FileText, fileBlank: File, folder: Folder, folderPlus: FolderPlus, vault: FolderOpen, plus: Plus,
-  settings: SlidersHorizontal, search: Search, filePlus: FilePlus,
+  settings: SlidersHorizontal, search: Search, filePlus: FilePlus, keyboard: Keyboard,
   panelCollapse: PanelRightClose, panelExpand: PanelRightOpen,
   // פעולות
-  check: Check, edit: Pencil, copy: Copy, link: Link, trash: Trash2, close: X, palette: Palette,
+  check: Check, edit: Pencil, copy: Copy, link: Link, trash: Trash2, close: X, palette: Palette, comment: MessageSquareText,
   paperclip: Paperclip, warning: TriangleAlert,
   // תצוגות כספת וייצוא
   graph: Waypoints, ghost: Ghost, tag: Hash, exportPdf: FileDown, exportWord: FileType, taskSection: ListChecks,

@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('api', {
   onCloseTab: (fn) => ipcRenderer.on('close-tab', () => fn()),
   init: call('init'),
   patchNotes: call('patch-notes'),
+  appVersion: call('app-version'),
   editCommand: call('edit-command'),
   pickFolder: call('pick-folder'),
   tree: call('tree'),

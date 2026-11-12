@@ -31,7 +31,7 @@ export function createPageOverlay({ page, onChange }) {
     const saved = localStorage.getItem(lastToolKey);
     if (shapeKinds.includes(saved)) lastTool = saved;
   } catch { /* Storage can be disabled. */ }
-  let sessionId = null; // All vector strokes from one activation share a persistent ID.
+  let sessionId = null; // Only consecutive freehand strokes share a persistent ID.
   const root = document.createElement('div');
   root.className = 'tali-page-overlay';
   root.hidden = true;
@@ -116,6 +116,21 @@ export function createPageOverlay({ page, onChange }) {
     }
   });
   toolbar.append(picker);
+  const thickness = document.createElement('input');
+  thickness.type = 'range';
+  thickness.min = '1'; thickness.max = '10'; thickness.step = '.5'; thickness.value = String(weight);
+  thickness.className = 'tali-overlay-weight';
+  thickness.title = 'עובי הקו';
+  thickness.setAttribute('aria-label', 'עובי הקו');
+  thickness.addEventListener('input', () => {
+    weight = Number(thickness.value);
+    const members = selectedObjects();
+    if (members.length) {
+      for (const object of members) object.weight = weight;
+      drawShapes(); notify();
+    }
+  });
+  toolbar.append(thickness);
   const deleteButton = addButton(null, 'מחיקת שרטוט או קבוצה מסומנת (Del)', 'trash', deleteSelection);
   deleteButton.dataset.action = 'remove';
   addButton(null, 'סיום שרטוט וחזרה לכתיבה (Esc)', 'close', () => {
@@ -128,11 +143,16 @@ export function createPageOverlay({ page, onChange }) {
 
   function setMode(next) {
     if (!enabled) return;
-    if (!next || next === 'textbox') sessionId = null;
-    else if (shapeKinds.includes(next)) {
-      if (!sessionId) sessionId = makeId();
+    if (next === 'pen') {
+      if (mode !== 'pen' || !sessionId) sessionId = makeId();
       lastTool = next;
       try { localStorage.setItem(lastToolKey, next); } catch { /* Nonessential preference. */ }
+    } else {
+      sessionId = null;
+      if (shapeKinds.includes(next)) {
+        lastTool = next;
+        try { localStorage.setItem(lastToolKey, next); } catch { /* Nonessential preference. */ }
+      }
     }
     mode = next;
     selected = null;
@@ -150,6 +170,44 @@ export function createPageOverlay({ page, onChange }) {
     const bounds = page.getBoundingClientRect();
     return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
   };
+
+  function quoteRect(quote) {
+    const editor = page.querySelector('.ProseMirror');
+    if (!editor || !quote) return null;
+    const nodes = [];
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+    let text = '', node;
+    while ((node = walker.nextNode())) { nodes.push({ node, start: text.length, end: text.length + node.data.length }); text += node.data; }
+    const at = text.indexOf(quote);
+    if (at < 0) return null;
+    const first = nodes.find((part) => part.end > at);
+    const last = nodes.find((part) => part.end >= at + quote.length);
+    if (!first || !last) return null;
+    const range = document.createRange();
+    range.setStart(first.node, at - first.start);
+    range.setEnd(last.node, Math.min(last.node.data.length, at + quote.length - last.start));
+    return range.getBoundingClientRect();
+  }
+
+  function addComment(quote) {
+    const clean = String(quote || '').replace(/\s+/g, ' ').trim().slice(0, 1000);
+    if (!enabled || !clean) return false;
+    const width = 230, height = 130;
+    const rect = quoteRect(clean);
+    const bounds = page.getBoundingClientRect();
+    const count = objects.filter((item) => item.kind === 'comment').length;
+    const side = count % 2 ? 'end' : 'start';
+    const object = {
+      id: makeId(), kind: 'comment', quote: clean, text: '', side,
+      x: side === 'start' ? -width - 24 : page.clientWidth + 24,
+      y: Math.max(18, Math.round((rect ? rect.top - bounds.top : 70 + count * 42))),
+      width, height, color, weight,
+    };
+    objects.push(object);
+    render(); select(object.id); notify();
+    requestAnimationFrame(() => boxes.querySelector(`[data-id="${object.id}"] textarea`)?.focus());
+    return true;
+  }
 
   const pathOf = (object) => {
     if (object.kind === 'pen') return smoothSvgStroke(object.points);
@@ -213,7 +271,20 @@ export function createPageOverlay({ page, onChange }) {
     return group;
   }
   function drawShapes() {
-    shapes.replaceChildren(...objects.filter((object) => shapeKinds.includes(object.kind)).map(shapeElement));
+    const bounds = page.getBoundingClientRect();
+    const connectors = objects.filter((object) => object.kind === 'comment').map((object) => {
+      const rect = quoteRect(object.quote);
+      if (!rect) return null;
+      const anchorX = object.side === 'start' ? rect.left - bounds.left : rect.right - bounds.left;
+      const anchorY = rect.top - bounds.top + rect.height / 2;
+      const noteX = object.side === 'start' ? object.x + object.width : object.x;
+      const noteY = object.y + 31;
+      const path = svgEl('path', { d: `M${anchorX} ${anchorY} C${(anchorX + noteX) / 2} ${anchorY}, ${(anchorX + noteX) / 2} ${noteY}, ${noteX} ${noteY}` });
+      path.classList.add('tali-comment-connector');
+      path.setAttribute('stroke', object.color);
+      return path;
+    }).filter(Boolean);
+    shapes.replaceChildren(...connectors, ...objects.filter((object) => shapeKinds.includes(object.kind)).map(shapeElement));
   }
   function markBoxes() {
     for (const element of boxes.children) {
@@ -236,19 +307,30 @@ export function createPageOverlay({ page, onChange }) {
       if (e.pointerId !== event.pointerId) return;
       const dx = e.clientX - start.x, dy = e.clientY - start.y;
       if (operation === 'resize') {
-        object.width = limit(start.width + dx, 110, 900);
-        object.height = limit(start.height + dy, 60, 600);
+        const maxWidth = object.kind === 'textbox' ? Math.max(110, page.clientWidth - object.x) : 900;
+        const maxHeight = Math.max(60, page.clientHeight - object.y);
+        object.width = limit(start.width + dx, 110, maxWidth);
+        object.height = limit(start.height + dy, 60, Math.min(600, maxHeight));
         placeBox(object, element);
       } else {
         for (const p of origins) {
-          p.item.x = Math.round(p.x + dx);
-          p.item.y = Math.round(p.y + dy);
-          if (p.item.kind === 'textbox') placeBox(p.item, element);
+          let nextX = Math.round(p.x + dx), nextY = Math.round(p.y + dy);
+          if (p.item.kind === 'textbox') {
+            nextX = limit(nextX, 0, Math.max(0, page.clientWidth - p.item.width));
+            nextY = limit(nextY, 0, Math.max(0, page.clientHeight - p.item.height));
+          } else if (p.item.kind === 'comment') {
+            nextX = limit(nextX, -p.item.width - 280, page.clientWidth + 280);
+            nextY = limit(nextY, 0, Math.max(0, page.clientHeight - p.item.height));
+            p.item.side = nextX + p.item.width / 2 < page.clientWidth / 2 ? 'start' : 'end';
+          }
+          p.item.x = nextX; p.item.y = nextY;
+          if (p.item.kind === 'textbox' || p.item.kind === 'comment') placeBox(p.item, element);
           else {
             const drawn = Array.from(shapes.children).find((child) => child.dataset.id === p.item.id);
             drawn?.setAttribute('transform', 'translate(' + p.item.x + ' ' + p.item.y + ')');
           }
         }
+        if (object.kind === 'comment') drawShapes();
       }
     };
     const stop = (e) => {
@@ -265,15 +347,22 @@ export function createPageOverlay({ page, onChange }) {
   }
   function drawBoxes() {
     boxes.replaceChildren();
-    for (const object of objects.filter((item) => item.kind === 'textbox')) {
+    for (const object of objects.filter((item) => item.kind === 'textbox' || item.kind === 'comment')) {
+      if (object.kind === 'textbox') {
+        object.width = Math.min(object.width, Math.max(110, page.clientWidth));
+        object.height = Math.min(object.height, Math.max(60, page.clientHeight));
+        object.x = limit(object.x, 0, Math.max(0, page.clientWidth - object.width));
+        object.y = limit(object.y, 0, Math.max(0, page.clientHeight - object.height));
+      }
       const element = document.createElement('div');
-      element.className = 'tali-overlay-box';
+      element.className = 'tali-overlay-box' + (object.kind === 'comment' ? ' tali-margin-comment' : '');
       element.dataset.id = object.id;
       placeBox(object, element);
       const head = document.createElement('div');
       head.className = 'tali-overlay-grip';
       head.tabIndex = 0;
-      head.innerHTML = icon('move', 15) + '<span>תיבת טקסט</span>';
+      head.innerHTML = icon('move', 15) + '<span></span>';
+      head.querySelector('span').textContent = object.kind === 'comment' ? `„${object.quote.slice(0, 64)}${object.quote.length > 64 ? '…' : ''}“` : 'תיבת טקסט';
       head.title = 'גרור כדי להזיז את התיבה';
       head.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) return;
@@ -287,7 +376,7 @@ export function createPageOverlay({ page, onChange }) {
       field.className = 'tali-overlay-text';
       field.dir = 'auto';
       field.spellcheck = true;
-      field.placeholder = 'כתוב כאן…';
+      field.placeholder = object.kind === 'comment' ? 'הערה לציטוט…' : 'כתוב כאן…';
       field.value = object.text;
       field.addEventListener('focus', () => select(object.id));
       field.addEventListener('input', () => {
@@ -308,7 +397,7 @@ export function createPageOverlay({ page, onChange }) {
   }
   function render() { drawShapes(); drawBoxes(); updateToolbar(); }
 
-  svg.addEventListener('pointerdown', (event) => {
+  function beginDrawing(event) {
     if (!enabled || !mode || event.button !== 0) return;
     event.preventDefault();
     const p = point(event);
@@ -321,18 +410,20 @@ export function createPageOverlay({ page, onChange }) {
       select(object.id);
       boxes.lastElementChild?.querySelector('textarea')?.focus();
       notify();
-      return;
+      return true;
     }
     const object = { id: makeId(), kind: mode, x: Math.round(p.x), y: Math.round(p.y),
-      color, weight, group: sessionId };
+      color, weight, ...(mode === 'pen' && sessionId ? { group: sessionId } : {}) };
     if (mode === 'pen') object.points = [[0, 0], [0, 0]];
     else { object.dx = 0; object.dy = 0; }
     objects.push(object);
     drawing = { pointerId: event.pointerId, object, start: p };
-    svg.setPointerCapture(event.pointerId);
+    if (event.currentTarget === svg) svg.setPointerCapture(event.pointerId);
     drawShapes();
-  });
-  svg.addEventListener('pointermove', (event) => {
+    return true;
+  }
+  svg.addEventListener('pointerdown', beginDrawing);
+  window.addEventListener('pointermove', (event) => {
     if (!drawing || drawing.pointerId !== event.pointerId) return;
     const events = drawing.object.kind === 'pen' && event.getCoalescedEvents
       ? event.getCoalescedEvents() : [event];
@@ -367,14 +458,21 @@ export function createPageOverlay({ page, onChange }) {
     drawShapes();
     notify();
   };
-  svg.addEventListener('pointerup', finish);
-  svg.addEventListener('pointercancel', finish);
+  window.addEventListener('pointerup', finish);
+  window.addEventListener('pointercancel', finish);
 
   // Clicking outside the drawing canvas and its tools exits the active session.
   // Clicks on the page itself are reserved for adding strokes or selecting objects.
   window.addEventListener('pointerdown', (event) => {
     if (!enabled || (!mode && !selected)) return;
     if (page.contains(event.target) || toolbar.contains(event.target) || document.querySelector('dialog[open]')) return;
+    // Starting in the surrounding workspace is valid: coordinates may begin outside the paper,
+    // and the stroke can enter it naturally instead of the tool being cancelled.
+    if (mode && page.closest('#pageWrap')?.contains(event.target)) {
+      event.stopPropagation();
+      beginDrawing(event);
+      return;
+    }
     setMode(null);
     select(null);
   }, true);
@@ -406,5 +504,6 @@ export function createPageOverlay({ page, onChange }) {
     },
     setMode: (next) => setMode(next),
     openDrawing,
+    addComment,
   };
 }

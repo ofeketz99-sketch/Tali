@@ -305,6 +305,7 @@ function registerIpc() {
   });
 
   ipcMain.handle('patch-notes', getPatchNotes);
+  ipcMain.handle('app-version', () => app.getVersion());
   // שמירת טבלה מלאה ללוח בפורמט HTML ובפורמט טקסט לתאימות עם Word, Excel ועורכי פתקים.
   ipcMain.handle('copy-table', (_e, html, text) => {
     clipboard.write({ html: String(html || ''), text: String(text || '') });

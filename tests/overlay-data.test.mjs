@@ -47,12 +47,12 @@ test('only known annotation kinds and finite coordinates survive sanitization', 
   assert.equal(parsed.objects[0].x, 50);
 });
 
-test('one drawing session is saved as a group while legacy strokes stay independent', async () => {
+test('only freehand strokes from one drawing session are grouped', async () => {
   const source = readFileSync(new URL('../src/overlay-data.js', import.meta.url));
   const { groupedSelection } = await import('data:text/javascript;base64,' + source.toString('base64'));
   const withGroup = [
     { id: 'one', kind: 'pen', x: 10, y: 10, points: [[0, 0], [20, 20]], color: '#4b80bd', weight: 2, group: 'session-01' },
-    { id: 'two', kind: 'arrow', x: 70, y: 20, dx: 40, dy: 10, color: '#4b80bd', weight: 2, group: 'session-01' },
+    { id: 'two', kind: 'pen', x: 70, y: 20, points: [[0, 0], [40, 10]], color: '#4b80bd', weight: 2, group: 'session-01' },
     { id: 'three', kind: 'line', x: 10, y: 60, dx: 50, dy: 0, color: '#4b80bd', weight: 2 },
     { id: 'box', kind: 'textbox', x: 10, y: 90, width: 200, height: 100, text: 'hello', group: 'session-01' },
   ];
@@ -62,4 +62,15 @@ test('one drawing session is saved as a group while legacy strokes stay independ
   assert.deepEqual(groupedSelection(restored, 'three').map(o => o.id), ['three']);
   assert.deepEqual(groupedSelection(restored, 'box').map(o => o.id), ['box']);
   assert.equal(restored[3].group, undefined);
+});
+
+test('margin comments preserve their quote but never join drawing groups', async () => {
+  const source = readFileSync(new URL('../src/overlay-data.js', import.meta.url));
+  const { groupedSelection } = await import('data:text/javascript;base64,' + source.toString('base64'));
+  const comment = { id: 'c1', kind: 'comment', x: -260, y: 100, width: 220, height: 130,
+    text: 'בדיקה', quote: 'ציטוט מן המסמך', side: 'start', color: '#4b80bd', weight: 2, group: 'session-01' };
+  const restored = splitOverlay(joinOverlay('Note', [comment])).objects[0];
+  assert.equal(restored.quote, comment.quote);
+  assert.equal(restored.group, undefined);
+  assert.deepEqual(groupedSelection([restored], 'c1'), [restored]);
 });

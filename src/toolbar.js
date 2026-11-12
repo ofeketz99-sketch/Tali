@@ -141,6 +141,10 @@ export function buildToolbar(container, editorApi, actions = {}) {
   button(g5, { html: icon('bullets'), tip: 'רשימת תבליטים', run: () => chain().toggleBulletList().run(), active: () => editor.isActive('bulletList') });
   button(g5, { html: icon('numbers'), tip: 'רשימה ממוספרת', run: () => chain().toggleOrderedList().run(), active: () => editor.isActive('orderedList') });
   button(g5, { html: icon('tasks'), tip: 'רשימת משימות', run: () => chain().toggleTaskList().run(), active: () => editor.isActive('taskList') });
+  const activeList = () => ['bulletList', 'orderedList', 'taskList'].find((name) => editor.isActive(name));
+  const rtlList = button(g5, { html: icon('alignRight'), tip: 'כיוון הרשימה: ימין לשמאל', run: () => ed.listDirection('rtl'), active: () => !!activeList() && editor.getAttributes(activeList()).dir === 'rtl' });
+  const ltrList = button(g5, { html: icon('alignLeft'), tip: 'כיוון הרשימה: שמאל לימין', run: () => ed.listDirection('ltr'), active: () => !!activeList() && editor.getAttributes(activeList()).dir === 'ltr' });
+  refreshers.push(() => { rtlList.disabled = ltrList.disabled = !activeList(); });
   button(g5, { html: icon('quote'), tip: 'ציטוט', run: () => chain().toggleBlockquote().run(), active: () => editor.isActive('blockquote') });
 
   // ===== יישור =====
@@ -163,6 +167,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
         ['draw', 'ציור כתמונה', ed.drawing],
         ['arrow', 'שרטוט על הדף', ed.pageDrawing],
         ['textBox', 'תיבת טקסט צפה', ed.floatingBox],
+        ['comment', 'הערת שוליים לציטוט', ed.marginComment],
         ['quote', 'תיבה בתוך הפסקה', ed.textBox],
         ['code', 'בלוק קוד', ed.codeBlock],
         ['rule', 'קו מפריד', ed.rule],

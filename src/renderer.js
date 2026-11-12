@@ -105,7 +105,8 @@ function setSaveState(s) {
   const t = document.getElementById('saveText');
   if (t) { t.textContent = SAVE_TEXT[s] || ''; t.dataset.state = s || ''; }
 }
-import { loadPrefs, getPrefs, openSettings } from './settings.js';
+import { loadPrefs, getPrefs, openSettings, setHotkeyCatalog, onPrefsChange } from './settings.js';
+import { commandHotkey, matchesHotkey } from './hotkeys.js';
 import { openPalette, closePalette, isPaletteOpen, fuzzy } from './palette.js';
 
 // אחסון קטן בדפדפן של האפליקציה: הערות אחרונות ותיקיות מכווצות, לכל תיקיית עבודה בנפרד
@@ -196,7 +197,9 @@ const editorApi = createEditor({
     onTag: (tag) => showTags(tag),
   },
   onImageFiles: saveDroppedImages,
+  shouldSortCompleted: () => getPrefs().completedTasksAtBottom,
 });
+onPrefsChange(() => editorApi.refreshPreferences());
 const hoverPreview = setupHoverPreview({
   resolve: resolveTarget, read: (p) => window.api.read(p), fileUrl, onOpen: openLink, isNote,
 });
@@ -248,6 +251,9 @@ const home = createHome({
     createGhost: (name) => openLink(name),
     showTasks: (k) => showTasks(k),
     showGhosts: () => showGhosts(),
+    appVersion: () => window.api.appVersion(),
+    patchNotes: () => window.api.patchNotes(),
+    openPatchNotes: () => openPatchNotes(),
     onChanged: () => refreshTree(),
   },
 });
@@ -278,10 +284,17 @@ const useOverlay = (tool) => {
   else pageOverlay.openDrawing();
   setStatus('בחר כלי ושרטט על הדף. Esc מסיים את הקבוצה.');
 };
+const addMarginComment = (quote) => {
+  if (!state.currentPath || editorApi.isRaw()) { setStatus('פותחים מסמך בתצוגה המעוצבת כדי להוסיף הערה'); return; }
+  if (!quote?.trim()) { setStatus('מסמנים קודם את הציטוט שאליו ההערה שייכת'); return; }
+  pageOverlay.setEnabled(true);
+  if (pageOverlay.addComment(quote)) setStatus('ההערה מקושרת לציטוט וניתנת לגרירה בשולי הדף');
+};
 const toolbarApi = buildToolbar($('toolbar'), editorApi, {
   onImage: importImages,
   onDraw: newDrawing,
   onOverlayDraw: useOverlay,
+  onMarginComment: addMarginComment,
   onTaskSection: insertTaskSection,
   onFocusMode: () => toggleFocusMode(),
 });
@@ -1825,6 +1838,9 @@ const COMMANDS = [
   { title: 'ייצוא ל־Word', run: () => exportNote('docx'), needs: 'note' },
   { title: 'החלפת תיקיית עבודה', run: async () => enterRoot(await window.api.pickFolder()) },
 ];
+// The default shortcut itself is a stable id for the existing command set. Custom values live in prefs.hotkeys.
+for (const command of COMMANDS) if (command.keys && !command.id) command.id = 'shortcut:' + command.keys;
+setHotkeyCatalog(COMMANDS);
 const available = (c) => !c.needs || (c.needs === 'root' ? !!state.root : !!state.currentPath);
 
 function openCommands() {
@@ -1836,23 +1852,11 @@ function openCommands() {
       for (const c of COMMANDS) {
         if (!available(c) || c.run === openCommands || c.hidden) continue;
         const m = fuzzy(query, c.title);
-        if (m) list.push({ score: m.score, title: c.title, marks: m.marks, keys: c.keys, run: c.run });
+        if (m) list.push({ score: m.score, title: c.title, marks: m.marks, keys: commandHotkey(c, getPrefs()), run: c.run });
       }
       return query.trim() ? list.sort((a, b) => b.score - a.score) : list;
     },
   });
-}
-
-// "Ctrl+Shift+N" -> בדיקה מול אירוע מקלדת
-const CODE_OF = { ',': 'Comma', '←': 'ArrowLeft', '→': 'ArrowRight', '↑': 'ArrowUp', '↓': 'ArrowDown', '\\': 'Backslash' };
-function matchesKeys(e, keys) {
-  const parts = keys.split('+');
-  const key = parts.pop();
-  const code = CODE_OF[key] || (/^[A-Z]$/.test(key) ? 'Key' + key : /^\d$/.test(key) ? 'Digit' + key : key);
-  return e.code === code
-    && (e.ctrlKey || e.metaKey) === parts.includes('Ctrl')
-    && e.shiftKey === parts.includes('Shift')
-    && e.altKey === parts.includes('Alt');
 }
 
 // שלב הלכידה: הקיצורים של האפליקציה קודמים לעורך (למשל Ctrl+E)
@@ -1860,7 +1864,8 @@ window.addEventListener('keydown', (e) => {
   // בזמן דיאלוג (שם, אישור, הגדרות) הקיצורים כבויים
   if (topDialog() && !isPaletteOpen()) return;
   for (const c of COMMANDS) {
-    if (!c.keys || !matchesKeys(e, c.keys)) continue;
+    const hotkey = commandHotkey(c, getPrefs());
+    if (!hotkey || !matchesHotkey(e, hotkey)) continue;
     // ניווט ב־Ctrl+חצים: לא בתוך שדה קלט קטן (חיפוש, שם, מאפיינים), שם החצים מזיזים את הסמן
     if (c.nav && e.target instanceof HTMLInputElement) return;
     // בתוך חלון החיפוש המהיר עובדים רק המעברים בינו לבין לוח הפקודות

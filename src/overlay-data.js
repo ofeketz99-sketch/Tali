@@ -1,7 +1,7 @@
 // Floating annotation metadata lives in one trailing HTML comment, invisible in Obsidian.
 // An unrecognized or invalid comment is NEVER removed (to avoid losing user data).
 const TRAILER = /(?:\r?\n){2}<!-- TALI-OVERLAY:v1:([^\r\n]*?) -->[ \t]*(?:\r?\n)?$/;
-const TYPES = new Set(['pen', 'line', 'arrow', 'rect', 'ellipse', 'textbox']);
+const TYPES = new Set(['pen', 'line', 'arrow', 'rect', 'ellipse', 'textbox', 'comment']);
 const finite = (n) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 100000;
 const bounded = (v, def, min, max) => finite(v) ? Math.min(max, Math.max(min, v)) : def;
 
@@ -17,13 +17,17 @@ export function cleanOverlayObjects(input) {
       y: bounded(object.y, 50, -10000, 100000),
       color: /^#[0-9a-f]{6}$/i.test(object.color || '') ? object.color : '#4b80bd',
       weight: bounded(object.weight, 2.4, 1, 20),
-      ...(object.kind !== 'textbox' && /^[a-z0-9_-]{1,80}$/i.test(object.group || '') ? { group: object.group } : {}),
+      ...(object.kind === 'pen' && /^[a-z0-9_-]{1,80}$/i.test(object.group || '') ? { group: object.group } : {}),
     };
-    if (object.kind === 'textbox') {
+    if (object.kind === 'textbox' || object.kind === 'comment') {
       result.push({
         ...base, width: bounded(object.width, 230, 110, 900),
         height: bounded(object.height, 100, 60, 600),
         text: String(object.text || '').slice(0, 20000),
+        ...(object.kind === 'comment' ? {
+          quote: String(object.quote || '').trim().slice(0, 1000),
+          side: object.side === 'start' ? 'start' : 'end',
+        } : {}),
       });
     } else if (object.kind === 'pen') {
       const points = Array.isArray(object.points) ? object.points.slice(0, 2500)
@@ -75,6 +79,6 @@ export function groupedSelection(items, selectedId) {
   if (!Array.isArray(items)) return [];
   const chosen = items.find(item => item.id === selectedId);
   if (!chosen) return [];
-  if (!chosen.group || chosen.kind === 'textbox') return [chosen];
-  return items.filter(item => item.kind !== 'textbox' && item.group === chosen.group);
+  if (!chosen.group || chosen.kind !== 'pen') return [chosen];
+  return items.filter(item => item.kind === 'pen' && item.group === chosen.group);
 }

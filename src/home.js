@@ -7,13 +7,19 @@ import { icon } from './icons.js';
 import { extractTasks } from '../vault-data.js';
 
 const CARDS = {
+  updates: { title: 'גרסה ועדכונים', icon: 'info' },
   followUp: { title: 'משימות להמשך', icon: 'taskSection' },
   ghosts: { title: 'מסמכי רפאים', icon: 'ghost' },
   board: { title: 'לוח משימות', icon: 'board' },
 };
-const DEFAULT_LAYOUT = { order: ['followUp', 'ghosts', 'board'], hidden: [] };
+const DEFAULT_LAYOUT = { order: ['updates', 'followUp', 'ghosts', 'board'], hidden: [] };
 const BOARD_NAME = 'משימות';
 const LIMIT = 8;
+const plainMarkdown = (text) => String(text || '')
+  .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  .replace(/`([^`]+)`/g, '$1')
+  .replace(/\*\*([^*]+)\*\*/g, '$1')
+  .replace(/__([^_]+)__/g, '$1');
 
 // api: { getRoot, sep, vaultIndex, openNote, openTask, toggleTask, createGhost, showTasks, showGhosts, read, write, createNote, exists, onChanged }
 export function createHome({ el, store, api }) {
@@ -34,18 +40,26 @@ export function createHome({ el, store, api }) {
     if (refresh || !cache) {
       // מציירים מיד (ברכה וכרטיסים במצב טעינה, או הנתונים הקודמים), ורק אחר כך קוראים את הכספת.
       // בכספת גדולה, או בתיקייה מסונכרנת בענן שהקבצים בה עוד לא ירדו למחשב, הקריאה יכולה לקחת זמן רב
-      if (!cache) draw(null, null);
+      if (!cache) draw(null, null, null);
+      const infoPromise = Promise.all([
+        api.appVersion().catch(() => ''),
+        api.patchNotes().catch(() => ({ content: '', source: 'local' })),
+      ]);
       const index = await api.vaultIndex().catch(() => ({ notes: [] }));
       let board = null;
       try { board = await api.read(boardPath()); } catch { /* עוד לא נוצר */ }
       if (my !== token) return;
-      cache = { index, board };
+      cache = { index, board, info: cache?.info || null };
+      draw(cache.index, cache.board, cache.info);
+      const [version, notes] = await infoPromise;
+      if (my !== token) return;
+      cache.info = { version, notes };
     }
-    draw(cache.index, cache.board);
+    draw(cache.index, cache.board, cache.info);
   }
 
   // index == null: הכספת עוד נטענת
-  function draw(index, board) {
+  function draw(index, board, info) {
     const { order, hidden } = layout();
     el.innerHTML = '';
     el.classList.toggle('editing', editing);
@@ -77,10 +91,10 @@ export function createHome({ el, store, api }) {
       p.textContent = 'כל הכרטיסים מוסתרים. "התאמה" מחזירה אותם.';
       grid.append(p);
     }
-    shown.forEach((k, i) => grid.append(card(k, i, shown.length, hidden.includes(k), index, board)));
+    shown.forEach((k, i) => grid.append(card(k, i, shown.length, hidden.includes(k), index, board, info)));
   }
 
-  function card(key, i, count, isHidden, index, board) {
+  function card(key, i, count, isHidden, index, board, info) {
     const c = document.createElement('section');
     c.className = 'home-card' + (isHidden ? ' is-hidden' : '');
     c.dataset.key = key;
@@ -122,11 +136,26 @@ export function createHome({ el, store, api }) {
     const body = document.createElement('div');
     body.className = 'hc-body';
     c.append(body);
-    if (!index) empty(body, 'טוען את המסמכים…');
+    if (key === 'updates') updates(body, head, info);
+    else if (!index) empty(body, 'טוען את המסמכים…');
     else if (key === 'followUp') followUps(body, head, index);
     else if (key === 'ghosts') ghosts(body, head, index);
     else boardCard(body, head, board);
     return c;
+  }
+
+  function updates(body, head, info) {
+    if (!info) return empty(body, 'טוען את פרטי הגרסה…');
+    head.querySelector('.hc-count').textContent = info.version ? `v${info.version.replace(/\.0$/, '')}` : '';
+    const lines = String(info.notes?.content || '').split(/\r?\n/);
+    const first = lines.findIndex((line) => /^##\s+/.test(line));
+    const title = first >= 0 ? lines[first].replace(/^##\s+/, '').trim() : 'הגרסה המותקנת';
+    const bullets = first >= 0 ? lines.slice(first + 1, lines.findIndex((line, index) => index > first && /^##\s+/.test(line)) < 0 ? lines.length : lines.findIndex((line, index) => index > first && /^##\s+/.test(line)))
+      .filter((line) => /^[-*]\s+/.test(line)).slice(0, 3).map((line) => line.replace(/^[-*]\s+/, '')) : [];
+    const versionTitle = document.createElement('strong');
+    versionTitle.className = 'hc-version-title'; versionTitle.textContent = plainMarkdown(title); body.append(versionTitle);
+    for (const text of bullets) { const p = document.createElement('p'); p.className = 'hc-update-line'; p.textContent = plainMarkdown(text); body.append(p); }
+    more(body, 'כל ה‑Patch Notes', api.openPatchNotes);
   }
   function move(key, dir) {
     const l = layout();

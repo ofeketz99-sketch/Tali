@@ -10,7 +10,6 @@ import { HighlightInk } from './highlight-ink.js';
 import TextAlign from '@tiptap/extension-text-align';
 import TableRow from '@tiptap/extension-table-row';
 import { WordTable, WordTableCell, WordTableHeader, attachTableBar } from './table.js';
-import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Markdown } from 'tiptap-markdown';
@@ -20,6 +19,8 @@ import { Embed, LocalImage } from './embed.js';
 import { splitOverlay, joinOverlay } from './overlay-data.js';
 import { MathPreview } from './math.js';
 import { Tags } from './tags.js';
+import { DirectionBulletList, DirectionOrderedList, DirectionTaskList } from './list-direction.js';
+import { markCompletedBoundaries, sortCompletedTaskLists } from './task-layout.js';
 import { attachPropsEditor } from './props-editor.js';
 import {
   ObsidianMarkdown, FaithfulText, FaithfulHardBreak, FaithfulHorizontalRule, FaithfulHeading, FaithfulLink,
@@ -30,7 +31,7 @@ import {
 // links: { getNotes, resolve, onOpen, localSrc } — ראו wikilink.js ו־embed.js
 // propsElement: textarea של המאפיינים (frontmatter)
 // onImageFiles: (files) => void — תמונות שהודבקו או נגררו לעורך
-export function createEditor({ element, rawElement, propsElement, onChange, links, onImageFiles }) {
+export function createEditor({ element, rawElement, propsElement, onChange, links, onImageFiles, shouldSortCompleted = () => false }) {
   let raw = false;
   let loading = false;
   let frontmatter = null;
@@ -59,7 +60,8 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       },
     },
     extensions: [
-      StarterKit.configure({ text: false, hardBreak: false, horizontalRule: false, heading: false }),
+      StarterKit.configure({ text: false, hardBreak: false, horizontalRule: false, heading: false,
+        bulletList: false, orderedList: false }),
       FaithfulText,
       FaithfulHardBreak,
       FaithfulHorizontalRule,
@@ -77,7 +79,9 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       TableRow,
       WordTableHeader,
       WordTableCell,
-      TaskList,
+      DirectionBulletList,
+      DirectionOrderedList,
+      DirectionTaskList,
       TaskItem.configure({ nested: true }),
       FaithfulLink,
       LocalImage.configure({ localSrc: links.localSrc }),
@@ -90,7 +94,14 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       // breaks: true כמו באובסידיאן: ירידת שורה בודדת היא ירידת שורה.
       Markdown.configure({ html: true, tightLists: true, linkify: true, breaks: true }),
     ],
-    onUpdate: () => { if (!loading) onChange(); },
+    onUpdate: ({ editor }) => {
+      if (loading) return;
+      onChange();
+      requestAnimationFrame(() => {
+        if (shouldSortCompleted() && sortCompletedTaskLists(editor)) return;
+        markCompletedBoundaries(element);
+      });
+    },
   });
 
   rawElement.addEventListener('input', () => { if (!loading) onChange(); });
@@ -155,6 +166,10 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       overlayController = controller;
       controller.setItems(overlayObjects);
       controller.setEnabled(!raw);
+    },
+    refreshPreferences() {
+      if (shouldSortCompleted()) sortCompletedTaskLists(editor);
+      requestAnimationFrame(() => markCompletedBoundaries(element));
     },
     isRaw: () => raw,
     // "הוספת מאפיינים" בהערה שאין בה: טופס עם שורה ריקה

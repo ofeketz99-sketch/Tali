@@ -4,6 +4,7 @@
 import { TextSelection } from '@tiptap/pm/state';
 import { openTableGrid } from './table.js';
 import { FOLLOW_UP, isFollowUpHeading } from '../vault-data.js';
+import { LIST_TYPES } from './list-direction.js';
 
 export function createEditActions(editor, hooks = {}) {
   const chain = () => editor.chain().focus();
@@ -23,6 +24,12 @@ export function createEditActions(editor, hooks = {}) {
     bulletList: () => chain().toggleBulletList().run(),
     orderedList: () => chain().toggleOrderedList().run(),
     taskList: () => chain().toggleTaskList().run(),
+    listDirection: (dir) => {
+      const type = LIST_TYPES.find((name) => editor.isActive(name));
+      if (!type) return false;
+      const current = editor.getAttributes(type).dir || null;
+      return chain().updateAttributes(type, { dir: current === dir ? null : dir }).run();
+    },
     quote: () => chain().toggleBlockquote().run(),
     codeBlock: () => chain().toggleCodeBlock().run(),
 
@@ -37,6 +44,7 @@ export function createEditActions(editor, hooks = {}) {
       { type: 'paragraph', content: [{ type: 'text', text: 'טקסט בתוך התיבה' }] },
     ] }).run(),
     floatingBox: () => hooks.onOverlayDraw?.('textbox'),
+    marginComment: () => hooks.onMarginComment?.(selectedText()),
     pageDrawing: () => hooks.onOverlayDraw?.(),
     drawing: () => hooks.onDraw?.(),
     image: () => hooks.onImage?.(),
