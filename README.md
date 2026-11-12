@@ -22,7 +22,7 @@ npm start
 | `npm run watch` | בנייה מתמשכת בזמן פיתוח (רענון חלון עם Ctrl+R) |
 | `npm test` | בדיקות יחידה |
 | `npm run check` | בדיקת תחביר, בנייה ובדיקות. להריץ לפני כל commit |
-| `npm run splash:render` | רינדור מחדש של סרטון הפתיח (דורש GPU) |
+| `npm run splash:emblem` | בנייה מחדש של הסמל בפתיח מ־`build/icon.png` |
 
 ## מסמכים
 

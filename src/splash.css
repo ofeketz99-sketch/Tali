@@ -1,8 +1,7 @@
 /* Brand colours are defined alongside the application palette in styles.css. */
 .tali-splash { position: fixed; inset: 0; z-index: 10000; overflow: hidden; background: var(--splash-bg); isolation: isolate; direction: ltr; cursor: default; }
-.tali-splash__video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; pointer-events: none; opacity: 0; /* faded in by splash.js on the first decoded frame */ }
-.tali-splash__emblem { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; user-select: none; }
-.tali-splash.is-logo .tali-splash__emblem { opacity: 1; }
+/* The emblem: centred, sized to the window; splash.js fades and scales it in. */
+.tali-splash__emblem { position: absolute; left: 50%; top: 50%; width: clamp(120px, 26vmin, 260px); height: auto; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; user-select: none; will-change: opacity, transform; }
 /* No visible playback UI: the skip button only appears for keyboard users. Escape and a click also skip. */
 .tali-splash__skip { position: absolute; bottom: max(26px, env(safe-area-inset-bottom)); right: max(26px, env(safe-area-inset-right)); min-height: 44px; padding: 8px 18px; border: 1px solid var(--splash-edge); border-radius: 24px; background: var(--splash-paper); color: var(--splash-ink); direction: rtl; font-size: 14px; opacity: 0; }
 .tali-splash__skip:focus-visible { opacity: 1; outline: 2px solid var(--splash-ink); outline-offset: 4px; }
