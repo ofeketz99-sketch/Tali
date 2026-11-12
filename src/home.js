@@ -1,6 +1,6 @@
 // מסך הבית: מוצג כשאין מסמך פתוח (גם בהפעלה). רקע דינמי עדין, וכרטיסים:
 //   followUp  משימות להמשך מכל המסמכים (הפונקציה של Ctrl+Shift+T)
-//   ghosts    מסמכי רפאים: קישורים למסמכים שעוד לא נוצרו
+//   ghosts    מסמכי רפאים: קישורים חסרים ומסמכים עם כותרת בלבד
 //   board     לוח משימות כלליות: הערה רגילה בכספת (ברירת מחדל "משימות.md" בראש הכספת), עם "- [ ] משימה"
 // "התאמה" מאפשר לשנות סדר (גרירה או חצים) ולהסתיר כרטיסים. נשמר ב־tali:home.
 import { icon } from './icons.js';
@@ -169,19 +169,41 @@ export function createHome({ el, store, api }) {
       if (!map.has(k)) map.set(k, { name: g, count: 0 });
       map.get(k).count++;
     }
-    const list = [...map.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'he'));
-    head.querySelector('.hc-count').textContent = list.length || '';
-    if (!list.length) return empty(body, 'אין מסמכי רפאים: כל הקישורים מובילים למסמכים קיימים.');
-    for (const g of list.slice(0, LIMIT)) {
-      const row = document.createElement('div');
-      row.className = 'hc-ghost';
-      row.innerHTML = `<span class="hc-text"></span><small></small><button type="button" class="hc-create" data-tip="יצירת המסמך">${icon('filePlus', 14)}</button>`;
-      row.querySelector('.hc-text').textContent = g.name;
-      row.querySelector('small').textContent = g.count > 1 ? `${g.count} קישורים` : 'קישור אחד';
-      row.querySelector('.hc-create').addEventListener('click', () => api.createGhost(g.name));
-      body.append(row);
+    const missing = [...map.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'he'));
+    const titles = index.notes.filter((n) => n.titleOnly).sort((a, b) => a.rel.localeCompare(b.rel, 'he'));
+    head.querySelector('.hc-count').textContent = missing.length + titles.length || '';
+    if (!missing.length && !titles.length) return empty(body, 'אין קישורים חסרים או מסמכים ללא תוכן.');
+
+    if (missing.length) {
+      const label = document.createElement('div');
+      label.className = 'hc-subtitle';
+      label.textContent = `קישורים חסרים · ${missing.length}`;
+      body.append(label);
+      for (const g of missing.slice(0, LIMIT)) {
+        const row = document.createElement('div');
+        row.className = 'hc-ghost';
+        row.innerHTML = `<span class="hc-text"></span><small></small><button type="button" class="hc-create" data-tip="יצירת המסמך">${icon('filePlus', 14)}</button>`;
+        row.querySelector('.hc-text').textContent = g.name;
+        row.querySelector('small').textContent = g.count > 1 ? `${g.count} קישורים` : 'קישור אחד';
+        row.querySelector('.hc-create').addEventListener('click', () => api.createGhost(g.name));
+        body.append(row);
+      }
     }
-    if (list.length > LIMIT) more(body, `כל מסמכי הרפאים (${list.length})`, () => api.showGhosts());
+    if (titles.length) {
+      const label = document.createElement('div');
+      label.className = 'hc-subtitle';
+      label.textContent = `מסמכי כותרת · ${titles.length}`;
+      body.append(label);
+      for (const n of titles.slice(0, Math.max(0, LIMIT - Math.min(missing.length, LIMIT)))) {
+        const row = document.createElement('div');
+        row.className = 'hc-ghost hc-title-only';
+        row.innerHTML = `<span class="hc-text"></span><small>ללא תוכן</small>`;
+        row.querySelector('.hc-text').textContent = n.rel.split('/').join(' › ');
+        row.addEventListener('click', () => api.openNote(n.path));
+        body.append(row);
+      }
+    }
+    if (missing.length + titles.length > LIMIT) more(body, `כל מסמכי הרפאים (${missing.length + titles.length})`, () => api.showGhosts());
   }
 
   // לוח משימות: הערה רגילה. הוספה כותבת "- [ ] משימה" בסוף, סימון משנה רק את התיבה בשורה
