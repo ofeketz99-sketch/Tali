@@ -438,8 +438,11 @@ function updateDocTitle() {
   if (!p) return;
   const rel = dirname(p).slice(state.root.length + 1);
   const folder = meta.querySelector('.dm-folder');
-  folder.querySelector('span').textContent = rel ? rel.split(/[\\/]/).join(' › ') : 'התיקייה הראשית';
-  folder.dataset.tip = 'הצגה בעץ';
+  // נתיב ארוך: התיקייה הראשונה והאחרונה (הקרובה למסמך, החשובה), והנתיב המלא בריחוף
+  const parts = rel ? rel.split(/[\\/]/) : [];
+  folder.querySelector('span').textContent = !parts.length ? 'התיקייה הראשית'
+    : parts.length > 2 ? `${parts[0]} › … › ${parts[parts.length - 1]}` : parts.join(' › ');
+  folder.dataset.tip = parts.length > 2 ? `${parts.join(' › ')} · הצגה בעץ` : 'הצגה בעץ';
   const date = meta.querySelector('.dm-date');
   const fromNote = getCreatedDate(state.diskText || '');
   const show = (ms, tip) => {

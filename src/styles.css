@@ -563,7 +563,10 @@ dialog { border-radius: 18px; }
   box-shadow: 0 1px 2px rgba(40, 35, 25, .05), 0 18px 40px -16px rgba(40, 35, 25, .18);
 }
 #page::before {
-  content: ""; position: absolute; inset: -1px -1px auto -1px; height: 6px; border-radius: 16px 16px 0 0;
+  /* גובה 16px (כמו הרדיוס) וחיתוך ל־6px: כך הפס עוקב בדיוק אחרי הפינה המעוגלת של הדף.
+     בגובה 6px הדפדפן מקטין את הרדיוס לגובה, והפינות בולטות מחוץ לדף */
+  content: ""; position: absolute; inset: -1px -1px auto -1px; height: 16px; border-radius: 16px 16px 0 0;
+  clip-path: inset(0 0 10px 0); pointer-events: none;
   background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, #fff), var(--accent), color-mix(in srgb, var(--accent) 70%, #7a5bd0));
 }
 :root[data-page="flat"] #page::before { display: none; }
