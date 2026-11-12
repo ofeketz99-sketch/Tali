@@ -73,6 +73,23 @@ test('link hub: only a list of [[links]] (headings, frontmatter and comments all
   assert.equal(isLinkHub('# רק כותרת\n'), false);
 });
 
+test('title-only: empty documents, frontmatter and a single markdown heading', () => {
+  const { isTitleOnly } = require('../vault-data.js');
+  assert.equal(isTitleOnly(''), true);
+  assert.equal(isTitleOnly('   \r\n\n'), true);
+  assert.equal(isTitleOnly('---\ncreated: 2026-11-12T09:05\ntags: [draft]\n---\n'), true);
+  assert.equal(isTitleOnly('---\ncreated: 2026-11-12\n---\n# רעיון\n'), true);
+  assert.equal(isTitleOnly('<!-- comment -->\n%% hidden %%\n## כותרת'), true);
+  assert.equal(isTitleOnly('# רעיון\n\nפסקה'), false);
+  assert.equal(isTitleOnly('# רעיון\n## כותרת נוספת'), false);
+  assert.equal(isTitleOnly('שורת טקסט רגילה'), false);
+  assert.equal(isTitleOnly('- [ ] משימה'), false);
+  assert.equal(isTitleOnly('---\nlinks:\n  - "[[קשור]]"\n---\n'), false);
+  assert.equal(isTitleOnly('# [[קישור]]'), false);
+  assert.equal(isTitleOnly('# [מקור](https://example.com)'), false);
+  assert.equal(isTitleOnly('<!-- TALI-OVERLAY:v1:encoded-data -->'), false);
+});
+
 test('created date: frontmatter first, then a date line near the top (day-month-year)', () => {
   const { getCreatedDate } = require('../vault-data.js');
   assert.equal(getCreatedDate(' - קישורים: [[ביוכימיה]]\n- ביבליוגרפיה: x\n06-04-25\n ----\nטקסט'), '2025-04-06');
