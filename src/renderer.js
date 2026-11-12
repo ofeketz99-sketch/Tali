@@ -1514,6 +1514,19 @@ function revealInTree() {
   drawTree();
   document.querySelector('#tree .node.active')?.scrollIntoView({ block: 'center' });
 }
+// מיקוד: כל התיקיות נסגרות חוץ מאלה שמובילות למסמך הפתוח, והעץ גולל אליו ומבליט אותו
+function focusTree() {
+  if (!state.currentPath) { collapseAll(); return; }
+  if ($('search').value) $('search').value = '';
+  const p = state.currentPath;
+  state.collapsed = new Set(allDirs().filter((d) => !(p.startsWith(d + '\\') || p.startsWith(d + '/'))));
+  saveCollapsed();
+  drawTree();
+  const row = document.querySelector('#tree .node.active');
+  if (row) { row.scrollIntoView({ block: 'center', behavior: 'smooth' }); row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash'); }
+}
+$('btnTreeFocus').addEventListener('click', focusTree);
+$('btnTreeCollapse').addEventListener('click', () => { collapseAll(); $('tree').scrollTo({ top: 0, behavior: 'smooth' }); });
 // פותח תיקייה בעץ (וכל מה שמעליה), גולל אליה ומבליט אותה לרגע. התיקייה הראשית: גלילה לראש העץ.
 function revealDir(dir) {
   if ($('search').value) $('search').value = '';
@@ -1657,6 +1670,7 @@ const COMMANDS = [
   { title: 'קדימה', keys: 'Alt+→', run: () => goHistory(1) },
   { title: 'הצגת המסמך בעץ הקבצים', run: revealInTree, needs: 'note' },
   { title: 'כיווץ כל התיקיות', run: collapseAll, needs: 'root' },
+  { title: 'מיקוד העץ על המסמך הפתוח', keys: 'Ctrl+Shift+L', run: focusTree, needs: 'root' },
   { title: 'פתיחת כל התיקיות', run: expandAll, needs: 'root' },
   { title: 'הצגת המסמך בסייר הקבצים של Windows', run: () => window.api.reveal(state.currentPath), needs: 'note' },
   { title: 'הגדרות', keys: 'Ctrl+,', run: openSettings },

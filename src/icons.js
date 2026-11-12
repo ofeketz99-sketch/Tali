@@ -8,7 +8,7 @@ import {
   BetweenVerticalStart, BetweenVerticalEnd, Heading, Pen, Slash, MoveUpRight, Square, Circle, Eraser,
   Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
   PanelRightClose, PanelRightOpen, Waypoints, Ghost, Hash, FileDown, FileType, ListChecks, ListTree, Info, Reply, Ellipsis, Focus, Minimize2,
-  Sigma, SquareSigma, CalendarDays, LayoutTemplate, Columns2, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag,
+  Sigma, SquareSigma, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag,
 } from 'lucide';
 
 const ICONS = {
@@ -27,7 +27,7 @@ const ICONS = {
   // תצוגות כספת וייצוא
   graph: Waypoints, ghost: Ghost, tag: Hash, exportPdf: FileDown, exportWord: FileType, taskSection: ListChecks,
   // לוח ההקשר
-  outline: ListTree, info: Info, backlinks: Reply, calendar: CalendarDays, template: LayoutTemplate, split: Columns2,
+  outline: ListTree, info: Info, backlinks: Reply, calendar: CalendarDays, template: LayoutTemplate, split: Columns2, collapseAll: ChevronsDownUp, locate: LocateFixed,
   // סרגל: עוד, מצב מיקוד
   more: Ellipsis, focus: Focus, focusExit: Minimize2,
   // תפריט הלחיצה הימנית ונוסחאות
