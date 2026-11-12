@@ -1,6 +1,6 @@
 {
   "name": "tali",
-  "version": "4.7.0",
+  "version": "4.8.0",
   "productName": "Tali",
   "description": "Tali: אפליקציית הערות אישית. אובסידיאן פוגש וורד",
   "main": "main.js",
@@ -34,6 +34,7 @@
     "@tiptap/extension-underline": "^2.11.0",
     "@tiptap/pm": "^2.11.0",
     "@tiptap/starter-kit": "^2.11.0",
+    "docx": "^9.15.3",
     "katex": "^0.16.22",
     "tiptap-markdown": "^0.8.10"
   },

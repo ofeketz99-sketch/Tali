@@ -257,15 +257,24 @@ function registerIpc() {
   });
 
   // ייצוא ההערה הפתוחה. html: התוכן כפי שהוא מוצג בעורך (אחרי ניקוי בממשק).
+  // התמונות מהכספת כ־data URI (לייצוא ל־docx, שנבנה בממשק)
+  ipcMain.handle('inline-images', async (_e, html) => inlineImages(String(html)));
+  // format: pdf | docx (html הוא אז הקובץ המוכן, Uint8Array) | doc (HTML ש־Word פותח, הצורה הישנה)
   ipcMain.handle('export-note', async (e, format, title, html, css) => {
     const win = BrowserWindow.fromWebContents(e.sender);
-    const ext = format === 'pdf' ? 'pdf' : 'doc';
+    const ext = format === 'pdf' ? 'pdf' : format === 'docx' ? 'docx' : 'doc';
     const r = await dialog.showSaveDialog(win, {
       title: format === 'pdf' ? 'ייצוא ל־PDF' : 'ייצוא ל־Word',
       defaultPath: path.join(app.getPath('documents'), `${String(title).replace(/[\\/:*?"<>|]/g, '') || 'מסמך'}.${ext}`),
-      filters: [format === 'pdf' ? { name: 'PDF', extensions: ['pdf'] } : { name: 'Word', extensions: ['doc'] }],
+      filters: [format === 'pdf' ? { name: 'PDF', extensions: ['pdf'] } : { name: 'Word', extensions: [ext] }],
     });
     if (r.canceled || !r.filePath) return null;
+    if (format === 'docx') {
+      if (!(html instanceof Uint8Array)) throw new Error('קובץ Word לא תקין');
+      await fs.writeFile(r.filePath, Buffer.from(html));
+      lastExport = r.filePath;
+      return r.filePath;
+    }
     const body = await inlineImages(String(html));
     if (format === 'pdf') {
       const tmp = path.join(os.tmpdir(), `tali-export-${Date.now()}.html`);

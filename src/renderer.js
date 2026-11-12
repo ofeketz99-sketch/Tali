@@ -16,6 +16,7 @@ import { icon } from './icons.js';
 import { setupHoverPreview } from './hover-preview.js';
 import { openGraph, openGhosts, openTags, openTasks } from './vault-views.js';
 import { exportHtml, EXPORT_CSS } from './export.js';
+import { buildDocx } from './export-docx.js';
 
 // אייקונים בכפתורים שב־index.html: <span data-icon="plus">
 for (const el of document.querySelectorAll('[data-icon]')) el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon, 18));
@@ -1047,7 +1048,13 @@ async function exportNote(format, node = currentNode()) {
     await flushSave();
     setStatus(format === 'pdf' ? 'מייצא ל־PDF…' : 'מייצא ל־Word…');
     const html = exportHtml($('editor').querySelector('.ProseMirror'));
-    const out = await window.api.exportNote(format, noteName(state.currentPath), html, EXPORT_CSS);
+    let out;
+    if (format === 'docx') {
+      // הקובץ נבנה כאן (צריך DOM), אחרי שהתמונות הוטמעו ב־main
+      const withImages = await window.api.inlineImages(html);
+      const bytes = await buildDocx({ title: noteName(state.currentPath), html: withImages, rtlDefault: getPrefs().textDir !== 'ltr' });
+      out = await window.api.exportNote('docx', noteName(state.currentPath), bytes);
+    } else out = await window.api.exportNote(format, noteName(state.currentPath), html, EXPORT_CSS);
     if (!out) { setStatus('הייצוא בוטל'); return; }
     showToast(`נשמר: ${out}`, 'פתיחה', () => window.api.openExternalFile(out));
     setStatus('הייצוא הושלם');
@@ -1074,7 +1081,7 @@ function showContextMenu(node, x, y) {
     add('copy', 'שכפול', () => duplicateNode(node));
     add('link', 'קישור לפתקים אחרים…', () => pickLinksFor(node.path));
     add('exportPdf', 'ייצוא ל־PDF', () => exportNote('pdf', node));
-    add('exportWord', 'ייצוא ל־Word', () => exportNote('doc', node));
+    add('exportWord', 'ייצוא ל־Word', () => exportNote('docx', node));
     // דגל: שורת צבעים (וללא)
     const current = state.flags.get(node.path) || null;
     const flags = document.createElement('div');
@@ -1503,7 +1510,7 @@ const COMMANDS = [
   { title: 'סגירת לוח ההקשר', run: () => docPanel.open(null), needs: 'note' },
   { title: 'הוספת מאפיינים', run: () => editorApi.addProperties(), needs: 'note' },
   { title: 'ייצוא ל־PDF', run: () => exportNote('pdf'), needs: 'note' },
-  { title: 'ייצוא ל־Word', run: () => exportNote('doc'), needs: 'note' },
+  { title: 'ייצוא ל־Word', run: () => exportNote('docx'), needs: 'note' },
   { title: 'החלפת תיקיית עבודה', run: async () => enterRoot(await window.api.pickFolder()) },
 ];
 const available = (c) => !c.needs || (c.needs === 'root' ? !!state.root : !!state.currentPath);
