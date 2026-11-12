@@ -82,6 +82,22 @@ function extractTargets(text) {
   return [...new Set([...body, ...getFrontmatterLinks(text || '')])];
 }
 
+// "פתק קישור": הערה בלי תוכן משלה, רק רשימת קישורים ("- [[א]]") שמחברת רעיונית בין הערות.
+// מותר: מאפיינים, כותרות, הערות HTML/%%...%% ושורות ריקות. צריך לפחות קישור אחד (בגוף או ב־links: במאפיינים).
+const HUB_LINE_RE = /^\s*(?:[-*+]|\d+[.)])\s+\[\[[^[\]\n]+\]\]\s*$/;
+function isLinkHub(text) {
+  const src = text || '';
+  const body = src.replace(FM_RE, '').replace(/<!--[\s\S]*?-->/g, '').replace(/%%[\s\S]*?%%/g, '');
+  let links = 0;
+  for (const raw of body.split('\n')) {
+    const line = raw.replace(/\r$/, '');
+    if (!line.trim() || /^#{1,6}\s/.test(line)) continue;
+    if (!HUB_LINE_RE.test(line)) return false;
+    links++;
+  }
+  return links > 0 || getFrontmatterLinks(src).length > 0;
+}
+
 // ----- דגלים: "flag: red" במאפיינים, כך שהדגל עובר עם הקובץ (שינוי שם, העברה, סנכרון) -----
 const FLAGS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
 
@@ -110,4 +126,4 @@ function setFlag(text, color) {
   return `---${eol}${lines.join(eol)}${eol}---${m[2] || eol}${rest}`;
 }
 
-module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, FLAGS, getFlag, setFlag };
+module.exports = { maskNonText, extractTags, extractTasks, extractTargets, tagsFromFrontmatter, FOLLOW_UP, FLAGS, getFlag, setFlag, isLinkHub };

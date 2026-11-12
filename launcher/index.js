@@ -1,4 +1,4 @@
-// המשגר של Tali.exe (נמצא ב־C:\Users\ofeke\.tali\Tali\resources\app). הפרויקט: D:\PROJECTS\Tali.
+// המשגר של Tali.exe (נמצא ב־C:\Users\ofeke\.tali\Tali\resources\app). הפרויקט: D:\Projects\Tali\Tali - App.
 // מריץ את הקוד ישירות מתיקיית הפרויקט, כך שכל שינוי בקוד נכנס בלי לארוז מחדש.
 // אם קובץ ב־src חדש יותר מ־dist/renderer.js, בונה קודם (esbuild), כמו start.cmd.
 // עדכון של הקובץ הזה: להעתיק אותו שוב ל־resources\app (ראו "הרצה" ב־AGENTS.md).
@@ -7,7 +7,9 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const PROJECT = 'D:\\PROJECTS\\Tali';
+// הנתיב הנוכחי (מ־12.11.2026), ואחריו הנתיב הישן למקרה שהתיקייה תחזור לשם
+const PROJECT = ['D:\\Projects\\Tali\\Tali - App', 'D:\\PROJECTS\\Tali']
+  .find((p) => fs.existsSync(path.join(p, 'main.js'))) || 'D:\\Projects\\Tali\\Tali - App';
 const DEPS = path.join(PROJECT, 'node_modules');
 
 if (!fs.existsSync(path.join(PROJECT, 'main.js'))) {

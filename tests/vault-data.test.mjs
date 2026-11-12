@@ -61,3 +61,14 @@ test('flags: read, set, replace and remove without touching other properties', (
   assert.equal(setFlag('---\r\ntitle: x\r\nflag: red\r\n---\r\nb', null), '---\r\ntitle: x\r\n---\r\nb');
   assert.equal(setFlag('plain', null), 'plain');
 });
+
+test('link hub: only a list of [[links]] (headings, frontmatter and comments allowed)', () => {
+  const { isLinkHub } = require('../vault-data.js');
+  assert.equal(isLinkHub('- [[א]]\n- [[ב|כינוי]]\n'), true);
+  assert.equal(isLinkHub('---\ntags: x\n---\n# נושא\n\n* [[א]]\r\n1. [[ב]]\n<!-- TALI-OVERLAY:v1:x -->\n'), true);
+  assert.equal(isLinkHub('---\nlinks:\n  - "[[א]]"\n---\n'), true);
+  assert.equal(isLinkHub('- [[א]] ועוד טקסט\n'), false);
+  assert.equal(isLinkHub('- [[א]]\nפסקה\n'), false);
+  assert.equal(isLinkHub(''), false);
+  assert.equal(isLinkHub('# רק כותרת\n'), false);
+});

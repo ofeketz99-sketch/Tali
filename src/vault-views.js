@@ -44,6 +44,19 @@ function toggle(label, checked, onChange) {
 const plural = (n, one, many) => (n === 1 ? one : `${n} ${many}`);
 
 // ===================== גרף קישורים =====================
+// ברירות המחדל מרווחות יותר מהערכים הקבועים שהיו עד 3.9 (דחייה 900, אורך 80, משיכה 0.012)
+const GRAPH_FORCES = { repel: 2200, distance: 120, spring: 0.03, gravity: 0.006, size: 1 };
+const FORCE_SLIDERS = [
+  { key: 'repel', label: 'דחייה בין נקודות', min: 200, max: 8000, step: 100 },
+  { key: 'distance', label: 'אורך קישור', min: 30, max: 320, step: 5 },
+  { key: 'spring', label: 'כוח קישור', min: 0.004, max: 0.12, step: 0.002 },
+  { key: 'gravity', label: 'משיכה למרכז', min: 0, max: 0.05, step: 0.001 },
+  { key: 'size', label: 'גודל נקודות', min: 0.5, max: 2.5, step: 0.1 },
+];
+
+// החלק המלא של הסליידר (מימין, כי החלון מימין לשמאל)
+const fillRange = (input) => input.style.setProperty('--p', `${((input.value - input.min) / (input.max - input.min)) * 100}%`);
+
 export function openGraph({ index, current, onOpen, store }) {
   const { dlg, body, tools } = makeDialog('גרף הקישורים', 'graph-dialog', 'graph');
   let local = store.get('tali:graph-local', false) && !!current;
@@ -57,6 +70,68 @@ export function openGraph({ index, current, onOpen, store }) {
   if (current) tools.append(toggle('רק סביב המסמך הפתוח', local, (v) => { local = v; store.set('tali:graph-local', v); build(); }));
   tools.append(toggle('מסמכי רפאים', ghosts, (v) => { ghosts = v; store.set('tali:graph-ghosts', v); build(); }));
 
+  // כוחות הסימולציה: סליידרים בלוח צף מעל הגרף. נשמרים ב־tali:graph-forces
+  const saved = store.get('tali:graph-forces', {}) || {};
+  const forces = { ...GRAPH_FORCES };
+  for (const s of FORCE_SLIDERS) {
+    const v = Number(saved[s.key]);
+    if (Number.isFinite(v)) forces[s.key] = Math.min(s.max, Math.max(s.min, v));
+  }
+  const panel = document.createElement('div');
+  panel.className = 'graph-forces';
+  const panelBtn = document.createElement('button');
+  panelBtn.type = 'button';
+  panelBtn.className = 'icon-btn graph-forces-btn';
+  panelBtn.dataset.tip = 'כוחות ותצוגה';
+  panelBtn.innerHTML = icon('settings', 17);
+  const panelBody = document.createElement('div');
+  panelBody.className = 'graph-forces-body';
+  panelBody.hidden = !store.get('tali:graph-forces-open', false);
+  panelBtn.setAttribute('aria-expanded', String(!panelBody.hidden));
+  panelBtn.addEventListener('click', () => {
+    panelBody.hidden = !panelBody.hidden;
+    panelBtn.setAttribute('aria-expanded', String(!panelBody.hidden));
+    store.set('tali:graph-forces-open', !panelBody.hidden);
+  });
+  const sliders = new Map();
+  for (const s of FORCE_SLIDERS) {
+    const row = document.createElement('label');
+    row.className = 'gf-row';
+    const name = document.createElement('span');
+    name.textContent = s.label;
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.min = s.min; input.max = s.max; input.step = s.step;
+    input.value = forces[s.key];
+    fillRange(input);
+    input.addEventListener('input', () => {
+      fillRange(input);
+      forces[s.key] = Number(input.value);
+      store.set('tali:graph-forces', forces);
+      if (s.key === 'size') draw(); else reheat();
+    });
+    sliders.set(s.key, input);
+    row.append(name, input);
+    panelBody.append(row);
+  }
+  const reset = document.createElement('button');
+  reset.type = 'button';
+  reset.className = 'gf-reset';
+  reset.textContent = 'ברירת מחדל';
+  reset.addEventListener('click', () => {
+    Object.assign(forces, GRAPH_FORCES);
+    for (const [k, input] of sliders) { input.value = forces[k]; fillRange(input); }
+    store.set('tali:graph-forces', forces);
+    reheat();
+  });
+  panelBody.append(reset);
+  panel.append(panelBtn, panelBody);
+
+  const legend = document.createElement('div');
+  legend.className = 'graph-legend';
+  legend.innerHTML = '<span><i class="gl-dot"></i>מסמך</span><span><i class="gl-tri"></i>פתק קישור</span><span><i class="gl-ghost"></i>מסמך רפאים</span>';
+  body.append(panel, legend);
+
   const colors = {
     node: css('--accent'), current: css('--accent-strong'), ghost: css('--muted'),
     edge: css('--border'), edgeHi: css('--accent'), text: css('--text'), bg: css('--page-bg'),
@@ -67,7 +142,7 @@ export function openGraph({ index, current, onOpen, store }) {
 
   function build() {
     const all = new Map();
-    for (const n of index.notes) all.set(n.path, { id: n.path, label: n.name, ghost: false, links: n.links, missing: n.missing });
+    for (const n of index.notes) all.set(n.path, { id: n.path, label: n.name, ghost: false, hub: !!n.hub, links: n.links, missing: n.missing });
     const edgeList = [];
     for (const n of index.notes) {
       for (const to of n.links) if (all.has(to)) edgeList.push([n.path, to]);
@@ -98,7 +173,8 @@ export function openGraph({ index, current, onOpen, store }) {
   }
 
   function step() {
-    const k = 900, rest = 80, spring = 0.035, gravity = 0.012;
+    const { repel: k, distance: rest, spring, gravity } = forces;
+    const far = Math.max(250000, (rest * 6) ** 2);
     for (let i = 0; i < nodes.length; i++) {
       const a = nodes[i];
       for (let j = i + 1; j < nodes.length; j++) {
@@ -106,7 +182,7 @@ export function openGraph({ index, current, onOpen, store }) {
         let dx = a.x - b.x, dy = a.y - b.y;
         let d2 = dx * dx + dy * dy;
         if (d2 < 0.01) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = 0.5; }
-        if (d2 > 250000) continue;
+        if (d2 > far) continue;
         const f = k / d2;
         const d = Math.sqrt(d2);
         a.vx += dx / d * f; a.vy += dy / d * f; b.vx -= dx / d * f; b.vy -= dy / d * f;
@@ -126,7 +202,16 @@ export function openGraph({ index, current, onOpen, store }) {
     alpha = Math.max(0, alpha * 0.985 - 0.0005);
   }
 
-  const radius = (n) => (n.ghost ? 4 : 4.5 + Math.sqrt(n.deg) * 1.9);
+  const radius = (n) => (n.ghost ? 4 : 4.5 + Math.sqrt(n.deg) * 1.9) * forces.size;
+  // משולש שווה צלעות שקודקודו למעלה, באותו שטח בערך כמו עיגול ברדיוס r
+  function triangle(g, x, y, r) {
+    const R = r * 1.35;
+    g.beginPath();
+    g.moveTo(x, y - R);
+    g.lineTo(x + R * 0.866, y + R * 0.5);
+    g.lineTo(x - R * 0.866, y + R * 0.5);
+    g.closePath();
+  }
   function draw() {
     const dpr = Math.min(2, devicePixelRatio || 1);
     const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -152,10 +237,11 @@ export function openGraph({ index, current, onOpen, store }) {
     for (const n of nodes) {
       const r = radius(n);
       g.globalAlpha = near && !near.has(n) ? 0.25 : 1;
-      g.beginPath(); g.arc(n.x, n.y, r, 0, Math.PI * 2);
+      if (n.hub) triangle(g, n.x, n.y, r);
+      else { g.beginPath(); g.arc(n.x, n.y, r, 0, Math.PI * 2); }
       if (n.ghost) { g.fillStyle = colors.bg; g.fill(); g.strokeStyle = colors.ghost; g.setLineDash([2.5 / view.k, 2 / view.k]); g.lineWidth = 1.4 / view.k; g.stroke(); g.setLineDash([]); }
       else { g.fillStyle = n.id === current ? colors.current : colors.node; g.fill(); }
-      if (n.id === current) { g.strokeStyle = colors.current; g.lineWidth = 2 / view.k; g.beginPath(); g.arc(n.x, n.y, r + 3.5 / view.k, 0, Math.PI * 2); g.stroke(); }
+      if (n.id === current) { g.strokeStyle = colors.current; g.lineWidth = 2 / view.k; if (n.hub) triangle(g, n.x, n.y, r + 4 / view.k); else { g.beginPath(); g.arc(n.x, n.y, r + 3.5 / view.k, 0, Math.PI * 2); } g.stroke(); }
       if (showAll || n === hover || n.id === current || (near && near.has(n))) {
         g.fillStyle = n.ghost ? colors.ghost : colors.text;
         g.fillText(n.label, n.x, n.y + r + 13 / view.k);
@@ -184,6 +270,8 @@ export function openGraph({ index, current, onOpen, store }) {
     frame = alpha > 0.002 || drag ? requestAnimationFrame(loop) : 0;
   }
   function kick() { if (!frame) frame = requestAnimationFrame(loop); }
+  // שינוי כוח: מחממים את הסימולציה מחדש, ואם המשתמש לא הזיז, הזום ימשיך להתאים את עצמו
+  function reheat() { alpha = Math.max(alpha, 0.6); kick(); }
 
   const toWorld = (e) => {
     const r = canvas.getBoundingClientRect();
