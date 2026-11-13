@@ -80,7 +80,8 @@
       <div id="page" hidden>
         <button type="button" id="docTitle" data-tip="שינוי שם (F2)"></button>
         <div id="docMeta" hidden><span class="dm-folder" data-icon="folder"><span></span></span><span class="dm-date" data-icon="calendar"><span></span></span></div>
-        <textarea id="props" hidden spellcheck="false" title="מאפיינים (frontmatter)"></textarea>
+        <!-- המאפיינים מוצגים בלוח ההקשר (לשונית "מאפיינים"); context-panel.js מעביר את המיכל לשם -->
+        <div id="propsHost" class="dc-props" hidden><textarea id="props" hidden spellcheck="false" title="מאפיינים (frontmatter)"></textarea></div>
         <div id="editor"></div>
         <textarea id="raw" hidden spellcheck="false"></textarea>
       </div>

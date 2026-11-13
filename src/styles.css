@@ -1326,6 +1326,13 @@ body[data-sidebar-mode="compact"] .side-top #btnNote {
 .pf-del:hover { color: var(--text); background: var(--accent-soft); }
 .pf-add { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; padding: 3px 9px; font-size: 12px; border: 1px dashed var(--border); border-radius: 8px; background: none; color: var(--muted); }
 .pf-add:hover { color: var(--accent-strong); border-color: var(--accent-line); }
+/* המאפיינים בלוח ההקשר (לשונית "מאפיינים"): הטופס צר יותר, ותיבת ה־YAML גדלה עם התוכן */
+.dc-props { display: block; }
+.dc-props .props-form { margin: 0 0 10px; padding: 6px 6px 8px; border-radius: 10px; animation: none; }
+.dc-props .pf-row { grid-template-columns: minmax(60px, 92px) 1fr 22px; gap: 4px; }
+.dc-props .pf-row input { font-size: 12.5px; padding: 4px 6px; }
+.dc-props #props { margin: 0; min-height: 140px; height: auto !important; field-sizing: content; overflow: auto; resize: vertical; direction: ltr; }
+.dc-props-empty { display: grid; gap: 8px; }
 
 /* שינוי גודל תמונה בגרירה: ידית בפינה */
 .ProseMirror .embed-image { position: relative; }

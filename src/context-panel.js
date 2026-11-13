@@ -15,8 +15,11 @@ const TABS = [
   { id: 'outline', icon: 'outline', title: 'ראשי פרקים', tip: 'ראשי פרקים' },
   { id: 'checks', icon: 'tasks', title: 'תיבות סימון', tip: 'תיבות סימון במסמך' },
   { id: 'followups', icon: 'taskSection', title: 'משימות להמשך', tip: 'משימות להמשך' },
+  { id: 'props', icon: 'props', title: 'מאפיינים', tip: 'מאפיינים (YAML)' },
   { id: 'info', icon: 'info', title: 'מידע', tip: 'מידע על המסמך' },
 ];
+// מספר המאפיינים הגלויים בטופס (בלי links: ו־created:, שהעורך מוציא מהתיבה)
+const countProps = (yaml) => (String(yaml || '').match(/^[^\s#-][^:\n]*:/gm) || []).length;
 const PANEL_W = 280; // רוחב הלוח הפתוח, כמו ב־CSS (--dc-panel-w)
 const RAIL_W = 46;   // רוחב הפס (--dc-rail-w)
 const MIN_PAGE = 600; // רוחב הדף המינימלי לצד לוח פתוח
@@ -35,8 +38,12 @@ export function countWords(text) {
 
 // api: getPath, getMarkdown, isRaw, getEditor, resolve(target) → נתיב או null, openLink(target), openNote(path),
 // backlinks(path) → Promise<[{path, name, count, snippet}]>, pickLinks(), removeFrontLink(target), showTag(tag),
-// addFollowUp(text), getMtime(), prettyPath(path), getFlag(), setFlag(color|null)
-export function createContextPanel({ root, wrap, icon, store, api }) {
+// addFollowUp(text), getMtime(), prettyPath(path), getFlag(), setFlag(color|null), addProperties()
+// propsHost: המיכל של טופס המאפיינים (props-editor.js). הלוח מעביר אותו ללשונית "מאפיינים" (אותו אלמנט,
+// עם המאזינים שלו), כך שהעורך ממשיך לכתוב ולקרוא ממנו כרגיל גם כשהלשונית סגורה.
+export function createContextPanel({ root, wrap, icon, store, api, propsHost = null }) {
+  const propsArea = propsHost?.querySelector('textarea');
+  if (propsHost) { propsHost.remove(); propsHost.hidden = false; }
   const valid = (t) => (t === 'tasks' ? 'checks' : TABS.some((x) => x.id === t) ? t : null); // 'tasks' עד 3.8
   let chosen = valid(store.get('tali:ctx-tab', null)); // מה שהמשתמש פתח
   if (chosen === null && store.get('linksPanelOpen', false)) chosen = 'links'; // מצב הלוח הישן (עד 3.4)
@@ -178,6 +185,7 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
     const ts = tasks();
     badge('checks', ts.filter((t) => !t.followUp && !t.done).length, true);
     badge('followups', ts.filter((t) => t.followUp && !t.done).length);
+    badge('props', api.isRaw() ? 0 : countProps(propsArea?.value), true);
   }
 
   // ----- תוכן הלוח -----
@@ -380,8 +388,31 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
     body.append(el('div', 'dc-path', api.prettyPath(api.getPath())));
   }
 
+  // מאפיינים: הטופס עצמו עובר לכאן. אין מאפיינים: הסבר וכפתור הוספה. בתצוגת Markdown הם בראש הקובץ.
+  function renderProps() {
+    if (!propsHost) { empty('אין טופס מאפיינים.'); return; }
+    if (api.isRaw()) { empty('בתצוגת Markdown המאפיינים נערכים בראש הקובץ, בין השורות ---.'); return; }
+    body.append(propsHost);
+    updatePropsEmpty();
+  }
+  function updatePropsEmpty() {
+    body.querySelector('.dc-props-empty')?.remove();
+    const formShown = propsHost.querySelector('.props-form:not([hidden])') || (propsArea && !propsArea.hidden);
+    if (formShown) return;
+    const box = el('div', 'dc-props-empty');
+    box.append(el('div', 'dc-empty', 'אין מאפיינים למסמך. מאפיינים נשמרים בראש הקובץ (YAML), כמו באובסידיאן.'));
+    const add = el('button', 'dc-add');
+    add.type = 'button';
+    add.innerHTML = `${icon('plus', 15)}<span>הוספת מאפיין</span>`;
+    add.addEventListener('click', () => { box.remove(); api.addProperties(); });
+    box.append(add);
+    body.append(box);
+  }
+
   function renderBody(quiet = false) {
     if (!tab || !api.getPath()) return;
+    // הטופס כבר בלוח: לא בונים מחדש, כדי לא לאבד פוקוס בזמן הקלדה בשדה של מאפיין
+    if (tab === 'props' && propsHost && !api.isRaw() && propsHost.parentNode === body) { updatePropsEmpty(); return; }
     const scroll = body.scrollTop;
     // שדה המשימה החדשה: אם מקלידים בו, הפוקוס והטקסט נשמרים גם כשהלוח מתעדכן אחרי עריכה
     const typing = document.activeElement?.classList.contains('dc-new-task') ? document.activeElement.value : null;
@@ -392,6 +423,7 @@ export function createContextPanel({ root, wrap, icon, store, api }) {
     else if (tab === 'outline') renderOutline();
     else if (tab === 'checks') renderTasks(false);
     else if (tab === 'followups') renderTasks(true);
+    else if (tab === 'props') renderProps();
     else if (tab === 'info') renderInfo(md);
     body.scrollTop = scroll;
     if (typing !== null) { const i = body.querySelector('.dc-new-task'); if (i) { i.value = typing; i.focus(); } }

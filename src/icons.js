@@ -8,7 +8,7 @@ import {
   BetweenVerticalStart, BetweenVerticalEnd, Heading, Pen, Slash, MoveUpRight, Square, Circle, Eraser,
   ArrowRight, ArrowLeft, GripVertical, Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
   PanelRightClose, PanelRightOpen, Waypoints, Ghost, Hash, FileDown, FileType, ListChecks, ListTree, Info, Reply, Ellipsis, Focus, Minimize2,
-  Sigma, SquareSigma, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag, Keyboard, MessageSquareText,
+  Sigma, SquareSigma, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag, Keyboard, MessageSquareText, Braces, Moon,
 } from 'lucide';
 
 const ICONS = {
@@ -27,7 +27,7 @@ const ICONS = {
   // תצוגות כספת וייצוא
   graph: Waypoints, ghost: Ghost, tag: Hash, exportPdf: FileDown, exportWord: FileType, taskSection: ListChecks,
   // לוח ההקשר
-  outline: ListTree, info: Info, backlinks: Reply, calendar: CalendarDays, template: LayoutTemplate, splitView: Columns2, collapseAll: ChevronsDownUp, locate: LocateFixed, history: History, board: ClipboardList, chevronUp: ChevronUp, chevronDown: ChevronDown, eye: Eye, eyeOff: EyeOff, home: House, iconPick: Shapes,
+  outline: ListTree, info: Info, props: Braces, sleep: Moon, backlinks: Reply, calendar: CalendarDays, template: LayoutTemplate, splitView: Columns2, collapseAll: ChevronsDownUp, locate: LocateFixed, history: History, board: ClipboardList, chevronUp: ChevronUp, chevronDown: ChevronDown, eye: Eye, eyeOff: EyeOff, home: House, iconPick: Shapes,
   // סרגל: עוד, מצב מיקוד
   more: Ellipsis, focus: Focus, focusExit: Minimize2,
   // תפריט הלחיצה הימנית ונוסחאות

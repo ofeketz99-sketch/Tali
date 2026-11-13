@@ -320,6 +320,7 @@ const toolbarApi = buildToolbar($('toolbar'), editorApi, {
   onMarginComment: addMarginComment,
   onTaskSection: insertTaskSection,
   onFocusMode: () => toggleFocusMode(),
+  onSleep: () => enterSleep(),
 });
 
 // ===== תפריט הלחיצה הימנית על הדף ובשדות טקסט (context-menu.js). הפעולות: אותן של הסרגל (edit-actions.js) =====
@@ -349,6 +350,56 @@ function toggleFocusMode(on = !document.body.dataset.focus) {
   if (on) document.body.dataset.focus = '1'; else delete document.body.dataset.focus;
   focusExit.hidden = !on;
   if (on) editorApi.editor.commands.focus();
+}
+
+// ===== מצב שינה: רק הסמל על הרקע הכחול של הפתיח. לחיצה או מקש כלשהו מעירים =====
+// שומר לפני ההירדמות. תזוזת עכבר לא מעירה (כדי שאפשר יהיה להשאיר את החלון פתוח על המסך).
+let sleepEl = null;
+let sleepAt = 0;
+function enterSleep() {
+  if (sleepEl) return;
+  // חלון dialog פתוח נמצא מעל כל שכבה; מחכים פריים (לוח הפקודות נסגר לפני שהפקודה רצה) ולא נרדמים מעליו
+  if (document.querySelector('dialog[open]')) { requestAnimationFrame(() => { if (!document.querySelector('dialog[open]')) enterSleep(); }); return; }
+  Promise.resolve().then(flushSave).catch(() => {});
+  sleepEl = document.createElement('div');
+  sleepEl.className = 'tali-sleep';
+  sleepEl.setAttribute('role', 'button');
+  sleepEl.setAttribute('aria-label', 'מצב שינה: לחיצה או מקש כלשהו להתעוררות');
+  sleepEl.tabIndex = 0;
+  const img = document.createElement('img');
+  img.className = 'tali-sleep__emblem';
+  img.src = 'splash-emblem.png';
+  img.alt = '';
+  img.draggable = false;
+  const hint = document.createElement('div');
+  hint.className = 'tali-sleep__hint';
+  hint.textContent = 'לחיצה או מקש כלשהו להמשך';
+  sleepEl.append(img, hint);
+  document.body.append(sleepEl);
+  document.activeElement?.blur?.();
+  sleepEl.focus({ preventScroll: true });
+  sleepAt = performance.now();
+}
+function wakeUp() {
+  if (!sleepEl) return;
+  const el = sleepEl;
+  sleepEl = null;
+  el.classList.add('waking');
+  const done = () => el.remove();
+  el.addEventListener('animationend', done, { once: true });
+  setTimeout(done, 600);
+  if (state.currentPath && !editorApi.isRaw()) editorApi.editor.commands.focus();
+}
+// בשלב הלכידה, לפני קיצורי האפליקציה והעורך: בזמן שינה שום מקש לא מגיע לממשק
+for (const type of ['keydown', 'pointerdown', 'wheel']) {
+  window.addEventListener(type, (e) => {
+    if (!sleepEl) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (performance.now() - sleepAt < 350) return; // המקש שהרדים (למשל הקיצור עצמו) לא מעיר מיד
+    if (type === 'wheel') return;
+    wakeUp();
+  }, { capture: true, passive: false });
 }
 
 // ===== מיקום בכל מסמך: גלילה וסמן, כדי שחזרה למסמך תמשיך מאותו מקום =====
@@ -1401,6 +1452,7 @@ function otherContextItems(e) {
   if (t.closest('#home')) return [
     { label: 'מסמך חדש', icon: 'filePlus', keys: 'Ctrl+N', run: () => { state.selectedDir = null; newNote(); } },
     { label: 'מעבר מהיר למסמך', icon: 'search', keys: 'Ctrl+O', run: () => openSwitcher() },
+    { label: 'מצב שינה', icon: 'sleep', keys: 'Ctrl+Alt+L', run: () => enterSleep() },
     'sep',
     { label: 'החלפת תיקייה…', icon: 'folder', run: pickRoot },
   ];
@@ -1460,8 +1512,9 @@ async function applyNoteLinks(target, paths) {
 // ===== לוח ההקשר (src/context-panel.js): קישורים, קישורים חוזרים, ראשי פרקים, משימות, מידע =====
 // eslint-disable-next-line prefer-const
 var docPanel = createContextPanel({
-  root: $('docCtx'), wrap: $('pageWrap'), icon, store,
+  root: $('docCtx'), wrap: $('pageWrap'), icon, store, propsHost: $('propsHost'),
   api: {
+    addProperties: () => editorApi.addProperties(),
     getPath: () => state.currentPath,
     getMarkdown: () => editorApi.getMarkdown(),
     isRaw: () => editorApi.isRaw(),
@@ -1905,14 +1958,16 @@ const COMMANDS = [
   { title: 'מסמכי רפאים (קישורים למסמכים שלא נוצרו)', run: showGhosts, needs: 'root' },
   { title: 'משימות להמשך בסוף המסמך', run: insertTaskSection, needs: 'note' },
   { title: 'מצב מיקוד (רק הדף)', keys: 'F11', run: () => toggleFocusMode(), needs: 'note' },
+  { title: 'מצב שינה (רק הסמל)', keys: 'Ctrl+Alt+L', run: () => enterSleep() },
   { title: 'לוח ההקשר: קישורים החוצה', run: () => docPanel.open('links'), needs: 'note' },
   { title: 'לוח ההקשר: קישורים פנימה', run: () => docPanel.open('back'), needs: 'note' },
   { title: 'לוח ההקשר: ראשי פרקים', run: () => docPanel.open('outline'), needs: 'note' },
   { title: 'לוח ההקשר: תיבות סימון במסמך', run: () => docPanel.open('checks'), needs: 'note' },
   { title: 'לוח ההקשר: משימות להמשך במסמך', run: () => docPanel.open('followups'), needs: 'note' },
   { title: 'לוח ההקשר: מידע על המסמך', run: () => docPanel.open('info'), needs: 'note' },
+  { title: 'לוח ההקשר: מאפיינים (YAML)', run: () => docPanel.open('props'), needs: 'note' },
   { title: 'סגירת לוח ההקשר', run: () => docPanel.open(null), needs: 'note' },
-  { title: 'הוספת מאפיינים', run: () => editorApi.addProperties(), needs: 'note' },
+  { title: 'הוספת מאפיינים', run: () => { docPanel.open('props'); editorApi.addProperties(); }, needs: 'note' },
   { title: 'ייצוא ל־PDF', run: () => exportNote('pdf'), needs: 'note' },
   { title: 'ייצוא ל־Word', run: () => exportNote('docx'), needs: 'note' },
   { title: 'החלפת תיקיית עבודה', run: pickRoot },
