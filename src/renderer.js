@@ -105,7 +105,7 @@ function setSaveState(s) {
   const t = document.getElementById('saveText');
   if (t) { t.textContent = SAVE_TEXT[s] || ''; t.dataset.state = s || ''; }
 }
-import { loadPrefs, getPrefs, openSettings, setHotkeyCatalog, onPrefsChange } from './settings.js';
+import { loadPrefs, getPrefs, openSettings, setHotkeyCatalog, onPrefsChange, setPref } from './settings.js';
 import { commandHotkey, matchesHotkey } from './hotkeys.js';
 import { openPalette, closePalette, isPaletteOpen, fuzzy } from './palette.js';
 
@@ -327,6 +327,7 @@ const toolbarApi = buildToolbar($('toolbar'), editorApi, {
 setupContextMenus({
   editorApi,
   edit: toolbarApi.edit,
+  completedAtBottom: { get: () => !!getPrefs().completedTasksAtBottom, toggle: () => toggleCompletedAtBottom() },
   isNoteOpen: () => !!state.currentPath,
   clipboard: (cmd) => window.api.editCommand(cmd),
   link: { open: (target, mode) => {
@@ -350,6 +351,13 @@ function toggleFocusMode(on = !document.body.dataset.focus) {
   if (on) document.body.dataset.focus = '1'; else delete document.body.dataset.focus;
   focusExit.hidden = !on;
   if (on) editorApi.editor.commands.focus();
+}
+
+// ===== משימות שבוצעו בסוף הרשימה (הגדרה, גם מלוח הפקודות ומהתפריט על משימה) =====
+function toggleCompletedAtBottom() {
+  const on = !getPrefs().completedTasksAtBottom;
+  setPref('completedTasksAtBottom', on);
+  showToast(on ? 'משימות שמסמנים עוברות לסוף הרשימה, מתחת לקו מפריד.' : 'משימות שמסמנים נשארות במקומן.');
 }
 
 // ===== מצב שינה: רק הסמל על הרקע הכחול של הפתיח. לחיצה או מקש כלשהו מעירים =====
@@ -1968,6 +1976,7 @@ const COMMANDS = [
   { title: 'משימות להמשך בסוף המסמך', run: insertTaskSection, needs: 'note' },
   { title: 'מצב מיקוד (רק הדף)', keys: 'F11', run: () => toggleFocusMode(), needs: 'note' },
   { title: 'מצב שינה (רק הסמל)', keys: 'Ctrl+Alt+L', run: () => enterSleep() },
+  { title: 'משימות שבוצעו בסוף הרשימה: הפעלה או כיבוי', run: () => toggleCompletedAtBottom() },
   { title: 'לוח ההקשר: קישורים החוצה', run: () => docPanel.open('links'), needs: 'note' },
   { title: 'לוח ההקשר: קישורים פנימה', run: () => docPanel.open('back'), needs: 'note' },
   { title: 'לוח ההקשר: ראשי פרקים', run: () => docPanel.open('outline'), needs: 'note' },

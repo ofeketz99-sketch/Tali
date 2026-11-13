@@ -182,7 +182,8 @@ function openMenu(x, y, items, { onClose } = {}) {
 
 // ---------- חיבור לאפליקציה ----------
 // link: { open(target, mode) } – mode: 'tab' | 'side'. other(e): תפריט לשאר האזורים, מחזיר items או null.
-export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link, other }) {
+// completedAtBottom: { get(), toggle() } — ההגדרה "משימות שבוצעו בסוף הרשימה", גם מתוך תפריט הרשימה
+export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link, other, completedAtBottom }) {
   const editor = editorApi.editor;
   const sel = () => editor.state.selection;
   const has = (name, attrs) => editor.isActive(name, attrs);
@@ -245,6 +246,7 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
         { label: 'רשימת משימות', icon: 'tasks', run: edit.taskList, active: () => has('taskList') },
         { label: 'כיוון ימין לשמאל', icon: 'alignRight', run: () => edit.listDirection('rtl') },
         { label: 'כיוון שמאל לימין', icon: 'alignLeft', run: () => edit.listDirection('ltr') },
+        ...(completedAtBottom ? [{ label: 'משימות שבוצעו לסוף הרשימה', icon: 'taskSection', run: completedAtBottom.toggle, active: completedAtBottom.get }] : []),
       ] },
       { label: 'הזזת השורה', icon: 'grip', sub: [
         { label: 'למעלה', icon: 'chevronUp', keys: 'Alt+↑', run: () => moveBlock(editor, -1) },

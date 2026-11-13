@@ -62,7 +62,7 @@ export async function loadPrefs() {
   if (saved && !saved.themes) window.api.setPrefs(prefs);
 }
 
-function setPref(key, value, { animate = false } = {}) {
+export function setPref(key, value, { animate = false } = {}) {
   prefs = { ...prefs, [key]: value };
   applyPrefs({ animate });
   clearTimeout(saveTimer);

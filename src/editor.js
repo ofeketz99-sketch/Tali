@@ -21,7 +21,7 @@ import { splitOverlay, joinOverlay } from './overlay-data.js';
 import { MathPreview } from './math.js';
 import { Tags } from './tags.js';
 import { DirectionBulletList, DirectionOrderedList, DirectionTaskList } from './list-direction.js';
-import { markCompletedBoundaries, sortCompletedTaskLists } from './task-layout.js';
+import { CompletedDivider, sortCompletedTaskLists } from './task-layout.js';
 import { ListBackspace } from './list-keys.js';
 import { BlockHandle } from './block-handle.js';
 import { attachPropsEditor } from './props-editor.js';
@@ -86,6 +86,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       DirectionOrderedList,
       DirectionTaskList,
       TaskItem.configure({ nested: true }),
+      CompletedDivider.configure({ isOn: () => shouldSortCompleted() }),
       ListBackspace,
       BlockHandle,
       FaithfulLink,
@@ -103,8 +104,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       if (loading) return;
       onChange();
       requestAnimationFrame(() => {
-        if (shouldSortCompleted() && sortCompletedTaskLists(editor)) return;
-        markCompletedBoundaries(element);
+        if (shouldSortCompleted()) sortCompletedTaskLists(editor, { animate: true });
       });
     },
   });
@@ -177,8 +177,8 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       controller.setEnabled(!raw);
     },
     refreshPreferences() {
-      if (shouldSortCompleted()) sortCompletedTaskLists(editor);
-      requestAnimationFrame(() => markCompletedBoundaries(element));
+      // ההגדרה השתנתה: ממיינים (אם הופעלה), ותמיד מבקשים ציור מחדש של קו ההפרדה
+      if (!(shouldSortCompleted() && sortCompletedTaskLists(editor))) editor.view.dispatch(editor.state.tr.setMeta('taliRedecorate', true));
     },
     isRaw: () => raw,
     // "הוספת מאפיינים" בהערה שאין בה: טופס עם שורה ריקה
