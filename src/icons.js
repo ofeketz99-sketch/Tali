@@ -8,7 +8,7 @@ import {
   BetweenVerticalStart, BetweenVerticalEnd, Heading, Pen, Slash, MoveUpRight, Square, Circle, Eraser,
   ArrowRight, ArrowLeft, GripVertical, Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
   PanelRightClose, PanelRightOpen, Waypoints, Ghost, Hash, FileDown, FileType, ListChecks, ListTree, Info, Reply, Ellipsis, Focus, Minimize2,
-  Sigma, SquareSigma, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag, Keyboard, MessageSquareText, Braces, Moon,
+  Sigma, SquareSigma, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag, Keyboard, MessageSquareText, Braces, Moon, MousePointer2, SquareDashed, PaintBucket,
 } from 'lucide';
 
 const ICONS = {
@@ -39,6 +39,7 @@ const ICONS = {
   deleteRow: Rows3, deleteCol: Columns3, merge: TableCellsMerge, split: TableCellsSplit, header: Heading,
   // ציור
   rectangle: RectangleHorizontal, textBox: TextCursorInput, move: Move, pen: Pen, line: Slash, arrow: MoveUpRight, rect: Square, ellipse: Circle, eraser: Eraser, taller: ArrowDownToLine,
+  pointer: MousePointer2, dashed: SquareDashed, fill: PaintBucket,
 };
 
 const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;');

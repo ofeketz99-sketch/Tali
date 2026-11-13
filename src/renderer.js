@@ -305,7 +305,7 @@ const useOverlay = (tool) => {
   pageOverlay.setEnabled(true);
   if (tool === 'textbox') pageOverlay.setMode('textbox');
   else pageOverlay.openDrawing();
-  setStatus('בחר כלי ושרטט על הדף. Esc מסיים את הקבוצה.');
+  setStatus('שרטוט על הדף: הכלים בסרגל למטה. "סיום" או Esc חוזרים לכתיבה.');
 };
 const addMarginComment = (quote) => {
   if (!state.currentPath || editorApi.isRaw()) { setStatus('פותחים מסמך בתצוגה המעוצבת כדי להוסיף הערה'); return; }
