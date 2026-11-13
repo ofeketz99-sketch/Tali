@@ -43,20 +43,34 @@ async function gitCommand(args) {
   }
   throw lastError;
 }
+// הגרסה הראשונה ב־CHANGELOG ("## 6.9 — ..."), כמערך מספרים
+const topVersion = (text) => (/^##\s+(\d+(?:\.\d+)*)/m.exec(String(text || '')) || [, '0'])[1].split('.').map(Number);
+const compareVersions = (a, b) => {
+  for (let i = 0; i < Math.max(a.length, b.length); i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) - (b[i] || 0);
+  return 0;
+};
+// גרסת האפליקציה מה־package.json שלה. app.getVersion() במשגר הפיתוח מחזיר את גרסת המשגר (0.2.0).
+let appVersion = null;
+async function getAppVersion() {
+  if (appVersion) return appVersion;
+  try { appVersion = JSON.parse(await fs.readFile(path.join(__dirname, 'package.json'), 'utf8')).version || app.getVersion(); }
+  catch { appVersion = app.getVersion(); }
+  return appVersion;
+}
 async function getPatchNotes() {
   const now = Date.now();
   if (patchNotesCache && now - patchNotesCache.time < (patchNotesCache.data.source === 'github' ? 300000 : 30000)) {
     return patchNotesCache.data;
   }
-  let data;
+  // מ־6.9: הגרסה החדשה מבין שתיהן. בערוץ הפיתוח (desktop-dev) הקוד שרץ חדש מ־main, ולכן ה־CHANGELOG
+  // המקומי הוא הנכון; בגרסה מותקנת main יכול להיות חדש יותר (גרסה שעוד לא הותקנה).
+  const local = await fs.readFile(path.join(__dirname, 'CHANGELOG.md'), 'utf8').catch(() => '');
+  let data = { content: local, source: 'local' };
   try {
     await gitCommand(['fetch', '--quiet', '--no-tags', 'origin', 'main']);
     const { stdout } = await gitCommand(['show', 'FETCH_HEAD:CHANGELOG.md']);
-    if (!stdout.trim()) throw new Error('Empty changelog');
-    data = { content: stdout, source: 'github' };
-  } catch {
-    data = { content: await fs.readFile(path.join(__dirname, 'CHANGELOG.md'), 'utf8'), source: 'local' };
-  }
+    if (stdout.trim() && compareVersions(topVersion(stdout), topVersion(local)) > 0) data = { content: stdout, source: 'github' };
+  } catch { /* בלי רשת או בלי Git: העותק המקומי */ }
   patchNotesCache = { time: now, data };
   return data;
 }
@@ -319,7 +333,7 @@ function registerIpc() {
   });
 
   ipcMain.handle('patch-notes', getPatchNotes);
-  ipcMain.handle('app-version', () => app.getVersion());
+  ipcMain.handle('app-version', getAppVersion);
   // שמירת טבלה מלאה ללוח בפורמט HTML ובפורמט טקסט לתאימות עם Word, Excel ועורכי פתקים.
   ipcMain.handle('copy-table', (_e, html, text) => {
     clipboard.write({ html: String(html || ''), text: String(text || '') });

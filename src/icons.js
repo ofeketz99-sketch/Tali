@@ -6,9 +6,9 @@ import {
   FolderOpen, Plus, SlidersHorizontal, Search, SquarePlus, Check, Pencil, Copy, Link, Trash2, X, FilePlus,
   Palette, TableCellsMerge, TableCellsSplit, BetweenHorizontalStart, BetweenHorizontalEnd,
   BetweenVerticalStart, BetweenVerticalEnd, Heading, Pen, Slash, MoveUpRight, Square, Circle, Eraser,
-  Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
+  ArrowRight, ArrowLeft, GripVertical, Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
   PanelRightClose, PanelRightOpen, Waypoints, Ghost, Hash, FileDown, FileType, ListChecks, ListTree, Info, Reply, Ellipsis, Focus, Minimize2,
-  Sigma, SquareSigma, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag, Keyboard, MessageSquareText,
+  Sigma, SquareSigma, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag, Keyboard, MessageSquareText, Braces, Moon, MousePointer2, SquareDashed, PaintBucket,
 } from 'lucide';
 
 const ICONS = {
@@ -27,18 +27,19 @@ const ICONS = {
   // תצוגות כספת וייצוא
   graph: Waypoints, ghost: Ghost, tag: Hash, exportPdf: FileDown, exportWord: FileType, taskSection: ListChecks,
   // לוח ההקשר
-  outline: ListTree, info: Info, backlinks: Reply, calendar: CalendarDays, template: LayoutTemplate, splitView: Columns2, collapseAll: ChevronsDownUp, locate: LocateFixed, history: History, board: ClipboardList, chevronUp: ChevronUp, chevronDown: ChevronDown, eye: Eye, eyeOff: EyeOff, home: House, iconPick: Shapes,
+  outline: ListTree, info: Info, props: Braces, sleep: Moon, backlinks: Reply, calendar: CalendarDays, template: LayoutTemplate, splitView: Columns2, collapseAll: ChevronsDownUp, locate: LocateFixed, history: History, board: ClipboardList, chevronUp: ChevronUp, chevronDown: ChevronDown, eye: Eye, eyeOff: EyeOff, home: House, iconPick: Shapes,
   // סרגל: עוד, מצב מיקוד
   more: Ellipsis, focus: Focus, focusExit: Minimize2,
   // תפריט הלחיצה הימנית ונוסחאות
   math: Sigma, mathBlock: SquareSigma, h1: Heading1, h2: Heading2, h3: Heading3, paragraph: Pilcrow,
-  cut: Scissors, paste: ClipboardPaste, selectAll: TextSelect, chevronLeft: ChevronLeft, chevronRight: ChevronRight, flag: Flag,
+  cut: Scissors, paste: ClipboardPaste, selectAll: TextSelect, chevronLeft: ChevronLeft, chevronRight: ChevronRight, flag: Flag, arrowRight: ArrowRight, arrowLeft: ArrowLeft, grip: GripVertical,
   // טבלה
   rowBefore: BetweenHorizontalStart, rowAfter: BetweenHorizontalEnd,
   colBefore: BetweenVerticalStart, colAfter: BetweenVerticalEnd,
   deleteRow: Rows3, deleteCol: Columns3, merge: TableCellsMerge, split: TableCellsSplit, header: Heading,
   // ציור
   rectangle: RectangleHorizontal, textBox: TextCursorInput, move: Move, pen: Pen, line: Slash, arrow: MoveUpRight, rect: Square, ellipse: Circle, eraser: Eraser, taller: ArrowDownToLine,
+  pointer: MousePointer2, dashed: SquareDashed, fill: PaintBucket,
 };
 
 const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;');

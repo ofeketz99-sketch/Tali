@@ -4,4 +4,14 @@
 .tali-splash__emblem { position: absolute; left: 50%; top: 50%; width: clamp(120px, 26vmin, 260px); height: auto; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; user-select: none; will-change: opacity, transform; }
 /* No visible playback UI: the skip button only appears for keyboard users. Escape and a click also skip. */
 .tali-splash__skip { position: absolute; bottom: max(26px, env(safe-area-inset-bottom)); right: max(26px, env(safe-area-inset-right)); min-height: 44px; padding: 8px 18px; border: 1px solid var(--splash-edge); border-radius: 24px; background: var(--splash-paper); color: var(--splash-ink); direction: rtl; font-size: 14px; opacity: 0; }
+/* Sleep mode (renderer.js, enterSleep): the same blue and emblem, breathing slowly until a click or key. */
+.tali-sleep { position: fixed; inset: 0; z-index: 9999; background: var(--splash-bg); cursor: default; outline: none; animation: tali-sleep-in .5s ease-out both; }
+.tali-sleep.waking { animation: tali-sleep-out .35s ease-in both; pointer-events: none; }
+.tali-sleep__emblem { position: absolute; left: 50%; top: 50%; width: clamp(120px, 26vmin, 260px); height: auto; transform: translate(-50%, -50%); pointer-events: none; user-select: none; animation: tali-sleep-breathe 7s ease-in-out infinite; will-change: transform, opacity; }
+.tali-sleep__hint { position: absolute; left: 0; right: 0; bottom: 36px; text-align: center; direction: rtl; font-size: 13px; color: var(--splash-ink); opacity: 0; animation: tali-sleep-hint 4s ease-out .6s both; pointer-events: none; }
+@keyframes tali-sleep-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tali-sleep-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes tali-sleep-breathe { 0%, 100% { transform: translate(-50%, -50%) scale(.97); opacity: .86; } 50% { transform: translate(-50%, -50%) scale(1.03); opacity: 1; } }
+@keyframes tali-sleep-hint { 0% { opacity: 0; } 15%, 70% { opacity: .7; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tali-sleep, .tali-sleep.waking, .tali-sleep__emblem { animation-duration: .01s; animation-iteration-count: 1; } }
 .tali-splash__skip:focus-visible { opacity: 1; outline: 2px solid var(--splash-ink); outline-offset: 4px; }

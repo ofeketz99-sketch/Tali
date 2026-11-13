@@ -128,6 +128,18 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
     render(); save();
   }
 
+  // סגירת כל הכרטיסיות חוץ מ־p (מהתפריט של כרטיסייה). p נשאר פתוח ופעיל.
+  async function closeOthers(p) {
+    if (!list.includes(p)) return;
+    await flushSave();
+    if (panes.length > 1) unsplit();
+    list = [p];
+    panes = [p];
+    activePane = 0;
+    if (getCurrent() !== p) await openNote(p, { history: false });
+    render(); save();
+  }
+
   // Ctrl+חץ: הכרטיסייה הבאה/הקודמת, במעגל
   function step(dir) {
     if (list.length < 2) return;
@@ -302,7 +314,7 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
   function refreshSide() { if (panes.length > 1) fillPreview(other()); }
 
   return {
-    opened, close, step, show, splitWith, toggleSplit, unsplit, remap, drop, cleared, restore, refreshSide, refresh: render,
+    opened, close, closeOthers, step, show, splitWith, toggleSplit, unsplit, remap, drop, cleared, restore, refreshSide, refresh: render,
     get list() { return list; }, get split() { return panes.length > 1; },
     activePath: () => panes[activePane],
   };

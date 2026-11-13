@@ -1,6 +1,7 @@
 // העורך העשיר (TipTap). שומר ומטעין Markdown, ויודע לעבור לתצוגה גולמית.
 // כל מה שקשור לשמירה נאמנה של תחביר אובסידיאן נמצא ב־obsidian-md.js.
 import { Editor } from '@tiptap/core';
+import { EditorState } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import TextStyle from '@tiptap/extension-text-style';
@@ -21,6 +22,8 @@ import { MathPreview } from './math.js';
 import { Tags } from './tags.js';
 import { DirectionBulletList, DirectionOrderedList, DirectionTaskList } from './list-direction.js';
 import { markCompletedBoundaries, sortCompletedTaskLists } from './task-layout.js';
+import { ListBackspace } from './list-keys.js';
+import { BlockHandle } from './block-handle.js';
 import { attachPropsEditor } from './props-editor.js';
 import {
   ObsidianMarkdown, FaithfulText, FaithfulHardBreak, FaithfulHorizontalRule, FaithfulHeading, FaithfulLink,
@@ -83,6 +86,8 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       DirectionOrderedList,
       DirectionTaskList,
       TaskItem.configure({ nested: true }),
+      ListBackspace,
+      BlockHandle,
       FaithfulLink,
       LocalImage.configure({ localSrc: links.localSrc }),
       Embed.configure({ resolve: links.resolve, onOpen: links.onOpen, onEditDrawing: links.onEditDrawing, read: links.read }),
@@ -156,6 +161,10 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
     const parts = splitFrontmatter(partsWithOverlay.markdown);
     frontmatter = parts.frontmatter;
     editor.commands.setContent(parts.body, false);
+    // היסטוריה נקייה לכל מסמך: בלי זה Ctrl+Z מיד אחרי פתיחה החזיר את התוכן של המסמך הקודם
+    // לתוך המסמך הנוכחי, והשמירה האוטומטית כתבה אותו לקובץ הלא נכון.
+    const { doc, plugins } = editor.state;
+    editor.view.updateState(EditorState.create({ doc, plugins }));
     propsForm.reset();
     showProps();
   };

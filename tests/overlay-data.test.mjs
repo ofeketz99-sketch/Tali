@@ -75,6 +75,21 @@ test('margin comments preserve their quote but never join drawing groups', async
   assert.deepEqual(groupedSelection([restored], 'c1'), [restored]);
 });
 
+test('dash and fill survive a round trip only where they make sense', () => {
+  const items = [
+    { id: 'r', kind: 'rect', x: 0, y: 0, dx: 40, dy: 20, color: '#4b80bd', weight: 2, dash: true, fill: 'tint' },
+    { id: 'l', kind: 'line', x: 0, y: 0, dx: 40, dy: 0, color: '#4b80bd', weight: 2, dash: true, fill: 'tint' },
+    { id: 'p', kind: 'pen', x: 0, y: 0, strokes: [[[0, 0], [1.5, 2.5]]], color: '#4b80bd', weight: 2, dash: true },
+    { id: 'e', kind: 'ellipse', x: 0, y: 0, dx: 10, dy: 10, color: '#4b80bd', weight: 2, dash: 'yes', fill: 'red' },
+  ];
+  const [rect, line, pen, ellipse] = splitOverlay(joinOverlay('Note', items)).objects;
+  assert.equal(rect.dash, true); assert.equal(rect.fill, 'tint');
+  assert.equal(line.dash, true); assert.equal(line.fill, undefined);
+  assert.equal(pen.dash, undefined);
+  assert.deepEqual(pen.strokes, [[[0, 0], [1.5, 2.5]]]);
+  assert.equal(ellipse.dash, undefined); assert.equal(ellipse.fill, undefined);
+});
+
 test('one freehand entity preserves several separate strokes', () => {
   const pen = { id: 'pen-1', kind: 'pen', x: 20, y: 30,
     strokes: [[[0, 0], [10, 8], [20, 4]], [[35, 12], [44, 18]]],

@@ -21,6 +21,9 @@ export function cleanOverlayObjects(input) {
       color: /^#[0-9a-f]{6}$/i.test(object.color || '') ? object.color : '#4b80bd',
       weight: bounded(object.weight, 2.4, 1, 20),
       ...(object.kind === 'pen' && /^[a-z0-9_-]{1,80}$/i.test(object.group || '') ? { group: object.group } : {}),
+      // 6.9: a dashed outline for lines and shapes, and a light fill for rectangles and ellipses (optional fields)
+      ...(object.dash === true && ['line', 'arrow', 'rect', 'ellipse'].includes(object.kind) ? { dash: true } : {}),
+      ...(object.fill === 'tint' && ['rect', 'ellipse'].includes(object.kind) ? { fill: 'tint' } : {}),
     };
     if (object.kind === 'textbox' || object.kind === 'comment') {
       result.push({

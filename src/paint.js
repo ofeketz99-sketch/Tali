@@ -1,7 +1,9 @@
-import { smoothStrokePoints } from './stroke-smoothing.js';
+import { fillFreehand } from './stroke-smoothing.js';
 
 // מיני צייר: חלון ציור שנשמר כתמונת PNG רגילה בתיקיית התמונות, ונכנס להערה כ־![[Drawing ...png]].
 // לחיצה כפולה על ציור בהערה פותחת אותו שוב לעריכה (ושומרת מעליו).
+// 6.9: עט ומרקר מצוירים כקו ממולא של perfect-freehand (כמו בשרטוט על הדף). צורות: גרירה, או לחיצה
+// ועוד לחיצה עם תצוגה מקדימה ביניהן; Esc מבטל צורה שמחכה ללחיצה השנייה.
 //
 // openPaint({ image?: url, onSave: (bytes: Uint8Array, width: number) => Promise })
 
@@ -134,20 +136,11 @@ function build() {
     ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = tool === 'marker' ? size * 3 : size;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = alpha; ctx.globalCompositeOperation = 'source-over';
   };
-  // קו חלק דרך נקודות האמצע
-  function strokePath(ctx, pts) {
+  // עט: רוחב משתנה לפי המהירות. מרקר: רוחב אחיד ושקוף למחצה.
+  function strokePath(ctx, pts, last = true) {
     if (!pts.length) return;
-    const smooth = smoothStrokePoints(pts.map(p => [p.x, p.y]));
-    ctx.beginPath();
-    ctx.moveTo(smooth[0][0], smooth[0][1]);
-    if (smooth.length === 1) ctx.lineTo(smooth[0][0] + 0.1, smooth[0][1]);
-    for (let i = 1; i < smooth.length - 1; i++) {
-      const mx = (smooth[i][0] + smooth[i + 1][0]) / 2;
-      const my = (smooth[i][1] + smooth[i + 1][1]) / 2;
-      ctx.quadraticCurveTo(smooth[i][0], smooth[i][1], mx, my);
-    }
-    if (smooth.length > 1) ctx.lineTo(smooth[smooth.length - 1][0], smooth[smooth.length - 1][1]);
-    ctx.stroke();
+    const marker = tool === 'marker';
+    fillFreehand(ctx, pts.map((p) => [p.x, p.y]), marker ? size * 2.2 : size * 0.85, { last, thinning: marker ? 0 : 0.55 });
   }
   function shape(ctx, a, b, shift) {
     let { x: x1, y: y1 } = a, { x: x2, y: y2 } = b;
@@ -174,16 +167,27 @@ function build() {
     ctx.stroke();
   }
 
+  const isShape = () => ['line', 'arrow', 'rect', 'ellipse'].includes(tool);
   over.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     over.focus({ preventScroll: true });
+    // צורה שמחכה ללחיצה השנייה: הלחיצה הזו קובעת את הסוף
+    if (drawing?.pending) { drawing.points.push(pos(e)); drawing.pending = false; finish(e); return; }
     over.setPointerCapture(e.pointerId);
     pushUndo();
     const p = pos(e);
-    drawing = { points: [p], start: p };
+    drawing = { points: [p], start: p, downX: e.clientX, downY: e.clientY };
     if (tool === 'eraser') erase(p, p);
     else move(e);
   });
+  function cancelPending() {
+    if (!drawing?.pending) return false;
+    drawing = null;
+    octx.clearRect(0, 0, W, H);
+    const s = undo.pop();
+    if (s) restore(s);
+    return true;
+  }
   function erase(a, b) {
     mctx.save();
     mctx.globalCompositeOperation = 'destination-out';
@@ -200,12 +204,17 @@ function build() {
       drawing.points.push(p);
     }
     octx.clearRect(0, 0, W, H);
-    if (tool === 'pen' || tool === 'marker') { style(octx, tool === 'marker' ? 0.35 : 1); strokePath(octx, drawing.points); }
+    if (tool === 'pen' || tool === 'marker') { style(octx, tool === 'marker' ? 0.35 : 1); strokePath(octx, drawing.points, false); }
     else if (tool !== 'eraser') { style(octx); shape(octx, drawing.start, drawing.points[drawing.points.length - 1], e.shiftKey); }
   }
   over.addEventListener('pointermove', move);
   const finish = (e) => {
-    if (!drawing) return;
+    if (!drawing || drawing.pending) return;
+    // צורה: לחיצה בלי גרירה מחכה ללחיצה השנייה, והתצוגה המקדימה ממשיכה אחרי העכבר
+    if (isShape() && e.type === 'pointerup' && Math.hypot(e.clientX - drawing.downX, e.clientY - drawing.downY) < 5) {
+      drawing.pending = true;
+      return;
+    }
     octx.clearRect(0, 0, W, H);
     if (tool === 'pen' || tool === 'marker') { style(mctx, tool === 'marker' ? 0.35 : 1); strokePath(mctx, drawing.points); }
     else if (tool !== 'eraser') { style(mctx); shape(mctx, drawing.start, drawing.points[drawing.points.length - 1], e.shiftKey); }
@@ -239,6 +248,7 @@ function build() {
     else if (act === 'save') await save();
   });
   d.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && cancelPending()) { e.preventDefault(); e.stopPropagation(); return; }
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); }
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') { e.preventDefault(); doRedo(); }
     if (e.key === 'Delete' && e.target === over && confirm('לנקות את כל הציור? ניתן לבטל בעזרת Ctrl+Z.')) {
@@ -247,7 +257,7 @@ function build() {
     }
   });
   // Escape: לא לאבד ציור בטעות
-  d.addEventListener('cancel', (e) => { e.preventDefault(); tryClose(); });
+  d.addEventListener('cancel', (e) => { e.preventDefault(); if (!cancelPending()) tryClose(); });
   function tryClose() {
     if (dirty && !confirm('לסגור בלי לשמור את הציור?')) return;
     d.close();

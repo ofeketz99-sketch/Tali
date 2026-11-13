@@ -194,6 +194,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
   // ===== מצב מיקוד ותצוגת Markdown =====
   const g8 = group('tb-end');
   button(g8, { html: icon('focus', 19), tip: 'מצב מיקוד: רק הדף (F11)', run: () => actions.onFocusMode?.() });
+  button(g8, { html: icon('sleep', 19), tip: 'מצב שינה: רק הסמל, עד לחיצה או מקש (Ctrl+Alt+L)', run: () => actions.onSleep?.() });
   const rawBtn = button(g8, {
     html: icon('markdown', 20), tip: 'תצוגת Markdown: הטקסט הגולמי של המסמך (Ctrl+E)',
     run: () => rawBtn.classList.toggle('is-active', editorApi.toggleRaw()),
