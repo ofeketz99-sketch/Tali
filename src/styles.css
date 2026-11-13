@@ -1350,6 +1350,8 @@ body[data-sidebar-mode="compact"] .side-top #btnNote {
 .pf-del:hover { color: var(--text); background: var(--accent-soft); }
 .pf-add { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; padding: 3px 9px; font-size: 12px; border: 1px dashed var(--border); border-radius: 8px; background: none; color: var(--muted); }
 .pf-add:hover { color: var(--accent-strong); border-color: var(--accent-line); }
+/* תאריך הגרסה בכותרות של ה־Patch Notes ובכרטיס הבית */
+.hc-version-date { display: inline-block; white-space: nowrap; unicode-bidi: isolate; font-weight: 400; color: var(--muted); font-size: .9em; }
 /* המאפיינים בלוח ההקשר (לשונית "מאפיינים"): הטופס צר יותר, ותיבת ה־YAML גדלה עם התוכן */
 .dc-props { display: block; }
 .dc-props .props-form { margin: 0 0 10px; padding: 6px 6px 8px; border-radius: 10px; animation: none; }

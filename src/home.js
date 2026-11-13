@@ -178,7 +178,18 @@ export function createHome({ el, store, api }) {
     const bullets = first >= 0 ? lines.slice(first + 1, lines.findIndex((line, index) => index > first && /^##\s+/.test(line)) < 0 ? lines.length : lines.findIndex((line, index) => index > first && /^##\s+/.test(line)))
       .filter((line) => /^[-*]\s+/.test(line)).slice(0, 3).map((line) => line.replace(/^[-*]\s+/, '')) : [];
     const versionTitle = document.createElement('strong');
-    versionTitle.className = 'hc-version-title'; versionTitle.textContent = plainMarkdown(title); body.append(versionTitle);
+    versionTitle.className = 'hc-version-title';
+    // התאריך ביחידה נפרדת משמאל לימין שלא נשברת, אחרת בכותרת בעברית הוא מתהפך ונחתך בין שורות
+    const dated = /^(.*?)\s*\((\d{4}-\d{2}-\d{2})\)\s*$/.exec(plainMarkdown(title));
+    versionTitle.textContent = dated ? dated[1] + ' ' : plainMarkdown(title);
+    if (dated) {
+      const date = document.createElement('span');
+      date.className = 'hc-version-date';
+      date.dir = 'ltr';
+      date.textContent = dated[2];
+      versionTitle.append(date);
+    }
+    body.append(versionTitle);
     for (const text of bullets) { const p = document.createElement('p'); p.className = 'hc-update-line'; p.textContent = plainMarkdown(text); body.append(p); }
     more(body, 'כל ה‑Patch Notes', api.openPatchNotes);
   }

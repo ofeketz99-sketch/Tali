@@ -1691,7 +1691,16 @@ function renderPatchNotes(markdown) {
       group = document.createElement('section');
       group.className = 'patch-note-release';
       const title = document.createElement('h3');
-      title.textContent = section[1];
+      // התאריך ביחידה נפרדת משמאל לימין שלא נשברת, אחרת בכותרת בעברית הוא מתהפך
+      const dated = /^(.*?)\s*\((\d{4}-\d{2}-\d{2})\)\s*$/.exec(section[1]);
+      title.textContent = dated ? dated[1] + ' ' : section[1];
+      if (dated) {
+        const date = document.createElement('span');
+        date.className = 'hc-version-date';
+        date.dir = 'ltr';
+        date.textContent = dated[2];
+        title.append(date);
+      }
       group.append(title);
       box.append(group);
       list = null;

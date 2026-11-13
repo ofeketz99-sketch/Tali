@@ -250,7 +250,9 @@
 ### Patch Notes
 
 - פקודה בלוח הפקודות (Ctrl+P): "מה חדש (Patch Notes)", וגם כרטיס "גרסה ועדכונים" במסך הבית.
-- התוכן הוא `CHANGELOG.md` מענף `main` ב־GitHub. התהליך הראשי מושך אותו ב־`git fetch origin main` ו־`git show FETCH_HEAD:CHANGELOG.md` (`getPatchNotes` ב־`main.js`), עם ההרשאות של Git המקומי, כי המאגר פרטי. בלי רשת מוצג העותק המקומי. המטמון: 5 דקות.
+- התוכן (מ־7.0) הוא החדש מבין `CHANGELOG.md` המקומי (של הקוד שרץ) לבין זה שבענף `main` ב־GitHub, לפי הגרסה בכותרת `##` הראשונה (`topVersion`/`compareVersions` ב־`main.js`). עד 7.0 הוצג תמיד `main`, ולכן בערוץ `desktop-dev` נראתה גרסה ישנה. התהליך הראשי מושך את `main` ב־`git fetch origin main` ו־`git show FETCH_HEAD:CHANGELOG.md` (`getPatchNotes`), עם ההרשאות של Git המקומי, כי המאגר פרטי. בלי רשת: המקומי. המטמון: 5 דקות.
+- **הגרסה בכרטיס** נקראת מ־`package.json` של האפליקציה (`getAppVersion`), ולא מ־`app.getVersion()`: במשגר הפיתוח זו הגרסה של המשגר (`launcher/package.json`, 0.2.0).
+- תאריך בכותרת גרסה מוצג ב־`span.hc-version-date` עם `dir="ltr"` ובלי שבירת שורה, אחרת הוא מתהפך בכותרת בעברית.
 - `renderer.js` בונה את החלון המלא עם `textContent` ולא מציג Markdown כ־HTML. כרטיס הבית מחלץ טקסט בלבד ומסיר קישורים, מודגש וקוד בשורה. לכן הפורמט של `CHANGELOG.md` חשוב: `##` לכל גרסה ונקודות `-`.
 
 ### כרטיסיות ופיצול (tiling)
