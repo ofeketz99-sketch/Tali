@@ -164,11 +164,11 @@ export function buildToolbar(container, editorApi, actions = {}) {
         ['math', 'נוסחה בשורה', ed.mathInline],
         ['mathBlock', 'נוסחה בשורה נפרדת', ed.mathBlock],
         ['link', 'קישור למסמך', ed.link],
-        ['draw', 'ציור כתמונה', ed.drawing],
-        ['arrow', 'שרטוט על הדף', ed.pageDrawing],
-        ['textBox', 'תיבת טקסט צפה', ed.floatingBox],
-        ['comment', 'הערת שוליים לציטוט', ed.marginComment],
-        ['quote', 'תיבה בתוך הפסקה', ed.textBox],
+        ['draw', 'ציור (נשמר כתמונה)', ed.drawing],
+        ['quote', 'מסגרת סביב טקסט', ed.textBox],
+        ['arrow', 'שרטוט חופשי על הדף', ed.pageDrawing],
+        ['textBox', 'תיבת טקסט שזזה חופשי', ed.floatingBox],
+        ['comment', 'הערת שוליים לטקסט המסומן', ed.marginComment],
         ['code', 'בלוק קוד', ed.codeBlock],
         ['rule', 'קו מפריד', ed.rule],
         ['taskSection', 'משימות להמשך', ed.taskSection],
@@ -193,7 +193,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
 
   // ===== מצב מיקוד ותצוגת Markdown =====
   const g8 = group('tb-end');
-  button(g8, { html: icon('focus', 19), tip: 'מצב מיקוד: רק הדף (F11)', run: () => actions.onFocusMode?.() });
+  button(g8, { html: icon('focus', 19), tip: 'מצב מיקוד: רק הדף', run: () => actions.onFocusMode?.() });
   button(g8, { html: icon('sleep', 19), tip: 'מצב שינה: רק הסמל, עד לחיצה או מקש (Ctrl+Alt+L)', run: () => actions.onSleep?.() });
   const rawBtn = button(g8, {
     html: icon('markdown', 20), tip: 'תצוגת Markdown: הטקסט הגולמי של המסמך (Ctrl+E)',

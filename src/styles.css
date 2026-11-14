@@ -676,7 +676,7 @@ dialog { border-radius: 18px; }
   border-color: var(--accent); animation: check-in .36s var(--spring);
 }
 .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--accent-line); transition: color .24s; }
-.ProseMirror ul[data-type="taskList"] > li.tali-completed-first { border-top: 1px solid var(--accent-line); margin-top: 8px; padding-top: 8px; animation: task-settle .28s var(--spring); }
+.ProseMirror ul[data-type="taskList"] > li.tali-completed-first { border-top: var(--done-divider-width, 1px) var(--done-divider-style, solid) var(--done-divider-color, var(--accent-line)); margin-top: 8px; padding-top: 8px; animation: task-settle .28s var(--spring); }
 @keyframes task-settle { from { opacity: .55; transform: translateY(-7px); } to { opacity: 1; transform: none; } }
 
 /* ----- סרגל צד ----- */
@@ -1999,3 +1999,6 @@ body.page-drawing-session .block-handle { display: none !important; }
 }
 .tali-free-image:hover .tali-image-back, .tali-free-image.selected .tali-image-back, .tali-image-back:focus-visible { opacity: 1; }
 .tali-image-back:hover { color: var(--accent-strong); border-color: var(--accent); }
+
+/* 8.0: תצוגה מקדימה של קו ההפרדה של משימות בהגדרות */
+#settings .done-divider-preview .ddp-line { margin: 8px 0; border-top: var(--done-divider-width, 1px) var(--done-divider-style, solid) var(--done-divider-color, var(--accent-line)); }

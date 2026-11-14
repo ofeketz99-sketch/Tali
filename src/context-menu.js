@@ -6,6 +6,7 @@
 // התפריט לא לוקח פוקוס: העורך שומר את הבחירה, והמקלדת נתפסת בשלב הלכידה כל עוד התפריט פתוח.
 import { icon } from './icons.js';
 import { moveBlock } from './list-keys.js';
+import { findTaliBox, deleteTaliBox, unwrapTaliBox } from './text-box.js';
 
 const SUB_OPEN_DELAY = 110;
 const SUB_CLOSE_DELAY = 260;
@@ -221,9 +222,17 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
   function editorItems(target) {
     const empty = sel().empty;
     const wiki = link && target?.closest?.('[data-wikilink]')?.getAttribute('data-wikilink');
+    // 8.0: לחיצה בתוך מסגרת בתוך הטקסט: מחיקה או הסרת המסגרת, בראש התפריט
+    const box = findTaliBox(editor.state);
+    const boxItems = box ? [
+      { label: 'הסרת המסגרת (הטקסט נשאר)', icon: 'textBox', run: () => unwrapTaliBox(editor) },
+      { label: 'מחיקת המסגרת והטקסט שבה', icon: 'trash', danger: true, run: () => deleteTaliBox(editor) },
+      'sep',
+    ] : [];
     return [
       ...(wiki ? linkItems(wiki) : []),
       ...(has('table') ? tableItems() : []),
+      ...boxItems,
       { label: 'גזירה', icon: 'cut', keys: 'Ctrl+X', disabled: empty, run: () => clipboard('cut') },
       { label: 'העתקה', icon: 'copy', keys: 'Ctrl+C', disabled: empty, run: () => clipboard('copy') },
       { label: 'הדבקה', icon: 'paste', keys: 'Ctrl+V', run: () => clipboard('paste') },
@@ -252,9 +261,10 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
         { label: 'למעלה', icon: 'chevronUp', keys: 'Alt+↑', run: () => moveBlock(editor, -1) },
         { label: 'למטה', icon: 'chevronDown', keys: 'Alt+↓', run: () => moveBlock(editor, 1) },
       ] },
-      { label: 'ציטוט', icon: 'quote', disabled: inCode(), run: edit.quote, active: () => has('blockquote') },
-      { label: 'בלוק קוד', icon: 'code', run: edit.codeBlock, active: () => has('codeBlock') },
       'sep',
+      // 8.0: שתי קבוצות ברורות. "בתוך הטקסט": זז עם הטקסט ונשמר כ־Markdown (נראה גם באובסידיאן).
+      // "חופשי על הדף": שכבה של Tali מעל הדף, זז לכל מקום (לא מוצג באובסידיאן).
+      { label: 'הוספה בתוך הטקסט', icon: 'plus', sub: [
       { label: 'טבלה', icon: 'table', disabled: inCode() || has('table'), sub: (box, done) => {
         // אותו בורר גודל כמו בסרגל (table.js), בתוך תפריט המשנה
         box.classList.add('cm-table');
@@ -280,15 +290,18 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
       ] },
       { label: 'תמונה', icon: 'image', run: edit.image },
       { label: 'קישור למסמך', icon: 'link', disabled: inCode(), run: edit.link },
+      { label: 'ציור (נשמר כתמונה)', icon: 'draw', run: edit.drawing },
+      { label: 'מסגרת סביב טקסט', icon: 'quote', disabled: inCode(), run: edit.textBox },
+      { label: 'ציטוט', icon: 'quote', disabled: inCode(), run: edit.quote, active: () => has('blockquote') },
+      { label: 'בלוק קוד', icon: 'code', run: edit.codeBlock, active: () => has('codeBlock') },
       { label: 'קו מפריד', icon: 'rule', run: edit.rule },
-      { label: 'תיבת טקסט', icon: 'textBox', sub: [
-        { label: 'תיבה בתוך הפסקה', icon: 'quote', disabled: inCode(), run: edit.textBox },
-        { label: 'תיבה צפה על הדף', icon: 'textBox', run: edit.floatingBox },
       ] },
-      { label: 'הערה בצד לציטוט המסומן', icon: 'comment', disabled: empty || inCode(), run: edit.marginComment },
-      { label: 'ציור', icon: 'draw', sub: [
-        { label: 'ציור כתמונה', icon: 'draw', run: edit.drawing },
+      { label: 'חופשי על הדף', icon: 'arrow', sub: [
+        { label: 'תיבת טקסט שזזה חופשי', icon: 'textBox', run: edit.floatingBox },
+        { label: 'הערת שוליים לטקסט המסומן', icon: 'comment', disabled: empty || inCode(), run: edit.marginComment },
         { label: 'שרטוט על הדף', icon: 'arrow', run: edit.pageDrawing },
+        'sep',
+        { label: 'המרה ל־Markdown רגיל', icon: 'file', run: edit.plainMarkdown },
       ] },
     ];
   }

@@ -45,6 +45,7 @@ export function createEditActions(editor, hooks = {}) {
     ] }).run(),
     floatingBox: () => hooks.onOverlayDraw?.('textbox'),
     marginComment: () => hooks.onMarginComment?.(selectedText()),
+    plainMarkdown: () => hooks.onPlainMarkdown?.(),
     pageDrawing: () => hooks.onOverlayDraw?.(),
     drawing: () => hooks.onDraw?.(),
     image: () => hooks.onImage?.(),

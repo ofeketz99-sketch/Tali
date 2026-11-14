@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('api', {
   // Windows: הממשק מצייר את שורת הכותרת (#titlebar), וכפתורי החלון נצבעים לפי הערכה
   customTitleBar: process.platform === 'win32',
   setTitleBarColors: (colors) => ipcRenderer.send('title-bar-colors', colors),
+  toggleFullScreen: call('toggle-fullscreen'), // 8.0: F11
   // "Tali", או "TALI-DEV" כשהאפליקציה נפתחה דרך משגר הפיתוח TALI-DEV.exe
   appTitle: (() => { try { return ipcRenderer.sendSync('app-title') || 'Tali'; } catch { return 'Tali'; } })(),
   init: call('init'),

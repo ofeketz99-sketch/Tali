@@ -10,6 +10,7 @@ import { resolveLink, extractLinks, getFrontmatterLinks, setFrontmatterLinks } f
 import { openLinkPicker } from './linkpicker.js';
 import { showLinkHubOffer } from './linkhub.js';
 import { fileUrl, bumpImage, returnImageToText } from './embed.js';
+import { convertToPlainMarkdown } from './plain-md.js';
 import { openPaint } from './paint.js';
 import { createPageOverlay } from './page-overlay.js';
 import { icon, lucide } from './icons.js';
@@ -312,6 +313,29 @@ const pageOverlay = createPageOverlay({
     return returnImageToText(editorApi.editor, o, r.left + o.x + 4, r.top + o.y + 4);
   },
 });
+// 8.0: המרה ל־Markdown רגיל (plain-md.js): כל מה שמיוחד ל־Tali הופך לתוכן שאובסידיאן מציג
+async function convertNoteToPlainMd() {
+  if (!state.currentPath) { setStatus('קודם פותחים מסמך'); return; }
+  if (editorApi.isRaw()) { setStatus('ההמרה עובדת בתצוגה המעוצבת'); return; }
+  const ok = await ask('המרה ל־Markdown רגיל: תמונות חופשיות, תיבות טקסט צפות, הערות שוליים ושרטוטים יהפכו לתוכן רגיל בתוך המסמך, שגם אובסידיאן מציג (שרטוטים: תמונת PNG אחת). מסגרות סביב טקסט יהפכו לציטוט רגיל. אחרי ההמרה הם כבר לא יזוזו חופשי.', '', { confirmOnly: true, okText: 'המרה' });
+  if (!ok) return;
+  try {
+    pageOverlay.setEnabled(true);
+    const counts = await convertToPlainMarkdown({
+      editor: editorApi.editor, overlay: pageOverlay, page: $('page'),
+      saveDrawing: async (bytes) => {
+        const p = await window.api.saveAttachment(attachmentDir(), `Drawing ${drawingStamp()}.png`, bytes);
+        state.attachments = await window.api.attachments();
+        return linkTextFor(p).replace(/.png$/i, '') + '.png';
+      },
+    });
+    noteChanged();
+    const parts = [counts.images && `${counts.images} תמונות`, counts.notes && `${counts.notes} תיבות והערות`, counts.drawings && 'השרטוטים כתמונה'].filter(Boolean);
+    showToast(parts.length ? 'הומר ל־Markdown רגיל: ' + parts.join(', ') + '.' : 'המסמך כבר Markdown רגיל (מסגרות וציפת תמונות, אם היו, הומרו).');
+  } catch (err) {
+    showToast('ההמרה נכשלה: ' + (err.message || err));
+  }
+}
 // "חופשי" על תמונה בטקסט: התמונה יוצאת מהטקסט ועוברת לשכבת הדף, באותו מקום ובאותו גודל
 function freeImage({ ref, src, alt, rect, pos }) {
   if (editorApi.isRaw()) return;
@@ -347,6 +371,7 @@ const toolbarApi = buildToolbar($('toolbar'), editorApi, {
   onDraw: newDrawing,
   onOverlayDraw: useOverlay,
   onMarginComment: addMarginComment,
+  onPlainMarkdown: () => convertNoteToPlainMd(),
   onTaskSection: insertTaskSection,
   onFocusMode: () => toggleFocusMode(),
   onSleep: () => enterSleep(),
@@ -366,13 +391,13 @@ setupContextMenus({
   other: (e) => otherContextItems(e),
 });
 
-// ===== מצב מיקוד: רק הדף. הסרגלים, שורת המצב ולוח ההקשר מוסתרים. F11 או הכפתור בפינה יוצאים =====
+// ===== מצב מיקוד: רק הדף. הסרגלים, שורת המצב ולוח ההקשר מוסתרים. הכפתור בפינה יוצא (מ־8.0 F11 הוא מסך מלא) =====
 const focusExit = document.createElement('button');
 focusExit.type = 'button';
 focusExit.id = 'focusExit';
 focusExit.hidden = true;
 focusExit.innerHTML = `${icon('focusExit', 16)}<span>יציאה ממצב מיקוד</span>`;
-focusExit.dataset.tip = 'יציאה ממצב מיקוד (F11)';
+focusExit.dataset.tip = 'יציאה ממצב מיקוד';
 focusExit.addEventListener('click', () => toggleFocusMode(false));
 document.body.append(focusExit);
 function toggleFocusMode(on = !document.body.dataset.focus) {
@@ -1536,9 +1561,25 @@ function vaultItems() {
     { label: 'רענון העץ', icon: 'history', run: () => refreshTree() },
   ];
 }
+// 8.0: השוליים שמחוץ לדף (בתוך #pageWrap, לא בדף, לא בלוח ההקשר ולא בתיבה קיימת)
+const inPageMargin = (t) => !!(state.currentPath && !editorApi.isRaw() && t.closest?.('#pageWrap')
+  && !t.closest('#page, #docCtx, .tali-overlay-box, .tali-overlay-toolbar, #home'));
+const addMarginNote = (x, y) => { pageOverlay.setEnabled(true); pageOverlay.addNote(x, y); };
+$('pageWrap').addEventListener('dblclick', (e) => {
+  if (e.button !== 0 || !inPageMargin(e.target)) return;
+  e.preventDefault();
+  addMarginNote(e.clientX, e.clientY);
+});
+
 function otherContextItems(e) {
   const t = e.target;
   if (!state.root) return null;
+  if (inPageMargin(t)) return [
+    { label: 'הערת שוליים כאן', icon: 'comment', run: () => addMarginNote(e.clientX, e.clientY) },
+    { label: 'שרטוט על הדף', icon: 'arrow', run: () => useOverlay() },
+    'sep',
+    { label: 'המרה ל־Markdown רגיל', icon: 'file', run: () => convertNoteToPlainMd() },
+  ];
   if (t.closest('#tree') && !t.closest('.node')) return vaultItems();
   if (t.closest('#home')) return [
     { label: 'מסמך חדש', icon: 'filePlus', keys: 'Ctrl+N', run: () => { state.selectedDir = null; newNote(); } },
@@ -2060,7 +2101,10 @@ const COMMANDS = [
   { title: 'הסרת הדגל מהמסמך', run: () => setNoteFlag(state.currentPath, null), needs: 'note' },
   { title: 'מסמכי רפאים (קישורים למסמכים שלא נוצרו)', run: showGhosts, needs: 'root' },
   { title: 'משימות להמשך בסוף המסמך', run: insertTaskSection, needs: 'note' },
-  { title: 'מצב מיקוד (רק הדף)', keys: 'F11', run: () => toggleFocusMode(), needs: 'note' },
+  // 8.0: F11 = מסך מלא אמיתי של Windows (לבקשת המשתמש). מצב מיקוד: הכפתור בסרגל, לוח הפקודות, או קיצור שמגדירים
+  { title: 'מסך מלא', keys: 'F11', run: () => window.api.toggleFullScreen() },
+  { id: 'focusMode', title: 'מצב מיקוד (רק הדף)', run: () => toggleFocusMode(), needs: 'note' },
+  { title: 'המרה ל־Markdown רגיל (בלי תוספות של Tali, בשביל אובסידיאן)', run: () => convertNoteToPlainMd(), needs: 'note' },
   { title: 'מצב שינה (רק הסמל)', keys: 'Ctrl+Alt+L', run: () => enterSleep() },
   { title: 'משימות שבוצעו בסוף הרשימה: הפעלה או כיבוי', run: () => toggleCompletedAtBottom() },
   { title: 'לוח ההקשר: קישורים החוצה', run: () => docPanel.open('links'), needs: 'note' },

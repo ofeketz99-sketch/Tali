@@ -411,6 +411,25 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
     return true;
   }
 
+  // 8.0: הערת שוליים בלי ציטוט, בנקודה שנלחצה בשוליים (לחיצה כפולה או תפריט). הצד לפי מקום הלחיצה.
+  function addNote(clientX, clientY) {
+    if (!enabled) return false;
+    const width = 230, height = 130;
+    const bounds = page.getBoundingClientRect();
+    const side = clientX < bounds.left + bounds.width / 2 ? 'start' : 'end';
+    const object = {
+      id: makeId(), kind: 'comment', quote: '', text: '', side,
+      x: side === 'start' ? -width - 24 : page.clientWidth + 24,
+      y: Math.max(0, Math.round(clientY - bounds.top - 14)),
+      width, height, color, weight,
+    };
+    objects.push(object);
+    session = true; mode = 'select';
+    render(); select(object.id); notify();
+    requestAnimationFrame(() => boxes.querySelector(`[data-id="${object.id}"] textarea`)?.focus());
+    return true;
+  }
+
   // ===== ציור הצורות =====
   const arrowHead = (object) => {
     const angle = Math.atan2(object.dy, object.dx);
@@ -688,7 +707,9 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
       if (object.kind === 'comment') {
         head.className = 'tali-overlay-grip';
         head.innerHTML = icon('move', 15) + '<span></span>';
-        head.querySelector('span').textContent = `„${object.quote.slice(0, 64)}${object.quote.length > 64 ? '…' : ''}“`;
+        head.querySelector('span').textContent = object.quote
+          ? `„${object.quote.slice(0, 64)}${object.quote.length > 64 ? '…' : ''}“`
+          : 'הערה'; // 8.0: הערת שוליים בלי ציטוט
       } else {
         // 7.7: בלי פס כותרת. ידית הזזה קטנה מעל התיבה, רק בריחוף או כשהיא נבחרה
         head.className = 'tali-overlay-grip tali-box-move';
@@ -782,6 +803,23 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
     });
     element.append(img, back, resize);
     return element;
+  }
+  // 8.0: כל השרטוטים (עט, קו, חץ, מלבן, אליפסה) כ־SVG עצמאי, להמרה לתמונה רגילה (המרה ל־Markdown רגיל).
+  // x, y: הפינה בקואורדינטות הדף; w, h: הגודל בפיקסלים של הדף. null כשאין שרטוטים.
+  function exportShapes() {
+    const list = objects.filter((o) => shapeKinds.includes(o.kind));
+    if (!list.length) return null;
+    const b = bboxOfMany(list);
+    const pad = 12;
+    const x = Math.floor(b.x - pad), y = Math.floor(b.y - pad);
+    const w = Math.ceil(b.w + 2 * pad), h = Math.ceil(b.h + 2 * pad);
+    const svg = svgEl('svg', { xmlns: NS, width: w, height: h, viewBox: `${x} ${y} ${w} ${h}` });
+    for (const object of list) {
+      const g = shapeElement(object);
+      g.querySelectorAll('.tali-overlay-hit').forEach((e) => e.remove());
+      svg.append(g);
+    }
+    return { svg: new XMLSerializer().serializeToString(svg), x, y, w, h };
   }
   function addImage(input) {
     const [object] = cleanOverlayObjects([{ ...input, kind: 'image', id: makeId() }]);
@@ -1041,6 +1079,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
     },
     setMode: (next) => setMode(next),
     addImage,
+    addNote,
+    exportShapes,
     openDrawing,
     addComment,
   };

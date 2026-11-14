@@ -25,6 +25,7 @@ import { CompletedDivider, sortCompletedTaskLists } from './task-layout.js';
 import { ListBackspace } from './list-keys.js';
 import { fitRaw, richAnchor, showRichAnchorInRaw, rawAnchor, rawAnchorToBlock, showBlockInRich } from './view-anchor.js';
 import { BlockHandle } from './block-handle.js';
+import { TaliBoxKeys } from './text-box.js';
 import { attachPropsEditor } from './props-editor.js';
 import {
   ObsidianMarkdown, FaithfulText, FaithfulHardBreak, FaithfulHorizontalRule, FaithfulHeading, FaithfulLink,
@@ -90,6 +91,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       TaskItem.configure({ nested: true }),
       CompletedDivider.configure({ isOn: () => shouldSortCompleted() }),
       ListBackspace,
+      TaliBoxKeys,
       BlockHandle,
       FaithfulLink,
       LocalImage.configure({ localSrc: links.localSrc, onFree: links.onFreeImage || null }),

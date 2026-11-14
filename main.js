@@ -343,6 +343,13 @@ function registerIpc() {
   // סינכרוני: theme-boot.js קובע את שם החלון לפני הציור הראשון (Tali או TALI-DEV)
   ipcMain.on('app-title', (e) => { e.returnValue = APP_TITLE; });
   // צבע כפתורי החלון (מזעור, הגדלה, סגירה) לפי הערכה: רקע ופס כמו #titlebar
+  // 8.0: F11 מעביר את החלון למסך מלא ובחזרה
+  ipcMain.handle('toggle-fullscreen', (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    if (!win) return false;
+    win.setFullScreen(!win.isFullScreen());
+    return win.isFullScreen();
+  });
   ipcMain.on('title-bar-colors', (e, { color, symbolColor } = {}) => {
     const win = BrowserWindow.fromWebContents(e.sender);
     const hex = (c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);

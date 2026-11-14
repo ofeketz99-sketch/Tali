@@ -28,6 +28,10 @@ export const DEFAULTS = {
   attachFolder: 'attachments',
   hotkeys: {},             // command id -> shortcut; empty string disables a shortcut
   completedTasksAtBottom: false,
+  // 8.0: הקו שמפריד בין משימות פתוחות לשבוצעו (task-layout.js, CompletedDivider)
+  doneDividerStyle: 'solid',  // solid | dashed | dotted | double | none
+  doneDividerColor: 'muted',  // accent | muted | text (muted = הקו העדין שהיה עד 8.0)
+  doneDividerWidth: 1,        // 1–4 פיקסלים
 };
 
 // משמש כרוחב העמודה של הדף (grid), ולכן "מלא" הוא מספר גדול ולא none
@@ -81,6 +85,13 @@ export function applyPrefs({ animate = false } = {}) {
   if (prefs.pageLook) delete root.dataset.page; else root.dataset.page = 'flat';
   root.dataset.textdir = prefs.textDir;
   if (prefs.justify) root.dataset.justify = 'on'; else delete root.dataset.justify;
+  // 8.0: סגנון קו ההפרדה של משימות שבוצעו. הצבעים הם משתני ערכה, ולכן מתאימים גם למצב כהה
+  const dividerColors = { accent: 'var(--accent)', muted: 'var(--accent-line)', text: 'var(--muted)' };
+  const style = ['solid', 'dashed', 'dotted', 'double', 'none'].includes(prefs.doneDividerStyle) ? prefs.doneDividerStyle : 'solid';
+  const width = Math.max(1, Math.min(4, Number(prefs.doneDividerWidth) || 1));
+  root.style.setProperty('--done-divider-style', style);
+  root.style.setProperty('--done-divider-color', dividerColors[prefs.doneDividerColor] || dividerColors.accent);
+  root.style.setProperty('--done-divider-width', (style === 'double' ? Math.max(3, width) : width) + 'px');
   for (const fn of listeners) fn(prefs);
 }
 
@@ -217,6 +228,10 @@ function buildDialog() {
       el('div', { style: 'font-family:var(--font-heading);font-weight:700;font-size:1.3em;margin-bottom:4px' }, 'כותרת לדוגמה'),
       'כך ייראה הטקסט במסמכים. The quick brown fox jumps over the lazy dog.'),
     row('משימות שבוצעו בסוף הרשימה', 'בעת סימון תיבת משימה היא עוברת, עם תנועה וקו מפריד, לסוף הרשימה שלה', check('completedTasksAtBottom')),
+    row('קו ההפרדה: סגנון', 'הקו בין משימות פתוחות למשימות שבוצעו', seg('doneDividerStyle', [['solid', 'רציף'], ['dashed', 'מקווקו'], ['dotted', 'נקודות'], ['double', 'כפול'], ['none', 'בלי קו']])),
+    row('קו ההפרדה: צבע', null, seg('doneDividerColor', [['accent', 'צבע הערכה'], ['muted', 'עדין'], ['text', 'אפור כהה']])),
+    row('קו ההפרדה: עובי', null, range('doneDividerWidth', 1, 4, 1, (v) => v + 'px')),
+    el('div', { class: 'preview done-divider-preview' }, el('div', null, '☐ משימה פתוחה'), el('div', { class: 'ddp-line' }), el('div', { style: 'opacity:.6;text-decoration:line-through' }, '☑ משימה שבוצעה')),
   );
   const files = el('section', { class: 'set-page', 'data-page': 'files', hidden: '' },
     row('מסמך חדש נוצר', null, select('newNoteLocation', [
