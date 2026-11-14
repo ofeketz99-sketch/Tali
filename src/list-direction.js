@@ -4,7 +4,9 @@ import BulletList from '@tiptap/extension-bullet-list';
 import OrderedList from '@tiptap/extension-ordered-list';
 import TaskList from '@tiptap/extension-task-list';
 import { Fragment } from '@tiptap/pm/model';
-import { getHTMLFromFragment } from '@tiptap/core';
+import { getHTMLFromFragment, Extension } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
 const directionAttribute = {
   dir: {
@@ -98,3 +100,28 @@ export const DirectionTaskList = TaskList.extend({
 
 export const LIST_TYPES = ['bulletList', 'orderedList', 'taskList'];
 
+
+// H2 במצב "אוטומטי" (data-textdir="auto"): dir="auto" על הכותרת, כקישוט תצוגה בלבד. כך הכיוון של
+// הכותרת עצמה (ולא רק של הטקסט, כמו ב־unicode-bidi: plaintext) נקבע לפי השפה שלה, והקו שאחרי הטקסט
+// (h2::after ב־styles.css, logical properties) נמתח לצד הנכון גם בכותרת באנגלית. הקובץ לא משתנה.
+// במצבי rtl/ltr אין קישוט, ולכן גם הייצוא (שמעתיק את ה־DOM) לא משתנה.
+const headingDirKey = new PluginKey('taliHeadingDir');
+export const HeadingDirection = Extension.create({
+  name: 'headingDirection',
+  addProseMirrorPlugins() {
+    return [new Plugin({
+      key: headingDirKey,
+      props: {
+        decorations: (state) => {
+          if (document.documentElement.dataset.textdir !== 'auto') return null;
+          const out = [];
+          state.doc.descendants((node, pos) => {
+            if (node.type.name === 'heading' && node.attrs.level === 2) out.push(Decoration.node(pos, pos + node.nodeSize, { dir: 'auto' }));
+            return node.isBlock && !node.isTextblock;
+          });
+          return DecorationSet.create(state.doc, out);
+        },
+      },
+    })];
+  },
+});

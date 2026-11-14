@@ -1,6 +1,6 @@
 import { Fragment } from '@tiptap/pm/model';
 import { Extension } from '@tiptap/core';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
 export function completedLast(items, isDone = (item) => !!item?.attrs?.checked) {
@@ -35,21 +35,53 @@ const taskLists = (doc) => {
 // Reorders only siblings inside each task list. Nested lists stay inside their task item.
 // animate: every item that moved glides from its old place to the new one (FLIP: measure before
 // and after, then animate the difference with transform only). Off with prefers-reduced-motion.
+// A position inside one of the list's items, after the items were reordered: it stays at the same
+// offset inside the same item. replaceWith alone mapped the cursor to the edge of the whole list, so
+// Enter on a completed task (the new open task moves up to the open ones) left the cursor behind on a
+// completed line, and typing went there instead of into the new task.
+export function followItem(position, listPos, before, after) {
+  let start = listPos + 1;
+  for (const item of before) {
+    const end = start + item.nodeSize;
+    if (position > start && position < end) {
+      let next = listPos + 1;
+      for (const other of after) {
+        if (other === item) return next + (position - start);
+        next += other.nodeSize;
+      }
+    }
+    start = end;
+  }
+  return position;
+}
+
 export function sortCompletedTaskLists(editor, { animate = false } = {}) {
   const lists = taskLists(editor.state.doc);
   let transaction = editor.state.tr;
   let changed = false;
   const moved = [];
-  for (const { node, pos } of [...lists].sort((a, b) => b.pos - a.pos)) {
+  const { selection } = editor.state;
+  const text = selection instanceof TextSelection;
+  let anchor = selection.anchor, head = selection.head;
+  // From the innermost list outwards. Every list keeps its size, so positions never shift, and each
+  // list is read from the transaction: an outer list keeps the order its nested lists just got.
+  for (const { pos } of [...lists].sort((a, b) => b.pos - a.pos)) {
+    const node = transaction.doc.nodeAt(pos);
     const before = [...node.content.content];
     const after = completedLast(before);
     if (after.every((item, index) => item === before[index])) continue;
     moved.push({ node, pos });
     transaction = transaction.replaceWith(pos, pos + node.nodeSize,
       node.type.create(node.attrs, Fragment.fromArray(after), node.marks));
+    anchor = followItem(anchor, pos, before, after);
+    head = followItem(head, pos, before, after);
     changed = true;
   }
   if (!changed) return false;
+  if (text) {
+    transaction.setSelection(TextSelection.create(transaction.doc, anchor, head));
+    if (editor.view.hasFocus()) transaction.scrollIntoView();
+  }
   const still = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const first = animate && !still ? new Map([...itemElements(editor, moved)].map(([n, el]) => [n, el.getBoundingClientRect().top])) : null;
   editor.view.dispatch(transaction.setMeta('taliTaskSort', true));

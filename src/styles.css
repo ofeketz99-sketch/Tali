@@ -43,11 +43,13 @@
   --doc-size: 17px;
   --doc-line: 1.75;
   --page-width: 820px;
+  --h2-rule: #d6dde1; /* הקו שליד כותרת H2 */
 }
 /* מצב כהה */
 :root[data-theme="dark"] {
   --graph-1: #6aa8ea; --graph-2: #f0975c; --graph-3: #5cc28a; --graph-4: #df74ab; --graph-5: #a690ea; --graph-6: #e2bf4c; --graph-7: #50c2c6; --graph-8: #ea7a72;
   --bg: #1b1d21; --sidebar-bg: #212328; --page-bg: #26292f; --panel-bg: #23262b; --input-bg: #2c3036;
+  --h2-rule: color-mix(in srgb, #d6dde1 22%, transparent);
   --border: #383c44; --text: #e4e5e8; --muted: #9a9fa8; --faint: #6f747d;
   --code-bg: #30343b; --pre-bg: #17191d; --pre-text: #e4e5e8;
   --shadow: 0 1px 3px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .25);
@@ -216,11 +218,16 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { border-colo
 #saveDot[data-state="saved"] { background: #3fb27f; }
 #saveDot[data-state="error"] { background: #e06c6c; }
 
+/* תצוגת Markdown: בגובה התוכן (fitRaw ב־view-anchor.js), כך שהדף הוא שנגלל ולא התיבה.
+   הכיוון לפי אותה הגדרה כמו בתצוגה המעוצבת: עד 7.2 התיבה הייתה תמיד משמאל לימין,
+   והדף "התהפך" במעבר. ב־auto (וכברירת מחדל) כל שורה לפי השפה שלה. */
 #raw {
-  width: 100%; min-height: 900px; border: none; outline: none; resize: none;
+  display: block; width: 100%; min-height: 900px; border: none; outline: none; resize: none; overflow: hidden;
   font-family: Consolas, "Courier New", monospace; font-size: 14px; line-height: 1.6;
-  direction: ltr; text-align: left; background: transparent;
+  direction: rtl; unicode-bidi: plaintext; text-align: start; background: transparent;
 }
+:root[data-textdir="rtl"] #raw { direction: rtl; }
+:root[data-textdir="ltr"] #raw { direction: ltr; }
 #editor[hidden], #raw[hidden] { display: none; }
 
 /* ===== תוכן המסמך ===== */
@@ -616,7 +623,20 @@ dialog { border-radius: 18px; }
   background-size: 72px 4px; background-position: 100% 100%;
 }
 :root[data-textdir="ltr"] .ProseMirror h1 { background-position: 0 100%; }
-.ProseMirror h2 { font-size: 1.55em; font-weight: 650; padding-inline-start: .6em; border-inline-start: 4px solid var(--accent); margin: 1.1em 0 .45em; }
+/* H2 (7.2): במקום הפס הכחול שבצד, קו דק שמתחיל 12px אחרי סוף הטקסט ונמתח עד קצה אזור התוכן,
+   באמצע גובה השורה. ::after בתוך השורה: margin-inline-end שלילי ברוחב מלא מבטל את הרוחב שלו
+   בפריסה (הטקסט לא נדחק ולא יורד שורה), ו־overflow: clip חותך את מה שיוצא מהכותרת.
+   בכותרת שנשברת לכמה שורות הקו בא אחרי השורה האחרונה. הכיוון: logical properties, ובמצב
+   "אוטומטי" לכותרת יש dir="auto" (קישוט, HeadingDirection ב־editor.js), כך שגם כותרת באנגלית
+   מקבלת את הקו בצד הנכון. לא flex: בכותרת שנערכת הוא היה מפרק את הטקסט והסימונים לפריטים נפרדים. */
+.ProseMirror h2 { font-size: 1.55em; font-weight: 650; margin: 1.1em 0 .45em; overflow: clip; }
+.ProseMirror h2::after {
+  content: ''; display: inline-block; vertical-align: middle;
+  width: 100%; height: 1px; margin-inline: 12px -100%;
+  background: var(--h2-rule); pointer-events: none;
+}
+/* כותרת ריקה (או שנגמרת בירידת שורה): ProseMirror מוסיף שם <br>, והקו היה יורד לשורה חדשה */
+.ProseMirror h2:has(> br.ProseMirror-trailingBreak:last-child)::after { display: none; }
 .ProseMirror h3 { font-size: 1.25em; font-weight: 600; color: var(--accent-strong); }
 .ProseMirror h4 { font-size: 1.05em; font-weight: 600; color: var(--muted); }
 .ProseMirror h1:first-child { margin-top: .2em; }

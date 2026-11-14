@@ -20,9 +20,10 @@ import { Embed, LocalImage } from './embed.js';
 import { splitOverlay, joinOverlay } from './overlay-data.js';
 import { MathPreview } from './math.js';
 import { Tags } from './tags.js';
-import { DirectionBulletList, DirectionOrderedList, DirectionTaskList } from './list-direction.js';
+import { DirectionBulletList, DirectionOrderedList, DirectionTaskList, HeadingDirection } from './list-direction.js';
 import { CompletedDivider, sortCompletedTaskLists } from './task-layout.js';
 import { ListBackspace } from './list-keys.js';
+import { fitRaw, richAnchor, showRichAnchorInRaw, rawAnchor, rawAnchorToBlock, showBlockInRich } from './view-anchor.js';
 import { BlockHandle } from './block-handle.js';
 import { attachPropsEditor } from './props-editor.js';
 import {
@@ -69,6 +70,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       FaithfulHardBreak,
       FaithfulHorizontalRule,
       FaithfulHeading,
+      HeadingDirection,
       ObsidianMarkdown,
       RawHtmlBlock,
       RawHtmlInline,
@@ -109,8 +111,11 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
     },
   });
 
-  rawElement.addEventListener('input', () => { if (!loading) onChange(); });
-  attachTableBar(editor, element.closest('#pageWrap') || window);
+  // תצוגת Markdown: התיבה בגובה התוכן, והדף (pageWrap) הוא שנגלל, כמו בתצוגה המעוצבת
+  const scroller = element.closest('#pageWrap');
+  rawElement.addEventListener('input', () => { if (raw) fitRaw(rawElement, scroller); if (!loading) onChange(); });
+  window.addEventListener('resize', () => { if (raw) fitRaw(rawElement, scroller); });
+  attachTableBar(editor, scroller || window);
 
   // מאפיינים: מוצגים בתיבה מעל הדף רק כשיש כאלה בקובץ.
   // השורות של links: לא מוצגות כאן (הן בלוח "קישורים"), ונשמרות בצד במקומן המקורי.
@@ -201,6 +206,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       loading = true;
       loadRich(md || '');
       rawElement.value = md || '';
+      if (raw) fitRaw(rawElement, scroller);
       loading = false;
       overlayController?.setEnabled(!raw);
     },
@@ -210,18 +216,34 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
         el.classList.toggle('unresolved', !links.resolve(el.getAttribute('data-wikilink')));
       }
     },
+    // המעבר שומר על המקום בחלון: אותו גוש בראש החלון בשתי התצוגות (view-anchor.js)
     toggleRaw() {
+      const head = () => joinFrontmatter(frontmatter, '').length;
+      let block = null, richTop = null;
       loading = true;
-      if (raw) loadRich(rawElement.value);
-      else rawElement.value = richMarkdown();
+      if (raw) {
+        const anchor = rawAnchor(rawElement, scroller);
+        loadRich(rawElement.value);
+        block = rawAnchorToBlock(anchor, editor, rawElement, head());
+      } else {
+        richTop = richAnchor(editor, scroller);
+        rawElement.value = richMarkdown();
+      }
       loading = false;
       raw = !raw;
       overlayController?.setEnabled(!raw);
       element.hidden = raw;
       rawElement.hidden = !raw;
       showProps();
-      if (raw) rawElement.focus();
-      else editor.commands.focus();
+      if (raw) {
+        fitRaw(rawElement, scroller);
+        const at = showRichAnchorInRaw(richTop, editor, rawElement, scroller, head());
+        rawElement.setSelectionRange(at, at);
+        rawElement.focus({ preventScroll: true });
+      } else {
+        showBlockInRich(block, editor, scroller);
+        editor.commands.focus(block?.pos != null ? block.pos + 1 : 'start', { scrollIntoView: false });
+      }
       return raw;
     },
   };
