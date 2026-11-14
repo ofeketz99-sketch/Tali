@@ -254,7 +254,15 @@ const home = createHome({
     read: (p) => window.api.read(p),
     write: (p, t) => window.api.write(p, t, null),
     createNote: (dir, name, content) => window.api.createNote(dir, name, content),
-    openNote: (p) => openNote(p),
+    openNote: (p, opts) => openNote(p, opts),
+    // 8.5: מסמכים נעוצים למסך הבית (vault-meta.js)
+    pins: () => meta.pins(),
+    setPinned: (p, on) => meta.setPinned(p, on),
+    movePin: (p, dir) => meta.movePin(p, dir),
+    exists: (p) => allNotes().some((n) => n.path === p),
+    fileIcon: (p) => fileIconHtml(p),
+    noteName: (p) => noteName(p),
+    folderOf: (p) => { const d = dirname(p); return d === state.root ? '' : d.slice(state.root.length + 1).replace(/\\/g, ' › '); },
     openTask: (p, t) => openTask(p, t),
     toggleTask: (p, t, v) => toggleTask(p, t, v),
     createGhost: (name) => openLink(name),
@@ -1641,6 +1649,10 @@ function fileItems(node) {
   return [
     { label: 'פתיחה בכרטיסייה חדשה', icon: 'filePlus', keys: 'Ctrl+לחיצה', run: () => openNote(node.path, { newTab: true }) },
     { label: 'פתיחה לצד', icon: 'splitView', run: () => tabs.splitWith(node.path) },
+    // 8.5: נעיצה למסך הבית (כרטיס "מסמכים נעוצים")
+    meta.isPinned(node.path)
+      ? { label: 'ביטול הנעיצה ממסך הבית', icon: 'pinOff', run: () => { meta.setPinned(node.path, false); if (!state.currentPath) home.render({ refresh: false }); } }
+      : { label: 'נעיצה למסך הבית', icon: 'pin', run: () => { meta.setPinned(node.path, true); setStatus('המסמך ננעץ למסך הבית'); if (!state.currentPath) home.render({ refresh: false }); } },
     'sep',
     { label: 'שינוי שם', icon: 'edit', keys: 'F2', run: () => renameNode(node) },
     { label: 'שכפול', icon: 'copy', run: () => duplicateNode(node) },
@@ -1681,6 +1693,10 @@ function showContextMenu(node, x, y, before = []) {
 function showTabMenu(p, x, y) {
   const name = p.split(/[\\/]/).pop();
   showContextMenu({ type: 'file', path: p, name }, x, y, [
+    // 8.5: כרטיסייה נעוצה: בתחילת הסרגל, קומפקטית, בלי כפתור סגירה, ולחיצה על מסמך אחר לא מחליפה אותה
+    tabs.isPinned(p)
+      ? { label: 'ביטול נעיצת הכרטיסייה', icon: 'pinOff', run: () => tabs.setPinned(p, false) }
+      : { label: 'נעיצת הכרטיסייה', icon: 'pin', run: () => tabs.setPinned(p, true) },
     { label: 'סגירת הכרטיסייה', icon: 'close', keys: 'Ctrl+W', run: () => tabs.close(p) },
     { label: 'סגירת הכרטיסיות האחרות', icon: 'close', disabled: tabs.list.length < 2, run: () => tabs.closeOthers(p) },
     'sep',

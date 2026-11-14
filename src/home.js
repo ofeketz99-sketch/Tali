@@ -7,12 +7,13 @@ import { icon } from './icons.js';
 import { extractTasks } from '../vault-data.js';
 
 const CARDS = {
+  pinned: { title: 'מסמכים נעוצים', icon: 'pin' },
   updates: { title: 'גרסה ועדכונים', icon: 'info' },
   followUp: { title: 'משימות להמשך', icon: 'taskSection' },
   ghosts: { title: 'מסמכי רפאים', icon: 'ghost' },
   board: { title: 'לוח משימות', icon: 'board' },
 };
-const DEFAULT_LAYOUT = { order: ['updates', 'followUp', 'ghosts', 'board'], hidden: [] };
+const DEFAULT_LAYOUT = { order: ['pinned', 'updates', 'followUp', 'ghosts', 'board'], hidden: [] };
 const BOARD_NAME = 'משימות';
 const LIMIT = 8;
 const plainMarkdown = (text) => String(text || '')
@@ -27,7 +28,12 @@ export function createHome({ el, store, api }) {
   const layout = () => {
     const s = store.get('tali:home', null) || {};
     const order = (s.order || []).filter((k) => CARDS[k]);
-    for (const k of DEFAULT_LAYOUT.order) if (!order.includes(k)) order.push(k);
+    // כרטיס חדש (למשל "מסמכים נעוצים" ב־8.5) נכנס במקום שלו בסדר ברירת המחדל, גם אצל מי שכבר סידר
+    DEFAULT_LAYOUT.order.forEach((k, i) => {
+      if (order.includes(k)) return;
+      const prev = DEFAULT_LAYOUT.order.slice(0, i).reverse().find((x) => order.includes(x));
+      order.splice(prev ? order.indexOf(prev) + 1 : 0, 0, k);
+    });
     return { order, hidden: (s.hidden || []).filter((k) => CARDS[k]) };
   };
   const saveLayout = (l) => store.set('tali:home', l);
@@ -162,7 +168,8 @@ export function createHome({ el, store, api }) {
     const body = document.createElement('div');
     body.className = 'hc-body';
     c.append(body);
-    if (key === 'updates') updates(body, head, info);
+    if (key === 'pinned') pinnedCard(body, head);
+    else if (key === 'updates') updates(body, head, info);
     else if (key === 'followUp') followUps(body, head, index);
     else if (key === 'ghosts') ghosts(body, head, index);
     else boardCard(body, head, board);
@@ -193,6 +200,34 @@ export function createHome({ el, store, api }) {
     for (const text of bullets) { const p = document.createElement('p'); p.className = 'hc-update-line'; p.textContent = plainMarkdown(text); body.append(p); }
     more(body, 'כל ה‑Patch Notes', api.openPatchNotes);
   }
+  // 8.5: מסמכים שננעצו (לחיצה ימנית על מסמך ← "נעיצה למסך הבית"). נשמר בכספת (.tali.json, vault-meta.js)
+  function pinnedCard(body, head) {
+    const list = api.pins().filter((p) => api.exists(p));
+    head.querySelector('.hc-count').textContent = list.length || '';
+    if (!list.length) return empty(body, 'נועצים כאן מסמך בלחיצה ימנית עליו בעץ או בכרטיסייה ← "נעיצה למסך הבית".');
+    list.forEach((p, i) => {
+      const row = document.createElement('div');
+      row.className = 'hc-pin';
+      row.innerHTML = `<span class="hc-pin-ic">${api.fileIcon(p)}</span><span class="hc-text"></span><small></small><span class="hc-pin-tools"></span>`;
+      row.querySelector('.hc-text').textContent = api.noteName(p);
+      row.querySelector('small').textContent = api.folderOf(p);
+      const tools = row.querySelector('.hc-pin-tools');
+      const btn = (ic, tip, fn, disabled) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'icon-btn'; b.dataset.tip = tip; b.setAttribute('aria-label', tip);
+        b.innerHTML = icon(ic, 14); b.disabled = !!disabled;
+        b.addEventListener('click', (e) => { e.stopPropagation(); fn(); render({ refresh: false }); });
+        tools.append(b);
+      };
+      btn('chevronUp', 'הזזה למעלה', () => api.movePin(p, -1), i === 0);
+      btn('chevronDown', 'הזזה למטה', () => api.movePin(p, 1), i === list.length - 1);
+      btn('pinOff', 'ביטול הנעיצה', () => api.setPinned(p, false));
+      row.addEventListener('click', (e) => api.openNote(p, { newTab: e.ctrlKey || e.metaKey }));
+      row.addEventListener('auxclick', (e) => { if (e.button === 1) { e.preventDefault(); api.openNote(p, { newTab: true }); } });
+      body.append(row);
+    });
+  }
+
   function move(key, dir) {
     const l = layout();
     const i = l.order.indexOf(key);

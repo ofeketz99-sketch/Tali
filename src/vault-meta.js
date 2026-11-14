@@ -1,9 +1,10 @@
 // נתונים של Tali על הכספת (.tali.json בראש הכספת, דרך meta-read/meta-write ב־main.js):
 //   icons: סמל Lucide (וצבע) לכל תיקייה או מסמך, לפי נתיב יחסי עם "/" (מסמכים עם ".md")
 //   order: סדר ידני בתוך תיקייה: { "<תיקייה יחסית, '' לראשית>": ["שם", "שם.md", ...] }
+//   pins: (8.5) מסמכים שננעצו למסך הבית, לפי הסדר: ["תיקייה/שם.md", ...]
 // שינוי שם, העברה ומחיקה מעדכנים את המפתחות (remap / drop), כדי שהסמל והסדר יעברו עם הפריט.
 export function createMeta({ api, getRoot }) {
-  let data = { icons: {}, order: {} };
+  let data = { icons: {}, order: {}, pins: [] };
   let timer = null;
 
   const rel = (abs) => {
@@ -17,7 +18,7 @@ export function createMeta({ api, getRoot }) {
 
   async function load() {
     const d = await api.metaRead().catch(() => ({}));
-    data = { icons: d.icons || {}, order: d.order || {}, ...d };
+    data = { ...d, icons: d.icons || {}, order: d.order || {}, pins: Array.isArray(d.pins) ? d.pins.filter((x) => typeof x === 'string') : [] };
   }
   function save() {
     clearTimeout(timer);
@@ -57,6 +58,27 @@ export function createMeta({ api, getRoot }) {
     save();
   }
 
+  // ----- 8.5: נעיצה למסך הבית -----
+  const abs = (r) => {
+    const sep = getRoot().includes('\\') ? '\\' : '/';
+    return getRoot() + sep + r.split('/').join(sep);
+  };
+  const isPinned = (p) => data.pins.includes(rel(p));
+  const pins = () => data.pins.map(abs);
+  function setPinned(p, on) {
+    const r = rel(p);
+    if (!r) return;
+    data.pins = data.pins.filter((x) => x !== r);
+    if (on) data.pins.push(r);
+    save();
+  }
+  function movePin(p, dir) {
+    const r = rel(p), i = data.pins.indexOf(r), j = i + dir;
+    if (i < 0 || j < 0 || j >= data.pins.length) return;
+    [data.pins[i], data.pins[j]] = [data.pins[j], data.pins[i]];
+    save();
+  }
+
   // ----- שינוי שם / העברה / מחיקה -----
   function remap(fromAbs, toAbs) {
     const from = rel(fromAbs), to = rel(toAbs);
@@ -70,6 +92,7 @@ export function createMeta({ api, getRoot }) {
     const pf = parentRel(from), pt = parentRel(to), bf = baseName(from), bt = baseName(to);
     if (order[pf]) order[pf] = pf === pt ? order[pf].map((n) => (n === bf ? bt : n)) : order[pf].filter((n) => n !== bf);
     data.order = order;
+    data.pins = data.pins.map((k) => (under(k, from) ? to + k.slice(from.length) : k));
     save();
   }
   function drop(abs) {
@@ -79,8 +102,9 @@ export function createMeta({ api, getRoot }) {
     for (const k of Object.keys(data.order)) if (k && under(k, r)) delete data.order[k];
     const p = parentRel(r);
     if (data.order[p]) data.order[p] = data.order[p].filter((n) => n !== baseName(r));
+    data.pins = data.pins.filter((k) => !under(k, r));
     save();
   }
 
-  return { load, iconOf, setIcon, sortTree, placeIn, remap, drop, rel };
+  return { load, iconOf, setIcon, sortTree, placeIn, remap, drop, rel, isPinned, pins, setPinned, movePin };
 }

@@ -9,7 +9,7 @@ import {
   ArrowRight, ArrowLeft, GripVertical, Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
   PanelRightClose, PanelRightOpen, Waypoints, Ghost, Hash, FileDown, FileType, ListChecks, ListTree, Info, Reply, Ellipsis, Focus, Minimize2,
   Archive, ArchiveRestore, Sigma, SquareSigma, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag, Keyboard, MessageSquareText, Braces, Moon, MousePointer2, SquareDashed, PaintBucket,
-  Group, Ungroup, RemoveFormatting, SquareCode, BringToFront, SendToBack,
+  Group, Ungroup, RemoveFormatting, SquareCode, BringToFront, SendToBack, Pin, PinOff,
 } from 'lucide';
 
 const ICONS = {
@@ -44,6 +44,7 @@ const ICONS = {
   // 8.3: מיזוג ופירוק של שרטוטים, סדר ציור, וקבוצות הרשות בסרגל
   group: Group, ungroup: Ungroup, toFront: BringToFront, toBack: SendToBack,
   clearFormat: RemoveFormatting, codeBlock: SquareCode,
+  pin: Pin, pinOff: PinOff, // 8.5: נעיצת כרטיסייה ומסמך למסך הבית
   archive: Archive, archiveRestore: ArchiveRestore,
 };
 

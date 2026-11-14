@@ -18,9 +18,14 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
   let ratio = 0.5;         // רוחב החלונית הראשונה בפיצול
   let pane1 = null;        // האלמנט של החלונית השנייה (רק בפיצול)
   let restoring = false;
+  // 8.5: כרטיסיות נעוצות (כמו בדפדפן): תמיד בתחילת הסרגל, קומפקטיות, בלי כפתור סגירה,
+  // ולחיצה רגילה על מסמך אחר כשהן פעילות פותחת כרטיסייה חדשה במקום להחליף אותן.
+  let pinned = new Set();
+  const isPinned = (p) => pinned.has(p);
+  const pinnedFirst = () => { list = [...list.filter(isPinned), ...list.filter((p) => !isPinned(p))]; };
 
   const key = () => 'tabs:' + getRoot();
-  const save = () => { if (!restoring && getRoot()) store.set(key(), { list, panes, activePane, ratio }); };
+  const save = () => { if (!restoring && getRoot()) store.set(key(), { list, panes, activePane, ratio, pinned: [...pinned] }); };
   const paneEl = (i) => (i === 0 ? pane0 : pane1);
   const other = () => 1 - activePane;
 
@@ -31,8 +36,11 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
     if (!list.includes(p)) {
       const at = list.indexOf(prev);
       const shownElsewhere = panes.length > 1 && panes[other()] === prev;
-      if (newTab || at < 0 || shownElsewhere) list.splice(at < 0 ? list.length : at + 1, 0, p);
-      else list[at] = p;
+      if (newTab || at < 0 || shownElsewhere || isPinned(prev)) {
+        // כרטיסייה חדשה ליד הנוכחית, אבל אף פעם לא בתוך קבוצת הנעוצות
+        const pinCount = list.filter(isPinned).length;
+        list.splice(Math.max(at < 0 ? list.length : at + 1, pinCount), 0, p);
+      } else list[at] = p;
     }
     panes[activePane] = p;
     if (panes.length > 1 && panes[other()] === p) unsplit(); // אותו מסמך בשתי החלוניות: אין טעם בפיצול
@@ -59,14 +67,16 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
       const t = document.createElement('div');
       const isActive = p === panes[activePane];
       const isOther = panes.length > 1 && p === panes[other()];
-      t.className = 'tab' + (isActive ? ' active' : '') + (isOther ? ' side' : '');
+      const pin = isPinned(p);
+      t.className = 'tab' + (isActive ? ' active' : '') + (isOther ? ' side' : '') + (pin ? ' pinned' : '');
       t.setAttribute('role', 'tab');
       t.setAttribute('aria-selected', String(isActive));
       t.dataset.tip = p.slice(getRoot().length + 1).replace(/\.md$/i, '').split(/[\\/]/).join(' › ');
       const flag = flagOf?.(p);
-      t.innerHTML = `${fileIcon?.(p) || icon('file', 14)}<span class="tab-name"></span>${flag ? `<span class="flag-dot tab-flag" data-flag="${flag}"></span>` : ''}<button type="button" class="tab-close" aria-label="סגירת הכרטיסייה">${icon('close', 13)}</button>`;
+      t.innerHTML = `${pin ? `<span class="tab-pin" aria-label="נעוצה">${icon('pin', 12)}</span>` : ''}${fileIcon?.(p) || icon('file', 14)}<span class="tab-name"></span>${flag ? `<span class="flag-dot tab-flag" data-flag="${flag}"></span>` : ''}${pin ? '' : `<button type="button" class="tab-close" aria-label="סגירת הכרטיסייה">${icon('close', 13)}</button>`}`;
       t.querySelector('.tab-name').textContent = noteName(p);
-      t.addEventListener('mousedown', (e) => { if (e.button === 1) { e.preventDefault(); close(p); } });
+      // לחיצה אמצעית לא סוגרת כרטיסייה נעוצה (כמו בדפדפן); סוגרים מהתפריט או ב־Ctrl+W
+      t.addEventListener('mousedown', (e) => { if (e.button === 1) { e.preventDefault(); if (!pin) close(p); } });
       t.addEventListener('click', (e) => {
         if (e.target.closest('.tab-close')) { close(p); return; }
         show(p);
@@ -85,6 +95,7 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
         e.preventDefault();
         list.splice(list.indexOf(src), 1);
         list.splice(list.indexOf(p), 0, src);
+        pinnedFirst(); // נעוצות נשארות בהתחלה גם אחרי גרירה
         render(); save();
       });
       strip.append(t);
@@ -111,6 +122,7 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
     if (i < 0) return;
     await flushSave();
     list.splice(i, 1);
+    pinned.delete(p);
     if (panes.length > 1 && panes[other()] === p) { unsplit(); render(); save(); return; }
     if (p === panes[activePane]) {
       if (panes.length > 1) {
@@ -129,15 +141,24 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
     render(); save();
   }
 
-  // סגירת כל הכרטיסיות חוץ מ־p (מהתפריט של כרטיסייה). p נשאר פתוח ופעיל.
+  // סגירת כל הכרטיסיות חוץ מ־p (מהתפריט של כרטיסייה). p נשאר פתוח ופעיל. 8.5: הנעוצות נשארות.
   async function closeOthers(p) {
     if (!list.includes(p)) return;
     await flushSave();
     if (panes.length > 1) unsplit();
-    list = [p];
+    list = list.filter((x) => x === p || isPinned(x));
     panes = [p];
     activePane = 0;
     if (getCurrent() !== p) await openNote(p, { history: false });
+    render(); save();
+  }
+
+  function setPinned(p, on) {
+    if (!list.includes(p)) return;
+    if (on) pinned.add(p); else pinned.delete(p);
+    // נעיצה: לסוף קבוצת הנעוצות. ביטול: הראשונה אחרי הנעוצות. (p כבר לא ברשימה כשסופרים)
+    list.splice(list.indexOf(p), 1);
+    list.splice(list.filter(isPinned).length, 0, p);
     render(); save();
   }
 
@@ -262,12 +283,14 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
   // ----- שינוי שם, העברה ומחיקה -----
   function remap(fn) {
     list = [...new Set(list.map(fn))];
+    pinned = new Set([...pinned].map(fn));
     panes = panes.map(fn);
     render(); save();
     if (panes.length > 1) fillPreview(other());
   }
   async function drop(pred) {
     list = list.filter((p) => !pred(p));
+    pinned = new Set([...pinned].filter((p) => !pred(p)));
     if (panes.length > 1 && pred(panes[other()])) unsplit();
     if (panes[activePane] && pred(panes[activePane])) {
       panes = [];
@@ -287,6 +310,8 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
     if (pane1) unsplit();
     const s = store.get(key(), null) || {};
     list = (s.list || []).filter(exists);
+    pinned = new Set((s.pinned || []).filter((p) => list.includes(p)));
+    pinnedFirst();
     panes = [];
     activePane = 0;
     ratio = Number(s.ratio) || 0.5;
@@ -315,7 +340,7 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
   function refreshSide() { if (panes.length > 1) fillPreview(other()); }
 
   return {
-    opened, close, closeOthers, step, show, splitWith, toggleSplit, unsplit, remap, drop, cleared, restore, refreshSide, refresh: render,
+    opened, close, closeOthers, step, isPinned, setPinned, show, splitWith, toggleSplit, unsplit, remap, drop, cleared, restore, refreshSide, refresh: render,
     get list() { return list; }, get split() { return panes.length > 1; },
     activePath: () => panes[activePane],
   };

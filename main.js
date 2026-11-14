@@ -650,6 +650,30 @@ function registerIpc() {
   });
 }
 
+// 8.5: הסמל במרכז המסך מרגע שהאפליקציה מוכנה ועד שהחלון הראשי מופיע, כחיווי שההפעלה עבדה.
+// חלון קטן, שקוף, בלי מסגרת ובלי כפתור בשורת המשימות. במשגר הפיתוח (TALI-DEV) המשגר כבר מציג
+// את אותו סמל עוד לפני העדכון (launcher/splash.js) ומסמן TALI_LAUNCH_SPLASH, ואז לא מציגים שני סמלים.
+let launchSplash = null;
+function showLaunchSplash() {
+  if (process.env.TALI_LAUNCH_SPLASH === '1' || launchSplash) return;
+  try {
+    launchSplash = new BrowserWindow({
+      width: 200, height: 200, center: true, frame: false, transparent: true, resizable: false,
+      movable: false, minimizable: false, maximizable: false, skipTaskbar: true, focusable: false,
+      show: false, hasShadow: false, backgroundColor: '#00000000', title: APP_TITLE,
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    });
+    launchSplash.once('ready-to-show', () => { if (launchSplash && !launchSplash.isDestroyed()) launchSplash.showInactive(); });
+    launchSplash.on('closed', () => { launchSplash = null; });
+    launchSplash.loadFile(path.join(__dirname, 'src', 'launch-splash.html'));
+    setTimeout(closeLaunchSplash, 20000); // אף פעם לא נשאר תקוע
+  } catch { launchSplash = null; }
+}
+function closeLaunchSplash() {
+  if (launchSplash && !launchSplash.isDestroyed()) launchSplash.destroy();
+  launchSplash = null;
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
@@ -684,6 +708,7 @@ function createWindow() {
     if (!url.startsWith('file:')) { e.preventDefault(); if (/^(https?|mailto):/i.test(url)) shell.openExternal(url); }
   });
   win.once('ready-to-show', () => win.show());
+  win.once('show', closeLaunchSplash); // 8.5: החלון הופיע: הסמל של ההפעלה נעלם
   setTimeout(() => { if (!win.isDestroyed() && !win.isVisible()) win.show(); }, 3000); // never stay hidden
   win.loadFile(path.join(__dirname, 'src', 'index.html'));
 }
@@ -699,6 +724,7 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(() => {
+  showLaunchSplash();
   registerIpc();
   createWindow();
   // התעוררות משינה, פתיחת נעילה או שינוי שעון: הממשק בודק מחדש איזו ערכת צבעים צריכה לפעול

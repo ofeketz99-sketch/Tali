@@ -2057,3 +2057,19 @@ body.page-drawing-session .block-handle { display: none !important; }
 
 /* 8.4: השכבה ברוחב קבוע (refWidth) ומוקטנת או מוגדלת לפי רוחב הדף (applyScale ב־page-overlay.js) */
 .tali-page-overlay { right: auto; bottom: auto; transform-origin: 0 0; }
+
+/* ===== 8.5: כרטיסייה נעוצה: קומפקטית, סיכה קטנה, בלי כפתור סגירה ===== */
+.tab.pinned { flex: 0 1 140px; min-width: 72px; }
+.tab.pinned .tab-pin { display: inline-grid; place-items: center; color: var(--accent-strong); flex: none; }
+/* מסך הבית: כרטיס "מסמכים נעוצים" */
+.hc-pin {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer;
+  transition: background .15s var(--ease);
+}
+.hc-pin:hover { background: var(--accent-hover); }
+.hc-pin .hc-pin-ic { display: inline-grid; place-items: center; color: var(--muted); flex: none; }
+.hc-pin .hc-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hc-pin small { color: var(--muted); flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hc-pin .hc-pin-tools { display: inline-flex; gap: 2px; opacity: 0; transition: opacity .15s var(--ease); }
+.hc-pin:hover .hc-pin-tools, .hc-pin:focus-within .hc-pin-tools { opacity: 1; }
+.hc-pin .hc-pin-tools .icon-btn { width: 24px; height: 24px; }
