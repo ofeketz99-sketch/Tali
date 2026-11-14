@@ -123,6 +123,12 @@ export const WikiLink = Node.create({
         // Ctrl+לחיצה: בכרטיסייה חדשה
         this.options.onOpen(node.attrs.target, { newTab: e.ctrlKey || e.metaKey });
       });
+      // 8.2: לחיצה אמצעית (כפתור הגלגלת) על קישור: בכרטיסייה חדשה
+      dom.addEventListener('auxclick', (e) => {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        this.options.onOpen(node.attrs.target, { newTab: true });
+      });
       return { dom, update: (n) => n.type === node.type && n.attrs.target === node.attrs.target && n.attrs.alias === node.attrs.alias && (mark(), true) };
     };
   },

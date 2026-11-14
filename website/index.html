@@ -37,7 +37,7 @@
           </svg>
           <span>הורדה ל־Windows</span>
         </a>
-        <p class="download-meta">גרסה <bdi dir="ltr"><!-- VERSION:START -->8.1<!-- VERSION:END --></bdi></p>
+        <p class="download-meta">גרסה <bdi dir="ltr"><!-- VERSION:START -->8.2<!-- VERSION:END --></bdi></p>
       </div>
 
       <a class="scroll-cue" href="#notes">
@@ -49,6 +49,19 @@
     <section class="notes" id="notes" aria-labelledby="notes-title">
       <h2 id="notes-title">מה חדש</h2>
       <!-- NOTES:START -->
+      <article class="note">
+        <header>
+          <span class="ver">8.2</span>
+          <h3>כרטיסיות כמו בדפדפן, סרגל לבחירתך, תמונה מודבקת חופשית ודף עם מקום למטה</h3>
+          <time datetime="2026-11-14">14.11.2026</time>
+        </header>
+        <ul>
+          <li><strong>כרטיסיות כמו בדפדפן:</strong> לחיצה על מסמך מחליפה את הכרטיסייה הנוכחית, ולא פותחת כרטיסייה חדשה בכל פעם.</li>
+          <li><strong>דגל בכרטיסייה:</strong> מסמך עם דגל מראה את הנקודה בצבע הדגל גם בכרטיסייה שלו.</li>
+          <li><strong>שרטוט תמיד בסרגל:</strong> בסרגל העליון יש כפתור עט לשרטוט על הדף וכפתור לתיבת טקסט חופשית, בלי לפתוח את "הוספה".</li>
+          <li><strong>הסרגל לבחירתך:</strong> בהגדרות ← "סרגל הכלים" בוחרים אילו קבוצות מופיעות ובאיזה סדר (חצים למעלה ולמטה), והשינוי נראה מיד.</li>
+        </ul>
+      </article>
       <article class="note">
         <header>
           <span class="ver">8.1</span>
@@ -70,17 +83,6 @@
           <li><strong>תפריט הלחיצה הימנית מסודר:</strong> שתי קבוצות במקום רשימה ארוכה.</li>
           <li><strong>תיקון: אפשר למחוק מסגרת סביב טקסט.</strong> עד עכשיו Backspace בתחילת המסגרת התמזג לתוך שורה מוסתרת, והמסגרת נשארה.</li>
           <li><strong>F11 = מסך מלא:</strong> F11 מעביר את החלון למסך מלא ובחזרה.</li>
-        </ul>
-      </article>
-      <article class="note">
-        <header>
-          <span class="ver">7.9</span>
-          <h3>TALI-DEV לא מתקין מחדש את כל התלויות בכל גרסה</h3>
-          <time datetime="2026-11-14">14.11.2026</time>
-        </header>
-        <ul>
-          <li><strong>פתיחה וסגירה מהירות אחרי כל גרסה:</strong> משגר הפיתוח הריץ <code>npm ci</code> (כדקה) בכל פעם ש־<code>package-lock.json</code> השתנה, וכל גרסה משנה בו את מספר הגרסה, גם כשאף תלות לא השתנתה.</li>
-          <li><strong>התקנה שנכשלה לא משאירה מצב שבור:</strong> ב־14.11 <code>npm ci</code> בעדכון של הסגירה נכשל (EBUSY, קובץ נעול ב־<code>node_modules\electron\dist</code>) והשאיר את <code>node_modules</code> חצי מחוק.</li>
         </ul>
       </article>
       <!-- NOTES:END -->

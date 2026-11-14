@@ -54,7 +54,13 @@ export function buildToolbar(container, editorApi, actions = {}) {
   // אותן פעולות משמשות גם את תפריט הלחיצה הימנית (context-menu.js)
   const ed = createEditActions(editor, actions);
 
-  const group = (cls = '') => { const g = document.createElement('div'); g.className = 'tb-group ' + cls; container.append(g); return g; };
+  // 8.2: לכל קבוצה מזהה (toolbar-layout.js), כדי שאפשר יהיה לסדר ולהסתיר אותה מההגדרות
+  const groups = {};
+  const group = (cls = '', id = '') => {
+    const g = document.createElement('div'); g.className = 'tb-group ' + cls; container.append(g);
+    if (id) { g.dataset.group = id; groups[id] = g; }
+    return g;
+  };
   const button = (parent, { html, tip, run, active, cls }) => {
     const b = document.createElement('button');
     b.type = 'button';
@@ -70,13 +76,13 @@ export function buildToolbar(container, editorApi, actions = {}) {
   };
 
   // ===== ביטול וחזרה =====
-  const g1 = group();
+  const g1 = group('', 'history');
   const undo = button(g1, { html: icon('undo'), tip: 'ביטול (Ctrl+Z)', run: () => chain().undo().run() });
   const redo = button(g1, { html: icon('redo'), tip: 'חזרה (Ctrl+Y)', run: () => chain().redo().run() });
   refreshers.push(() => { undo.disabled = !editor.can().undo(); redo.disabled = !editor.can().redo(); });
 
   // ===== סגנון פסקה =====
-  const g2 = group();
+  const g2 = group('', 'style');
   const styleOf = () => (editor.isActive('heading', { level: 1 }) ? 'h1' : editor.isActive('heading', { level: 2 }) ? 'h2' : editor.isActive('heading', { level: 3 }) ? 'h3' : 'paragraph');
   const applyStyle = (s) => (s === 'paragraph' ? chain().setParagraph().run() : chain().setHeading({ level: +s[1] }).run());
   const styleBtn = button(g2, {
@@ -96,14 +102,14 @@ export function buildToolbar(container, editorApi, actions = {}) {
   refreshers.push(() => { styleBtn.innerHTML = `<span>${STYLES.find((s) => s[0] === styleOf())[1]}</span>${icon('chevron', 14)}`; });
 
   // ===== עיצוב תווים =====
-  const g3 = group();
+  const g3 = group('', 'marks');
   button(g3, { html: icon('bold'), tip: 'מודגש (Ctrl+B)', run: () => chain().toggleBold().run(), active: () => editor.isActive('bold') });
   button(g3, { html: icon('italic'), tip: 'נטוי (Ctrl+I)', run: () => chain().toggleItalic().run(), active: () => editor.isActive('italic') });
   button(g3, { html: icon('underline'), tip: 'קו תחתון (Ctrl+U)', run: () => chain().toggleUnderline().run(), active: () => editor.isActive('underline') });
   button(g3, { html: icon('strike'), tip: 'קו חוצה', run: () => chain().toggleStrike().run(), active: () => editor.isActive('strike') });
 
   // ===== צבעים =====
-  const g4 = group();
+  const g4 = group('', 'colors');
   const swatchMenu = (b, list, apply, current) => openMenu(b, (m) => {
     const grid = document.createElement('div');
     grid.className = 'tb-swatches';
@@ -137,7 +143,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
   });
 
   // ===== רשימות וציטוט =====
-  const g5 = group();
+  const g5 = group('', 'lists');
   button(g5, { html: icon('bullets'), tip: 'רשימת תבליטים', run: () => chain().toggleBulletList().run(), active: () => editor.isActive('bulletList') });
   button(g5, { html: icon('numbers'), tip: 'רשימה ממוספרת', run: () => chain().toggleOrderedList().run(), active: () => editor.isActive('orderedList') });
   button(g5, { html: icon('tasks'), tip: 'רשימת משימות', run: () => chain().toggleTaskList().run(), active: () => editor.isActive('taskList') });
@@ -148,13 +154,13 @@ export function buildToolbar(container, editorApi, actions = {}) {
   button(g5, { html: icon('quote'), tip: 'ציטוט', run: () => chain().toggleBlockquote().run(), active: () => editor.isActive('blockquote') });
 
   // ===== יישור =====
-  const g6 = group();
+  const g6 = group('', 'align');
   button(g6, { html: icon('alignRight'), tip: 'יישור לימין', run: () => chain().setTextAlign('right').run(), active: () => editor.isActive({ textAlign: 'right' }) });
   button(g6, { html: icon('alignCenter'), tip: 'מרכוז', run: () => chain().setTextAlign('center').run(), active: () => editor.isActive({ textAlign: 'center' }) });
   button(g6, { html: icon('alignLeft'), tip: 'יישור לשמאל', run: () => chain().setTextAlign('left').run(), active: () => editor.isActive({ textAlign: 'left' }) });
 
   // ===== הוספה =====
-  const g7 = group();
+  const g7 = group('', 'insert');
   const insertBtn = button(g7, {
     html: `${icon('insert')}<span>הוספה</span>${icon('chevron', 14)}`, tip: 'הוספת טבלה, תמונה, ציור ועוד', cls: 'tb-select',
     run: (b) => openMenu(b, (m) => {
@@ -185,6 +191,11 @@ export function buildToolbar(container, editorApi, actions = {}) {
     }),
   });
 
+  // ===== 8.2: שרטוט על הדף ותיבת טקסט חופשית, תמיד בסרגל (לא רק בתוך "הוספה") =====
+  const gDraw = group('', 'draw');
+  button(gDraw, { html: icon('pen'), tip: 'שרטוט על הדף: עט, קווים וצורות שזזים חופשי', run: () => ed.pageDrawing() });
+  button(gDraw, { html: icon('textBox'), tip: 'תיבת טקסט שזזה חופשי על הדף', run: () => ed.floatingBox() });
+
   // ===== עוד: קבוצות שלא נכנסות בשורה אחת עוברות לתפריט =====
   const gMore = group('tb-more');
   const moreBtn = button(gMore, { html: icon('more', 19), tip: 'עוד כלים', run: () => openMore() });
@@ -192,7 +203,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
   fallbackAnchor = moreBtn;
 
   // ===== מצב מיקוד ותצוגת Markdown =====
-  const g8 = group('tb-end');
+  const g8 = group('tb-end', 'view');
   button(g8, { html: icon('focus', 19), tip: 'מצב מיקוד: רק הדף', run: () => actions.onFocusMode?.() });
   button(g8, { html: icon('sleep', 19), tip: 'מצב שינה: רק הסמל, עד לחיצה או מקש (Ctrl+Alt+L)', run: () => actions.onSleep?.() });
   const rawBtn = button(g8, {
@@ -203,10 +214,22 @@ export function buildToolbar(container, editorApi, actions = {}) {
 
   // ----- התאמה לרוחב: מסתירים קבוצות לפי הסדר, והן מופיעות בתפריט "עוד" -----
   // הסדר: יישור, צבעים, רשימות, ביטול/חזרה. סגנון, B I U S והוספה תמיד בשורה.
-  const collapsible = [g6, g4, g5, g1];
-  const marks = new Map(collapsible.map((g) => { const c = document.createComment('tb'); g.before(c); return [g, c]; }));
+  // 8.2: הסדר וההסתרה לפי ההגדרות (applyLayout). קבוצה שהמשתמש הסתיר לא נכנסת גם לתפריט "עוד".
+  const fitOrder = [g6, g4, g5, g1];
+  let layout = { order: Object.keys(groups), hidden: [] };
+  const userHidden = (g) => layout.hidden.includes(g.dataset.group);
+  let collapsible = fitOrder;
   let hiddenGroups = [];
-  const putBack = () => { for (const g of collapsible) { marks.get(g).after(g); g.hidden = hiddenGroups.includes(g); } };
+  const putBack = () => {
+    for (const id of layout.order) if (groups[id]) container.append(groups[id]);
+    container.append(gMore);
+    for (const g of Object.values(groups)) g.hidden = userHidden(g) || hiddenGroups.includes(g);
+  };
+  function applyLayout(next) {
+    layout = { order: next?.order?.length ? next.order : Object.keys(groups), hidden: next?.hidden || [] };
+    collapsible = fitOrder.filter((g) => !userHidden(g));
+    fit();
+  }
   function fit() {
     if (openMenuEl && openMenuEl.classList.contains('tb-more-menu')) closeMenu();
     hiddenGroups = [];
@@ -293,5 +316,5 @@ export function buildToolbar(container, editorApi, actions = {}) {
   editor.on('selectionUpdate', refresh);
   refresh();
   requestAnimationFrame(fit);
-  return { hideBubble: () => { bubble.hidden = true; }, fit, edit: ed, closeMenu };
+  return { hideBubble: () => { bubble.hidden = true; }, fit, edit: ed, closeMenu, applyLayout };
 }

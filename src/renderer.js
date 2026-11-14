@@ -11,6 +11,7 @@ import { openLinkPicker } from './linkpicker.js';
 import { showLinkHubOffer } from './linkhub.js';
 import { fileUrl, bumpImage, returnImageToText } from './embed.js';
 import { convertToPlainMarkdown } from './plain-md.js';
+import { normalizeToolbarLayout } from './toolbar-layout.js';
 import { openPaint } from './paint.js';
 import { createPageOverlay } from './page-overlay.js';
 import { icon, lucide } from './icons.js';
@@ -203,6 +204,9 @@ const editorApi = createEditor({
   shouldSortCompleted: () => getPrefs().completedTasksAtBottom,
 });
 onPrefsChange(() => editorApi.refreshPreferences());
+// 8.2: סדר והסתרה של קבוצות בסרגל הכלים (הגדרות ← סרגל הכלים)
+const applyToolbarLayout = () => { const p = getPrefs(); toolbarApi.applyLayout(normalizeToolbarLayout(p.toolbarOrder, p.toolbarHidden)); };
+onPrefsChange(applyToolbarLayout);
 const hoverPreview = setupHoverPreview({
   resolve: resolveTarget, read: (p) => window.api.read(p), fileUrl, onOpen: openLink, isNote,
 });
@@ -221,6 +225,7 @@ const tabs = createTabs({
   onContext: (p, x, y) => showTabMenu(p, x, y),
   onHome: () => goHome(),
   fileIcon: (p) => fileIconHtml(p),
+  flagOf: (p) => state.flags.get(p) || null, // 8.2: דגל גם בכרטיסייה
 });
 // אין מסמך פתוח: מסך הבית (או, לפני שנבחרה תיקייה, כפתור הבחירה)
 function showEmpty() {
@@ -376,6 +381,7 @@ const toolbarApi = buildToolbar($('toolbar'), editorApi, {
   onFocusMode: () => toggleFocusMode(),
   onSleep: () => enterSleep(),
 });
+applyToolbarLayout();
 
 // ===== תפריט הלחיצה הימנית על הדף ובשדות טקסט (context-menu.js). הפעולות: אותן של הסרגל (edit-actions.js) =====
 setupContextMenus({
@@ -660,6 +666,38 @@ async function insertImages(paths) {
   setStatus(paths.length === 1 ? 'התמונה נוספה' : `נוספו ${paths.length} תמונות`);
 }
 
+// 8.2: תמונה שהודבקה או נגררה נכנסת קודם כתמונה חופשית על הדף (אפשר להחזיר לטקסט ב"החזרה לטקסט"),
+// במקום שבו המשתמש מסתכל: בגרירה בנקודת השחרור, בהדבקה במרכז החלק הגלוי של הדף. עד 480px רוחב.
+const naturalSize = (url) => new Promise((resolve) => {
+  const img = new Image();
+  img.onload = () => resolve({ w: img.naturalWidth || 300, h: img.naturalHeight || 200 });
+  img.onerror = () => resolve({ w: 300, h: 200 });
+  img.src = url;
+});
+async function placeFreeImages(paths, where) {
+  if (!paths.length) return;
+  if (editorApi.isRaw()) { await insertImages(paths); return; }
+  state.attachments = await window.api.attachments();
+  const page = $('page').getBoundingClientRect();
+  const wrap = $('pageWrap').getBoundingClientRect();
+  // מרכז החלק של הדף שרואים עכשיו (הדף יכול להיות ארוך מהחלון)
+  const cx = where ? where.x : (Math.max(page.left, wrap.left) + Math.min(page.right, wrap.right)) / 2;
+  const cy = where ? where.y : (Math.max(page.top, wrap.top) + Math.min(page.bottom, wrap.bottom)) / 2;
+  pageOverlay.setEnabled(true);
+  for (const [i, p] of paths.entries()) {
+    const name = p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1);
+    const src = resolveTarget(name) === p ? name : p.slice(state.root.length + 1).replace(/\\/g, '/');
+    const nat = await naturalSize(fileUrl(p));
+    const width = Math.round(Math.min(nat.w, 480, page.width * 0.7));
+    const height = Math.round(width * nat.h / Math.max(1, nat.w));
+    pageOverlay.addImage({ ref: 'embed', src, width, height,
+      x: cx - page.left - width / 2 + i * 24, y: cy - page.top - height / 2 + i * 24 });
+  }
+  setStatus(paths.length === 1
+    ? 'התמונה נוספה כתמונה חופשית: גוררים אותה למקום. "החזרה לטקסט" מכניסה אותה לטקסט.'
+    : `נוספו ${paths.length} תמונות חופשיות`);
+}
+
 async function importImages() {
   if (!state.currentPath) { setStatus('קודם פותחים מסמך, ואז מוסיפים לו תמונה'); return; }
   if (editorApi.isRaw()) { setStatus('ייבוא תמונות עובד בתצוגה המעוצבת'); return; }
@@ -667,7 +705,7 @@ async function importImages() {
   catch (err) { setStatus('שגיאה בייבוא: ' + err.message); }
 }
 
-async function saveDroppedImages(files) {
+async function saveDroppedImages(files, where = null) {
   if (!state.currentPath) return;
   try {
     const d = new Date();
@@ -680,7 +718,7 @@ async function saveDroppedImages(files) {
       const name = f.name && !/^image\.\w+$/i.test(f.name) ? f.name : `Pasted image ${stamp}${i ? '-' + i : ''}.${ext}`;
       paths.push(await window.api.saveAttachment(attachmentDir(), name, new Uint8Array(await f.arrayBuffer())));
     }
-    await insertImages(paths);
+    await placeFreeImages(paths, where);
   } catch (err) { setStatus('שגיאה בשמירת התמונה: ' + err.message); }
 }
 
@@ -1012,7 +1050,7 @@ async function noteTargetDir() {
 function folderTargetDir() { return state.selectedDir || (state.currentPath ? dirname(state.currentPath) : state.root); }
 
 // כל מסמך חדש נפתח בכרטיסייה משלו. אם הוא כבר פתוח, מנהל הכרטיסיות ממקד את הכרטיסייה הקיימת.
-async function openNote(p, { history = true } = {}) {
+async function openNote(p, { history = true, newTab = false } = {}) {
   await flushSave();
   rememberPosition();
   const md = await window.api.read(p);
@@ -1042,9 +1080,10 @@ async function openNote(p, { history = true } = {}) {
   setStatus(prettyPath(p));
   updateDocTitle();
   updateWordCount();
-  // המדיניות מרוכזת כאן: מקורות כמו העץ וקישורי [[...]] עדיין שולחים לעיתים
-  // newTab:false לצורך התאימות הישנה, אבל פתיחה רגילה לעולם לא מחליפה טאב אחר.
-  tabs.opened(p, { newTab: true });
+  // 8.2 (לבקשת המשתמש, כמו בדפדפן): לחיצה רגילה מחליפה את הכרטיסייה הנוכחית. כרטיסייה חדשה רק בבקשה:
+  // לחיצה אמצעית או Ctrl+לחיצה בעץ ובקישורים, או "פתיחה בכרטיסייה חדשה" בתפריט. מסמך שכבר פתוח רק מקבל מיקוד.
+  // (6.4–8.1: כל פתיחה יצרה כרטיסייה חדשה.)
+  tabs.opened(p, { newTab });
   drawTree();
   refreshBacklinks();
   refreshLinksPanel();
@@ -1346,12 +1385,14 @@ async function refreshFlags() {
   state.flags = new Map(idx.notes.filter((n) => n.flag).map((n) => [n.path, n.flag]));
   drawTree();
   renderFlagged();
+  tabs.refresh();
 }
 function noteFlagChanged(p, color) {
   if ((state.flags.get(p) || null) === (color || null)) return;
   if (color) state.flags.set(p, color); else state.flags.delete(p);
   drawTree();
   renderFlagged();
+  tabs.refresh();
   if (p === state.currentPath) docPanel?.rerender();
 }
 // במסמך הפתוח: דרך העורך (נשמר כמו כל עריכה, בלי לטעון מחדש). במסמך אחר: ישירות בקובץ.

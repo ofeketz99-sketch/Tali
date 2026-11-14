@@ -50,17 +50,15 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       handlePaste(view, event) {
         const files = imagesOf(event.clipboardData?.files);
         if (!files.length) return false;
-        onImageFiles(files);
+        onImageFiles(files, null); // 8.2: תמונה חופשית במרכז האזור הגלוי של הדף
         return true;
       },
       handleDrop(view, event, _slice, moved) {
         if (moved) return false;
         const files = imagesOf(event.dataTransfer?.files);
         if (!files.length) return false;
-        // הסמן עובר למקום שבו שוחררה התמונה
-        const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
-        if (at) editor.commands.setTextSelection(at.pos);
-        onImageFiles(files);
+        // 8.2: תמונה חופשית בנקודה שבה שוחררה
+        onImageFiles(files, { x: event.clientX, y: event.clientY });
         return true;
       },
     },

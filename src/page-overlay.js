@@ -221,7 +221,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
   updateHistoryButtons();
 
   // 7.7: הדף מתארך לבד בשביל הציור, בלי Enter. גובה מינימלי = התחתית של הטקסט או של השרטוט הנמוך ביותר
-  // (או של המשיכה שמציירים עכשיו), ועוד רווח ריק: 600px בזמן ציור, 200px אחרי. רק min-height של התצוגה:
+  // (או של המשיכה שמציירים עכשיו), ועוד רווח ריק (מ־8.2: תמיד 600px לפחות, ראו למטה). רק min-height של התצוגה:
   // הקובץ לא משתנה, והשרטוטים נשמרים בפיקסלים כמו קודם. בלי שרטוטים ובלי ציור: ה־CSS הרגיל (1050px).
   const BASE_PAGE_HEIGHT = 1050;
   let liveBottom = 0;
@@ -233,14 +233,20 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
         bottom = Math.max(bottom, b.y + b.h);
       } catch { /* ישות לא מוכרת */ }
     }
-    if (enabled && session) {
+    // 8.2: ברגע שיש על הדף ישות כלשהי (או בזמן ציור), תמיד יש מתחת לנמוך מבין הטקסט והישויות
+    // לפחות 600px או 60% מגובה החלון, כך שאפשר לגלול עוד שורות למטה ולהניח שם דברים. בלי ישויות: כמו קודם.
+    if (enabled && (session || objects.length)) {
       const last = page.querySelector('.ProseMirror')?.lastElementChild;
       if (last) bottom = Math.max(bottom, last.getBoundingClientRect().bottom - page.getBoundingClientRect().top);
     }
-    const wanted = Math.ceil(bottom + (enabled && session ? 600 : 200));
+    const wanted = Math.ceil(bottom + Math.max(600, Math.round(window.innerHeight * 0.6)));
     const next = enabled && wanted > BASE_PAGE_HEIGHT && (session || objects.length) ? wanted + 'px' : '';
     if (page.style.minHeight !== next) page.style.minHeight = next;
   }
+  // 8.2: כשהטקסט גדל או קטן (הקלדה, פתיחת מסמך) הרווח מתחת מתעדכן. גובה הטקסט לא תלוי ב־min-height של הדף,
+  // ולכן אין כאן לולאה.
+  const editorEl = page.querySelector('.ProseMirror');
+  if (editorEl) new ResizeObserver(() => { if (enabled && objects.length) fitPage(); }).observe(editorEl);
   // מצב הסרגל לפי הכלי והבחירה: מה שלא רלוונטי מוסתר, כדי שהסרגל יהיה קצר
   function updateToolbar() {
     // 7.7: ידית הגרירה של השורות (⋮⋮, block-handle.js) מוסתרת בזמן ציור, כדי שלא תפריע
