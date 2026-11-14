@@ -22,4 +22,23 @@ function lockIsFresh(stat, now, maxAge) {
   return Boolean(stat) && now - stat.mtimeMs < maxAge;
 }
 
-module.exports = { normalizeUpdateBranch, planUpdate, lockIsFresh };
+// גיבוב של package-lock.json רק לפי מה שמשפיע על החבילות המותקנות: בלי שדה ה־version של האפליקציה
+// (בראש הקובץ וב־packages[""]), שמשתנה בכל Release. כך העלאת גרסה לא מריצה npm ci.
+// קובץ שאינו JSON תקין: גיבוב של הבייטים כמו שהם (עדיף npm ci מיותר מאשר לדלג על שינוי אמיתי).
+function lockfileDependencyHash(content) {
+  const text = Buffer.isBuffer(content) ? content.toString('utf8') : String(content ?? '');
+  if (!text) return '';
+  let normalized = text;
+  try {
+    const lock = JSON.parse(text.replace(/^﻿/, ''));
+    if (lock && typeof lock === 'object' && !Array.isArray(lock)) {
+      delete lock.version;
+      const root = lock.packages && lock.packages[''];
+      if (root && typeof root === 'object') delete root.version;
+      normalized = 'lock-v1:' + JSON.stringify(lock);
+    }
+  } catch { /* לא JSON: הבייטים עצמם */ }
+  return require('crypto').createHash('sha256').update(normalized).digest('hex');
+}
+
+module.exports = { normalizeUpdateBranch, planUpdate, lockIsFresh, lockfileDependencyHash };

@@ -8,7 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { normalizeUpdateBranch, planUpdate, lockIsFresh } = require('./update-core');
+const { normalizeUpdateBranch, planUpdate, lockIsFresh, lockfileDependencyHash } = require('./update-core');
 
 const readText = (file) => {
   try { return fs.readFileSync(file, 'utf8').trim(); } catch { return ''; }
@@ -29,6 +29,7 @@ const STATE_DIR = path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'Tali');
 const LOG_FILE = path.join(STATE_DIR, 'launcher-update.log');
 const LOCK_FILE = path.join(STATE_DIR, 'update.lock');
 const LOCK_MAX_AGE = 10 * 60 * 1000; // נעילה ישנה מזה (תהליך שנפל) לא נחשבת
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
 function log(message) {
   try {
@@ -119,9 +120,16 @@ function updateProject() {
   }
 }
 
-function lockHash() {
+// מה שנכתב בחותמת: גיבוב התלויות בלבד, בלי גרסת האפליקציה (update-core.js).
+// legacy: הגיבוב של הקובץ כולו, כמו עד 7.7, כדי שחותמת ישנה תיחשב תקינה ולא תריץ npm ci פעם אחת לשווא.
+function lockHashes() {
   const lock = path.join(PROJECT, 'package-lock.json');
-  return fs.existsSync(lock) ? crypto.createHash('sha256').update(fs.readFileSync(lock)).digest('hex') : '';
+  if (!fs.existsSync(lock)) return { wanted: '', legacy: '' };
+  const bytes = fs.readFileSync(lock);
+  return {
+    wanted: lockfileDependencyHash(bytes),
+    legacy: crypto.createHash('sha256').update(bytes).digest('hex'),
+  };
 }
 
 function dependenciesReady() {
@@ -145,22 +153,64 @@ function findNodeAndNpmCli() {
   return npmCli ? { node, npmCli } : null;
 }
 
+// מעבר מחותמת של עד 7.7 (גיבוב הקובץ כולו): חייב לרוץ לפני ה־fast-forward, כשהקובץ עוד זהה למה שהותקן.
+// אחרי המשיכה הגיבוב הישן כבר לא יתאים, וההעלאה הראשונה של גרסה הייתה מריצה npm ci לשווא.
+function migrateStamp() {
+  try {
+    const stamp = path.join(DEPS, '.tali-package-lock.sha256');
+    const installed = readText(stamp);
+    const { wanted, legacy } = lockHashes();
+    if (installed && legacy && installed === legacy && wanted !== legacy) {
+      fs.writeFileSync(stamp, wanted, 'utf8');
+      log('חותמת התלויות הומרה לגיבוב בלי גרסת האפליקציה.');
+    }
+  } catch { /* לא קריטי: לכל היותר npm ci מיותר אחד */ }
+}
+
+const INSTALLING = 'installing'; // בחותמת בזמן npm ci: אם הוא נפל באמצע, הפתיחה הבאה מנסה שוב
+const oneLine = (err) => String((err && (err.stderr || err.message)) || err).replace(/\s+/g, ' ').trim();
+
 function syncDependencies() {
-  const wanted = lockHash();
+  const { wanted, legacy } = lockHashes();
   const stamp = path.join(DEPS, '.tali-package-lock.sha256');
   const installed = readText(stamp);
-  if (dependenciesReady() && (!installed || installed === wanted)) {
-    if (!installed && wanted) fs.writeFileSync(stamp, wanted, 'utf8');
+  if (dependenciesReady() && (!installed || installed === wanted || (legacy && installed === legacy))) {
+    if (wanted && installed !== wanted) fs.writeFileSync(stamp, wanted, 'utf8');
     return;
   }
-  log('package-lock.json השתנה; מריץ npm ci.');
+  log(installed === INSTALLING
+    ? 'התקנת התלויות הקודמת לא הסתיימה; מריץ npm ci שוב.'
+    : 'התלויות ב־package-lock.json השתנו (או חסרות); מריץ npm ci.');
   // מריצים את npm-cli.js דרך node.exe. כך אין תלות בכללי הציטוט של npm.cmd ב־Windows.
   const tools = findNodeAndNpmCli();
   if (!tools) throw new Error('לא נמצאו Node ו־npm. יש להתקין Node.js במחשב הפיתוח ולהפעיל שוב.');
-  command(tools.node, [tools.npmCli, 'ci', '--no-audit', '--no-fund'], { timeout: 600000 });
-  if (!dependenciesReady()) throw new Error('התקנת התלויות הסתיימה, אבל חסרים esbuild או TipTap.');
-  if (wanted) fs.writeFileSync(stamp, wanted, 'utf8');
+  // החותמת מסומנת "באמצע" לפני npm ci, ומקבלת את הגיבוב רק אחרי הצלחה. npm ci שנכשל באמצע (למשל EBUSY,
+  // כשתהליך אחר מחזיק קובץ ב־node_modules) משאיר node_modules חלקי: בלי הסימון, אם TipTap ו־esbuild
+  // שרדו והחותמת הישנה התאימה, הפתיחה הבאה הייתה מדלגת על ההתקנה.
+  try { fs.mkdirSync(DEPS, { recursive: true }); fs.writeFileSync(stamp, INSTALLING, 'utf8'); } catch { /* npm ci יוצר את התיקייה */ }
+  const npmCi = () => command(tools.node, [tools.npmCli, 'ci', '--no-audit', '--no-fund'], { timeout: 600000 });
+  try {
+    npmCi();
+  } catch (first) {
+    log('npm ci נכשל: ' + oneLine(first).slice(-1500));
+    // קובץ נעול (EBUSY/EPERM) הוא לרוב זמני: ניסיון אחד נוסף אחרי הפסקה קצרה.
+    if (!/EBUSY|EPERM|EACCES|ENOTEMPTY/.test(oneLine(first))) {
+      throw new Error('התקנת התלויות (npm ci) נכשלה. בפתיחה הבאה היא תנוסה שוב. ' + oneLine(first).slice(-800));
+    }
+    log('נראה שקובץ ב־node_modules נעול; מנסה שוב בעוד 5 שניות.');
+    sleep(5000);
+    try { npmCi(); } catch (second) {
+      log('npm ci נכשל שוב: ' + oneLine(second).slice(-1500));
+      throw new Error('התקנת התלויות (npm ci) נכשלה פעמיים. כנראה תהליך אחר מחזיק קובץ ב־node_modules (למשל npm start או Electron פתוח). סוגרים אותו ופותחים שוב: ההתקנה תנוסה מחדש. ' + oneLine(second).slice(-600));
+    }
+  }
+  if (!dependenciesReady()) throw new Error('התקנת התלויות הסתיימה, אבל חסרים esbuild או TipTap. בפתיחה הבאה היא תנוסה שוב.');
+  fs.writeFileSync(stamp, wanted, 'utf8');
   log('התלויות סונכרנו בהצלחה.');
+  if (!fs.existsSync(path.join(DEPS, 'electron', 'dist', 'electron.exe'))) {
+    // TALI-DEV לא צריך אותו (יש לו Electron משלו), אבל npm start ו־make-exe כן. ראו AGENTS.md ("Node 26 ו־Electron").
+    log('הערה: אחרי npm ci חסר node_modules\\electron\\dist\\electron.exe. TALI-DEV לא צריך אותו; ל־npm start ול־make-exe צריך לפרוס אותו ידנית.');
+  }
 }
 
 function newestIn(target) {
@@ -192,7 +242,6 @@ function buildIfNeeded(force = false) {
 }
 
 // ----- נעילה -----
-const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 function lockStat() {
   try { return fs.statSync(LOCK_FILE); } catch { return null; }
 }
@@ -221,6 +270,7 @@ function releaseLock() {
 
 // כל השלבים: עדכון, תלויות, בנייה. זורק אם התלויות או הבנייה נכשלו (קוד חלקי לא נפתח).
 function runUpdate() {
+  migrateStamp();
   const update = updateProject();
   syncDependencies();
   buildIfNeeded(update.updated);

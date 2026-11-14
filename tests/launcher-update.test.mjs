@@ -29,3 +29,33 @@ test('an update lock only blocks while it is recent', () => {
   assert.equal(lockIsFresh({ mtimeMs: now - 5000 }, now, 600000), true);
   assert.equal(lockIsFresh({ mtimeMs: now - 700000 }, now, 600000), false); // a crashed updater does not block forever
 });
+
+test('the lockfile hash ignores the app version but not dependency changes', () => {
+  const { lockfileDependencyHash } = require('../launcher/update-core.js');
+  const lock = (version, tiptap = '^2.11.0', resolved = '2.11.5') => JSON.stringify({
+    name: 'tali', version, lockfileVersion: 3, requires: true,
+    packages: {
+      '': { name: 'tali', version, dependencies: { '@tiptap/core': tiptap } },
+      'node_modules/@tiptap/core': { version: resolved, resolved: `https://registry.npmjs.org/@tiptap/core/-/core-${resolved}.tgz` },
+    },
+  }, null, 2) + '\n';
+  const base = lockfileDependencyHash(lock('7.7.0'));
+  assert.match(base, /^[0-9a-f]{64}$/);
+  assert.equal(lockfileDependencyHash(lock('7.8.0')), base); // release bump only
+  assert.equal(lockfileDependencyHash(Buffer.from(lock('7.8.0'))), base); // a Buffer, as read from disk
+  assert.equal(lockfileDependencyHash('﻿' + lock('7.8.0')), base); // BOM
+  assert.notEqual(lockfileDependencyHash(lock('7.7.0', '^2.12.0')), base); // a changed range
+  assert.notEqual(lockfileDependencyHash(lock('7.7.0', '^2.11.0', '2.11.6')), base); // a changed resolved package
+  assert.equal(lockfileDependencyHash(''), '');
+  assert.match(lockfileDependencyHash('not json'), /^[0-9a-f]{64}$/); // falls back to hashing the bytes
+  assert.notEqual(lockfileDependencyHash('not json'), lockfileDependencyHash('not json!'));
+});
+
+test('the real package-lock.json hashes the same with a different app version', async () => {
+  const { lockfileDependencyHash } = require('../launcher/update-core.js');
+  const { readFileSync } = await import('node:fs');
+  const text = readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8');
+  const bumped = text.replace(/("version":\s*")[^"]+(")/, '$199.9.0$2').replace(/(""\s*:\s*\{[^{}]*?"version":\s*")[^"]+(")/, '$199.9.0$2');
+  assert.notEqual(bumped, text);
+  assert.equal(lockfileDependencyHash(bumped), lockfileDependencyHash(text));
+});
