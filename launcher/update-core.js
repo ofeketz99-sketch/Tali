@@ -17,4 +17,9 @@ function planUpdate({ enabled = true, gitAvailable, isRepository, dirty, current
   return { action: 'update', reason: '' };
 }
 
-module.exports = { normalizeUpdateBranch, planUpdate };
+// נעילת העדכון (updater.js) תופסת רק אם היא קיימת וצעירה מ־maxAge: נעילה של תהליך שנפל לא חוסמת לנצח
+function lockIsFresh(stat, now, maxAge) {
+  return Boolean(stat) && now - stat.mtimeMs < maxAge;
+}
+
+module.exports = { normalizeUpdateBranch, planUpdate, lockIsFresh };

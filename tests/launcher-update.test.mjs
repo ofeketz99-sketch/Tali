@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { normalizeUpdateBranch, planUpdate } = require('../launcher/update-core.js');
+const { normalizeUpdateBranch, planUpdate, lockIsFresh } = require('../launcher/update-core.js');
 
 test('normalizes the development update branch safely', () => {
   assert.equal(normalizeUpdateBranch(' desktop-dev '), 'desktop-dev');
@@ -21,4 +21,11 @@ test('updates only a clean checkout on the configured branch', () => {
 test('skips safely without Git or a repository', () => {
   assert.match(planUpdate({ gitAvailable: false, isRepository: false }).reason, /Git/);
   assert.match(planUpdate({ gitAvailable: true, isRepository: false }).reason, /אינה מאגר/);
+});
+
+test('an update lock only blocks while it is recent', () => {
+  const now = 1_000_000;
+  assert.equal(lockIsFresh(null, now, 600000), false);
+  assert.equal(lockIsFresh({ mtimeMs: now - 5000 }, now, 600000), true);
+  assert.equal(lockIsFresh({ mtimeMs: now - 700000 }, now, 600000), false); // a crashed updater does not block forever
 });

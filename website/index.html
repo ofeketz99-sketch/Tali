@@ -37,7 +37,7 @@
           </svg>
           <span>הורדה ל־Windows</span>
         </a>
-        <p class="download-meta">גרסה <bdi dir="ltr"><!-- VERSION:START -->7.0<!-- VERSION:END --></bdi></p>
+        <p class="download-meta">גרסה <bdi dir="ltr"><!-- VERSION:START -->7.4<!-- VERSION:END --></bdi></p>
       </div>
 
       <a class="scroll-cue" href="#notes">
@@ -51,39 +51,37 @@
       <!-- NOTES:START -->
       <article class="note">
         <header>
-          <span class="ver">7.0</span>
-          <h3>Patch Notes מעודכנים וגרסה נכונה במסך הבית</h3>
-          <time datetime="2026-11-13">13.11.2026</time>
+          <span class="ver">7.4</span>
+          <h3>Tali.exe מתעדכן גם בסגירה</h3>
+          <time datetime="2026-11-14">14.11.2026</time>
         </header>
         <ul>
-          <li><strong>Patch Notes:</strong> החלון והכרטיס במסך הבית קראו תמיד את <code>CHANGELOG.md</code> מענף <code>main</code> ב־GitHub.</li>
-          <li><strong>גרסה:</strong> במשגר הפיתוח (Tali.exe) הכרטיס הציג "v0.2", הגרסה של המשגר עצמו.</li>
-          <li><strong>תאריך בכותרת:</strong> התאריך בכותרת הגרסה התהפך ונשבר בין שורות.</li>
-          <li><strong>שימו לב:</strong> 6.9 הוסיפה תלות (<code>perfect-freehand</code>), ולכן בפתיחה הראשונה בכל מחשב המשגר מריץ <code>npm ci</code> (כמה שניות נוספות).</li>
+          <li><strong>עדכון בסגירה:</strong> Tali.exe (משגר הפיתוח) כבר עדכן את עצמו בכל פתיחה.</li>
         </ul>
       </article>
       <article class="note">
         <header>
-          <span class="ver">6.9</span>
-          <h3>ציור חלק, צורות בלחיצות ועריכה אחרי הציור</h3>
-          <time datetime="2026-11-13">13.11.2026</time>
+          <span class="ver">7.3</span>
+          <h3>ארכיון, ושורת כותרת בצבעי הערכה</h3>
+          <time datetime="2026-11-14">14.11.2026</time>
         </header>
         <ul>
-          <li><strong>עט כמו באקסקלידרו:</strong> קו ממולא של <code>perfect-freehand</code> (אותה ספרייה שאקסקלידרו משתמש בה, MIT): הרעד של היד מתיישר והעובי משתנה מעט עם המהירות, כמו עט אמיתי.</li>
-          <li><strong>חלק בזמן הציור:</strong> עד עכשיו כל תזוזה של העכבר ציירה מחדש את כל השרטוטים בדף.</li>
-          <li><strong>מספר הנקודות לכל צורה:</strong> קו וחץ: לחיצה ועוד לחיצה (עם תצוגה מקדימה ביניהן), או גרירה.</li>
-          <li><strong>עריכה אחרי הציור:</strong> כלי בחירה חדש.</li>
+          <li><strong>ארכיון:</strong> בלחיצה ימנית על מסמך או תיקייה בעץ ← "העברה לארכיון" (וגם בלוח הפקודות, למסמך הפתוח).</li>
+          <li><strong>מה הארכיון מסתיר:</strong> מסמכים בארכיון לא מופיעים במעבר המהיר (Ctrl+O) ובבחירת מסמך, במסמכים האחרונים, בחלון המשימות, במסך הבית ובקפיצה בין תיקיות (Ctrl+Shift+↑/↓).</li>
+          <li><strong>שורת הכותרת של החלון (Windows):</strong> במקום השורה של Windows (כהה או לבנה לפי המערכת), שורה בצבע ראש הסרגל של הערכה (<code>#titlebar</code>, <code>--accent-tint</code>), עם הסמל והשם.</li>
         </ul>
       </article>
       <article class="note">
         <header>
-          <span class="ver">6.8</span>
-          <h3>מאפיינים בלוח ההקשר, ומצב שינה</h3>
-          <time datetime="2026-11-13">13.11.2026</time>
+          <span class="ver">7.2</span>
+          <h3>משימה חדשה אחרי משימות שבוצעו, מעבר ל־Markdown באותו מקום, כותרות H2 חדשות</h3>
+          <time datetime="2026-11-14">14.11.2026</time>
         </header>
         <ul>
-          <li><strong>מאפיינים (YAML) בלוח ההקשר:</strong> טופס המאפיינים עבר מראש הדף ללשונית חדשה "מאפיינים" בלוח ההקשר, עם מונה של מספר המאפיינים.</li>
-          <li><strong>מצב שינה:</strong> רק הסמל על הרקע הכחול של הפתיח, ונושם לאט.</li>
+          <li><strong>תיקון — Enter על משימה שבוצעה:</strong> השורה החדשה (לא מסומנת) עלתה לקבוצת המשימות הפתוחות, אבל הסמן נשאר למטה על משימה מסומנת, ומה שהוקלד נכנס לשם.</li>
+          <li><strong>מעבר ל־Markdown ובחזרה (Ctrl+E) באותו מקום:</strong> קודם הדף קפץ לסוף, כי תיבת הטקסט הייתה תיבת גלילה נפרדת והמיקוד שם את הסמן בסוף.</li>
+          <li><strong>כיוון בתצוגת Markdown:</strong> עד עכשיו תמיד משמאל לימין, והדף "התהפך".</li>
+          <li><strong>כותרת H2:</strong> במקום הפס הכחול שבצד, קו דק (1px, <code>#D6DDE1</code>, ובמצב כהה גוון שקוף שלו, <code>--h2-rule</code>) שמתחיל 12px אחרי סוף הטקסט ונמתח עד קצה אזור התוכן, באמצע גובה…</li>
         </ul>
       </article>
       <!-- NOTES:END -->

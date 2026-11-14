@@ -8,6 +8,21 @@
 
 מסמכים נוספים: `README.md` (סקירה קצרה), `CHANGELOG.md` (מה השתנה בכל גרסה), `ROADMAP.md` (רעיונות להמשך, פערים ידועים ובדיקות שעוד חסרות), `CODE_AUDIT.md` (סקירת המבנה ותכנית פישוט).
 
+## כללי חובה לכל סוכן (מ־14.11.2026, לבקשת המשתמש)
+
+1. **כל שינוי שנמסר מגיע גם ל־EXE באתר ההורדות.** אחרי כל שינוי באפליקציה (קוד, עיצוב, התנהגות, שמירה; כל מה שמעלה גרסה, ראו "גרסאות ותיעוד"), באותה משימה ובלי לחכות לבקשה נפרדת:
+   1. `npm run check`, ואז commit ו־push ל־`desktop-dev` (כך Tali.exe במחשבי הפיתוח מתעדכן לבד).
+   2. `npm run site:notes` (הגרסה ו"מה חדש" ב־`website/index.html`), commit.
+   3. מקדמים את `main` (`git push origin desktop-dev:main`, fast-forward בלבד; אם `main` התפצל: מיזוג, `npm run check`, ואז שוב לשני הענפים).
+   4. מפרסמים: `git tag v<גרסה>` על אותו commit ו־`git push origin v<גרסה>`. ה־workflow (`build-windows.yml`) בונה ומעלה ל־Release את `Tali-Setup-<גרסה>.exe`, `Tali-<גרסה>-portable.exe` ו־`latest.json`. כפתור ההורדה באתר מפנה ל־`releases/latest`, ולכן מתעדכן לבד.
+   5. מוודאים שה־Release נוצר עם הקבצים (דף ה־Releases או ה־API של GitHub), וכותבים למשתמש מה פורסם. ריצה שנכשלה: מתקנים ומפרסמים גרסה חדשה (אי אפשר לפרסם פעמיים את אותה גרסה).
+   - **לא צריך Release** לשינוי בתיעוד, בבדיקות או באתר בלבד, שלא משנה את מה שנבנה ל־EXE. אז רק push.
+   - **מסשן בענן** אי אפשר לדחוף תגים: מסיימים בשלבים 1–3 וכותבים למשתמש להריץ Actions ← Build Windows ← Run workflow (ראו "פרסום גרסה").
+2. **העדכון האוטומטי של Tali.exe בפתיחה ובסגירה נשמר תמיד.** המשתמש לא מתקין גרסה מחדש אף פעם במחשב הפיתוח: Tali.exe (המשגר ב־`launcher/`) מעדכן את הקוד מענף `desktop-dev` כשהוא נפתח, ושוב ברקע כשהוא נסגר (ראו "הרצה"). לכן:
+   - אסור לשנות קוד באופן ששובר את המסלול הזה: המשגר, `updater.js`, `update-on-close.js`, הענף `desktop-dev`, הבנייה עם esbuild או המבנה ש־`buildIfNeeded` מצפה לו (`src/renderer.js` ← `dist/renderer.js`). כל שינוי בהם נבדק מקצה לקצה לפני push: מאגר origin זמני ו־clone שמפגר ב־commit, Tali.exe עם `TALI_PROJECT`/`project.txt` אל ה־clone ו־`LOCALAPPDATA` זמני, ובדיקה ביומן שהעדכון רץ גם בפתיחה וגם בסגירה. **לא** מריצים את הבדיקה על המאגר האמיתי, ו**לא** סוגרים תהליכי Tali לפי שם או כותרת חלון (זה סוגר גם את ה־Tali של המשתמש).
+   - קוד חדש שהאפליקציה צריכה בזמן ריצה מגיע דרך Git בלבד. תלות חדשה: ב־`package.json` ו־`package-lock.json` (המשגר מריץ `npm ci` כשהקובץ משתנה). קובץ שנבנה: דרך `buildIfNeeded`, לא כצעד ידני.
+   - שינוי ב־`launcher/` עצמו לא מגיע לבד (המשגר הוא עותק מחוץ למאגר): באותה משימה מעתיקים את קבצי `launcher/` (כל ה־`.js` ו־`package.json`) אל `D:\Projects\Tali\Tali\resources\app` כש־Tali סגור, בלי לגעת ב־`project.txt` וב־`branch.txt` שם, או מריצים `npm run make-exe` כשגם Electron השתנה. וכותבים למשתמש שזה נעשה.
+
 ## הרצה
 
 הפרויקט ב־`D:\Projects\Tali\Tali - App`, עם Git. התלויות ב־`node_modules` שבתוכו, כמו בכל פרויקט רגיל.
@@ -15,6 +30,7 @@
 
 - **הרצה רגילה לפיתוח:** `D:\Projects\Tali\Tali\Tali.exe` (ליד תיקיית הפרויקט, מחוץ ל־Git), או קיצור הדרך "Tali" בשולחן העבודה. עד 12.11.2026 הוא היה ב־`C:\Users\ofeke\.tali\Tali`.
   זה עותק של `electron.exe` בשם Tali, עם הסמל ופרטי התוכנה (נקבעו עם `rcedit`). בתוכו, ב־`resources\app`, יש משגר קטן (המקור: `launcher/`) שמריץ את `main.js` ישירות מהמאגר המקומי. מ־6.4 (בענף `desktop-dev` זה סומן 6.3 לפני האיחוד) הוא בודק בכל פתיחה את ענף `desktop-dev`, מבצע רק עדכון fast-forward של מאגר נקי, מסנכרן תלויות אם `package-lock.json` השתנה ובונה את הממשק. עבודה מקומית, ענף שונה, detached HEAD או היסטוריה שהתפצלה לעולם אינם נדרסים; העדכון מדולג ונכתב ליומן `%LOCALAPPDATA%\Tali\launcher-update.log`.
+  **מ־7.4 גם בסגירה:** ב־`will-quit` המשגר מפעיל את `update-on-close.js` כתהליך רקע מנותק (Tali.exe עם `ELECTRON_RUN_AS_NODE=1`), שמריץ את אותו עדכון (`launcher/updater.js`: fetch, fast-forward, `npm ci` לפי הצורך, בנייה). כך החלון נסגר מיד, והפתיחה הבאה כבר מעודכנת ומהירה. נעילה (`%LOCALAPPDATA%\Tali\update.lock`, ישנה מ־10 דקות לא נחשבת) מונעת שני עדכונים במקביל: פתיחה מיד אחרי סגירה מחכה (עד 2 דקות) לעדכון של הסגירה. עותק שני של Tali (שרק מביא את הראשון לחזית) לא מעדכן.
   שינוי בקוד האפליקציה אינו דורש בנייה מחדש של Tali.exe. שינוי ב־`launcher/` עצמו או בגרסת Electron כן דורש הרצה חד־פעמית נוספת של `npm run make-exe`, כי המשגר ומנוע Electron מועתקים לתיקייה החיצונית.
 - **בניית `Tali.exe` במחשב חדש:** עוברים פעם אחת לענף `desktop-dev`, מריצים `npm install` ואז `npm run make-exe [תיקיית יעד]` (`tools/make-exe.js`, רק ב־Windows). ברירת המחדל לתיקיית היעד היא `Tali-exe` ליד המאגר. המשגר מוצא את הפרויקט לפי `TALI_PROJECT`, אחר כך `project.txt` שליד המשגר (הסקריפט כותב בו את נתיב המאגר), ורק אז הנתיבים של כונן D. הקובץ אינו עצמאי: Git, הרשאת GitHub למאגר הפרטי ותיקיית המאגר נדרשים בכל מחשב. `TALI_AUTO_UPDATE=0` מכבה עדכון זמנית ו־`TALI_UPDATE_BRANCH` מחליף את ערוץ `desktop-dev`.
 - **בנייה:** `npm run build`. **הרצה עם בנייה:** `npm start` או `start.cmd`. **פיתוח:** `npm run watch`, ורענון החלון עם Ctrl+R.
@@ -46,7 +62,7 @@
 
 - המאגר פרטי: https://github.com/ofeketz99-sketch/Tali. `main` הוא הענף היציב; משגר הפיתוח עוקב אחרי `desktop-dev` כדי ששני מחשבי הפיתוח יקבלו את אותו קוד בלי לפרסם Release. הענף הישן `dev` משמש את Netlify ואינו ערוץ לעדכון אפליקציית שולחן העבודה.
 - **בתחילת עבודה:** פתיחת Tali.exe מעדכנת checkout נקי של `desktop-dev`. לפני עריכה מהטרמינל עדיין בודקים `git status` ו־`git pull --ff-only`. המשתמש עורך לפעמים את `AGENTS.md` ו־`ROADMAP.md` ישירות ב־GitHub.
-- **אחרי כל שינוי שעובד:** `npm run check`, ואז `git add -A`, `git commit`, `git push`.
+- **אחרי כל שינוי שעובד:** `npm run check`, ואז `git add -A`, `git commit`, `git push`. ושינוי שנמסר באפליקציה מתפרסם גם כ־Release לאתר ההורדות (כלל חובה 1 בראש הקובץ).
 - הודעת commit: שורה ראשונה קצרה באנגלית, בצורת ציווי, עם מספר הגרסה בסוגריים כשיש שחרור, למשל `Smooth intro opening (2.5)`. מתחת: מה ולמה, בנקודות.
 - עבודה גדולה או ניסיונית: בענף נפרד (`feat/...`, `fix/...`) שמתמזג ל־`main` רק אחרי בדיקה ב־Electron. לא משאירים ענפים ישנים פתוחים בלי סיבה.
 - **ענפים (מ־6.4, 12.11.2026):**
@@ -122,7 +138,7 @@
 | `src/splash-preview.html` | צפייה חוזרת בפתיח בלי לפתוח תיקיית הערות |
 | `tools/splash-render/` | הרינדור של הפתיח (Three.js בתוך Electron). לא נטען באפליקציה |
 | `tests/` | בדיקות יחידה (`node --test`) |
-| `launcher/` | משגר הפיתוח של Tali.exe: עדכון בטוח מענף `desktop-dev`, סנכרון תלויות ובנייה; מועתק ל־`resources\app` |
+| `launcher/` | משגר הפיתוח של Tali.exe: עדכון בטוח מענף `desktop-dev` בפתיחה ובסגירה (`updater.js`, `update-on-close.js`), סנכרון תלויות ובנייה; מועתק ל־`resources\app` |
 | `start.cmd` | בנייה והפעלה מהתיקייה (לפיתוח) |
 
 `dist/` נוצר על ידי `esbuild` ואין לערוך אותו ידנית.
