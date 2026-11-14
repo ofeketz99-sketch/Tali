@@ -1,7 +1,12 @@
 // Floating annotation metadata lives in one trailing HTML comment, invisible in Obsidian.
 // An unrecognized or invalid comment is NEVER removed (to avoid losing user data).
 const TRAILER = /(?:\r?\n){2}<!-- TALI-OVERLAY:v1:([^\r\n]*?) -->[ \t]*(?:\r?\n)?$/;
-const TYPES = new Set(['pen', 'line', 'arrow', 'rect', 'ellipse', 'textbox', 'comment']);
+const TYPES = new Set(['pen', 'line', 'arrow', 'rect', 'ellipse', 'textbox', 'comment', 'image']);
+// 7.8: free image. ref 'embed' = src is the ![[...]] target (name or path in the vault); ref 'md' = src is the ![](...) path.
+const cleanSrc = (v) => {
+  const s = String(v || '').trim();
+  return s && s.length <= 1000 && !/[\r\n<>]/.test(s) ? s : '';
+};
 const finite = (n) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 100000;
 const bounded = (v, def, min, max) => finite(v) ? Math.min(max, Math.max(min, v)) : def;
 const cleanPoints = (input, max) => Array.isArray(input) ? input.slice(0, max)
@@ -25,7 +30,17 @@ export function cleanOverlayObjects(input) {
       ...(object.dash === true && ['line', 'arrow', 'rect', 'ellipse'].includes(object.kind) ? { dash: true } : {}),
       ...(object.fill === 'tint' && ['rect', 'ellipse'].includes(object.kind) ? { fill: 'tint' } : {}),
     };
-    if (object.kind === 'textbox' || object.kind === 'comment') {
+    if (object.kind === 'image') {
+      const src = cleanSrc(object.src);
+      if (!src) continue;
+      result.push({
+        id: base.id, kind: 'image', x: base.x, y: base.y,
+        width: bounded(object.width, 300, 30, 2000),
+        height: bounded(object.height, 200, 20, 3000),
+        src, ref: object.ref === 'md' ? 'md' : 'embed',
+        ...(object.alt ? { alt: String(object.alt).replace(/[\r\n]/g, ' ').slice(0, 300) } : {}),
+      });
+    } else if (object.kind === 'textbox' || object.kind === 'comment') {
       result.push({
         ...base, width: bounded(object.width, 230, 110, 900),
         height: bounded(object.height, 100, 60, 600),

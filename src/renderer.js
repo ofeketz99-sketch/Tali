@@ -9,7 +9,7 @@ import { getFlag, setFlag, getCreatedDate, fillTemplate, headerToProps, isFollow
 import { resolveLink, extractLinks, getFrontmatterLinks, setFrontmatterLinks } from '../links.js';
 import { openLinkPicker } from './linkpicker.js';
 import { showLinkHubOffer } from './linkhub.js';
-import { fileUrl, bumpImage } from './embed.js';
+import { fileUrl, bumpImage, returnImageToText } from './embed.js';
 import { openPaint } from './paint.js';
 import { createPageOverlay } from './page-overlay.js';
 import { icon, lucide } from './icons.js';
@@ -194,6 +194,7 @@ const editorApi = createEditor({
     onLinked: offerLinkHub,
     onEditDrawing: editDrawing,
     localSrc,
+    onFreeImage: (info) => freeImage(info),
     read: (p) => window.api.read(p),
     onTag: (tag) => showTags(tag),
   },
@@ -298,7 +299,34 @@ async function goHome({ history = true } = {}) {
   showEmpty();
   updateNavButtons();
 }
-const pageOverlay = createPageOverlay({ page: $('page'), onChange: noteChanged });
+const pageOverlay = createPageOverlay({
+  page: $('page'), onChange: noteChanged,
+  // 7.8: תמונה חופשית. ![[...]] נפתרת כמו בעורך; ![](נתיב) יחסית להערה ואז לתיקייה הראשית
+  resolveImage: (o) => {
+    if (o.ref === 'md') return localSrc(o.src);
+    const p = resolveTarget(o.src);
+    return p ? [fileUrl(p)] : [];
+  },
+  onReturnImage: (o) => {
+    const r = $('page').getBoundingClientRect();
+    return returnImageToText(editorApi.editor, o, r.left + o.x + 4, r.top + o.y + 4);
+  },
+});
+// "חופשי" על תמונה בטקסט: התמונה יוצאת מהטקסט ועוברת לשכבת הדף, באותו מקום ובאותו גודל
+function freeImage({ ref, src, alt, rect, pos }) {
+  if (editorApi.isRaw()) return;
+  const r = $('page').getBoundingClientRect();
+  const x = rect.left - r.left, y = rect.top - r.top;
+  editorApi.editor.commands.command(({ tr, dispatch }) => {
+    const node = tr.doc.nodeAt(pos);
+    if (!node) return false;
+    if (dispatch) dispatch(tr.delete(pos, pos + node.nodeSize));
+    return true;
+  });
+  pageOverlay.setEnabled(true);
+  pageOverlay.addImage({ ref, src, alt, x, y, width: rect.width, height: rect.height });
+  setStatus('התמונה זזה חופשית: גוררים אותה לכל מקום בדף. "החזרה לטקסט" מחזירה אותה. באובסידיאן היא לא תוצג על הדף.');
+}
 editorApi.setOverlayController(pageOverlay);
 const useOverlay = (tool) => {
   if (!state.currentPath) { setStatus('קודם פותחים מסמך'); return; }

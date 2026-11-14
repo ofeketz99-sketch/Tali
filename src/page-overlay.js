@@ -70,7 +70,8 @@ const svgEl = (name, attrs = {}) => {
 };
 const strokesOf = (object) => object.strokes || (object.points ? [object.points] : []);
 
-export function createPageOverlay({ page, onChange }) {
+// resolveImage(object) -> list of URLs to try for a free image (7.8); onReturnImage(object) puts it back into the text.
+export function createPageOverlay({ page, onChange, resolveImage, onReturnImage }) {
   let objects = [], mode = null, session = false, enabled = false, selected = null, drawing = null;
   let color = '#4b80bd', weight = 3, dash = false, fill = false;
   const lastToolKey = 'tali:last-page-drawing-tool';
@@ -228,7 +229,7 @@ export function createPageOverlay({ page, onChange }) {
     let bottom = liveBottom;
     for (const o of objects) {
       try {
-        const b = o.kind === 'textbox' || o.kind === 'comment' ? { y: o.y || 0, h: o.height || 0 } : bboxOf(o);
+        const b = o.kind === 'textbox' || o.kind === 'comment' || o.kind === 'image' ? { y: o.y || 0, h: o.height || 0 } : bboxOf(o);
         bottom = Math.max(bottom, b.y + b.h);
       } catch { /* ישות לא מוכרת */ }
     }
@@ -632,14 +633,18 @@ export function createPageOverlay({ page, onChange }) {
     const move = (e) => {
       if (e.pointerId !== event.pointerId) return;
       const dx = e.clientX - start.x, dy = e.clientY - start.y;
-      if (operation === 'resize') {
+      if (operation === 'resize' && object.kind === 'image') {
+        // תמונה חופשית: רק הרוחב נגרר, והגובה לפי היחס המקורי (בלי עיוות)
+        object.width = Math.round(limit(start.width + dx, 30, Math.max(30, page.clientWidth - object.x)));
+        object.height = Math.max(20, Math.round(object.width * start.height / Math.max(1, start.width)));
+      } else if (operation === 'resize') {
         const maxWidth = object.kind === 'textbox' ? Math.max(110, page.clientWidth - object.x) : 900;
         const maxHeight = Math.max(60, page.clientHeight - object.y);
         object.width = limit(start.width + dx, 110, maxWidth);
         object.height = limit(start.height + dy, 60, Math.min(600, maxHeight));
       } else {
         let nextX = Math.round(start.left + dx), nextY = Math.round(start.top + dy);
-        if (object.kind === 'textbox') {
+        if (object.kind === 'textbox' || object.kind === 'image') {
           nextX = limit(nextX, 0, Math.max(0, page.clientWidth - object.width));
           nextY = limit(nextY, 0, Math.max(0, page.clientHeight - object.height));
         } else {
@@ -665,6 +670,7 @@ export function createPageOverlay({ page, onChange }) {
   }
   function drawBoxes() {
     boxes.replaceChildren();
+    for (const object of objects.filter((item) => item.kind === 'image')) boxes.append(freeImageElement(object));
     for (const object of objects.filter((item) => item.kind === 'textbox' || item.kind === 'comment')) {
       if (object.kind === 'textbox') {
         object.width = Math.min(object.width, Math.max(110, page.clientWidth));
@@ -725,6 +731,69 @@ export function createPageOverlay({ page, onChange }) {
       boxes.append(element);
     }
     markBoxes();
+  }
+  // 7.8: תמונה חופשית על הדף, כמו תיבת טקסט: גרירה של התמונה עצמה מזיזה, ידית עגולה בפינה משנה גודל
+  // (שומר יחס), "החזרה לטקסט" מחזירה אותה לטקסט, Delete מוחק אותה מהדף (הקובץ עצמו נשאר בכספת).
+  // נשמרת בשכבה (TALI-OVERLAY בסוף הקובץ), ולכן באובסידיאן היא לא מוצגת על הדף.
+  function freeImageElement(object) {
+    const element = document.createElement('div');
+    element.className = 'tali-overlay-box tali-free-image';
+    element.dataset.id = object.id;
+    placeBox(object, element);
+    const img = document.createElement('img');
+    img.draggable = false;
+    img.alt = object.alt || '';
+    const urls = (resolveImage && resolveImage(object)) || [];
+    let attempt = 0;
+    img.src = urls[0] || '';
+    img.addEventListener('error', () => {
+      if (++attempt < urls.length) img.src = urls[attempt];
+      else element.classList.add('broken');
+    });
+    img.dataset.tip = 'גרירה מזיזה את התמונה';
+    img.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!session) { session = true; mode = 'select'; }
+      select(object.id);
+      boxDrag(object, event, 'move', element);
+    });
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'tali-image-back';
+    back.innerHTML = icon('undo', 13) + '<span>החזרה לטקסט</span>';
+    back.addEventListener('pointerdown', (event) => { event.preventDefault(); event.stopPropagation(); });
+    back.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (!onReturnImage || onReturnImage(object) === false) return;
+      objects = objects.filter((item) => item !== object);
+      if (selected === object.id) selected = null;
+      render(); notify();
+    });
+    const resize = document.createElement('span');
+    resize.className = 'tali-overlay-resize';
+    resize.dataset.tip = 'שינוי גודל התמונה';
+    resize.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault(); event.stopPropagation();
+      if (!session) { session = true; mode = 'select'; }
+      select(object.id); boxDrag(object, event, 'resize', element);
+    });
+    element.append(img, back, resize);
+    return element;
+  }
+  function addImage(input) {
+    const [object] = cleanOverlayObjects([{ ...input, kind: 'image', id: makeId() }]);
+    if (!object) return null;
+    object.x = Math.round(limit(object.x, 0, Math.max(0, page.clientWidth - object.width)));
+    object.y = Math.round(Math.max(0, object.y));
+    objects.push(object);
+    session = true; mode = 'select';
+    render();
+    select(object.id);
+    notify();
+    return object.id;
   }
   function render() { drawShapes(); drawBoxes(); updateToolbar(); }
 
@@ -971,6 +1040,7 @@ export function createPageOverlay({ page, onChange }) {
       render();
     },
     setMode: (next) => setMode(next),
+    addImage,
     openDrawing,
     addComment,
   };

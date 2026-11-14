@@ -115,13 +115,40 @@ export function moveNodeTo(editor, from, to) {
     if (!node) return false;
     try {
       tr.delete(from, from + node.nodeSize);
-      const at = tr.mapping.map(to);
-      if (tr.doc.resolve(at).parent.inlineContent) tr.insert(at, node);
-      else tr.insert(at, state.schema.nodes.paragraph.create(null, node));
+      insertInline(tr, state.schema, tr.mapping.map(to), node);
     } catch { return false; } // מיקום שאי אפשר לשים בו תמונה (למשל בין תאי טבלה): התמונה נשארת במקומה
     if (dispatch) dispatch(tr.scrollIntoView());
     return true;
   });
+}
+
+// צומת inline במיקום: בתוך טקסט כמו שהוא, ובין גושים בפסקה חדשה משלו
+function insertInline(tr, schema, at, node) {
+  if (tr.doc.resolve(at).parent.inlineContent) tr.insert(at, node);
+  else tr.insert(at, schema.nodes.paragraph.create(null, node));
+}
+
+// 7.8: מחזיר תמונה חופשית (משכבת הדף) לתוך הטקסט, במקום הקרוב לנקודה (x, y) על המסך.
+// ref 'embed': ![[src|רוחב]]; ref 'md': ![alt](src) עם הרוחב. מחזיר false אם לא הצליח (התמונה נשארת חופשית).
+export function returnImageToText(editor, { ref, src, alt, width }, x, y) {
+  const { schema } = editor.state;
+  const w = Math.max(60, Math.min(1400, Math.round(width || 300)));
+  const node = ref === 'md'
+    ? schema.nodes.image?.create({ src, alt: alt || '', width: w })
+    : schema.nodes.embed?.create({ target: `${src}|${w}` });
+  if (!node) return false;
+  const hit = editor.view.posAtCoords({ left: x, top: y });
+  const at = hit ? hit.pos : editor.state.doc.content.size;
+  let ok = false;
+  editor.commands.command(({ tr, dispatch }) => {
+    try { insertInline(tr, schema, at, node); } catch {
+      try { insertInline(tr, schema, tr.doc.content.size, node); } catch { return false; }
+    }
+    if (dispatch) dispatch(tr);
+    ok = true;
+    return true;
+  });
+  return ok;
 }
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i;
@@ -175,6 +202,7 @@ export const Embed = Node.create({
       onOpen: () => {},     // (target) => void
       read: null,           // (path) => Promise<string> — תוכן הערה מוטמעת
       onEditDrawing: () => {}, // (path) => void — לחיצה כפולה על ציור
+      onFree: null,            // 7.8: ({ ref, src, width, rect, pos }) => void — "חופשי": מעביר לשכבת הדף
     };
   },
 
@@ -241,6 +269,12 @@ export const Embed = Node.create({
         control('↤', 'טקסט עוטף מצד ימין', () => { const a = parse(); change(a.width || img.offsetWidth || 300, 'wrap-left'); });
         control('↦', 'טקסט עוטף מצד שמאל', () => { const a = parse(); change(a.width || img.offsetWidth || 300, 'wrap-right'); });
         control('איפוס', 'גודל טבעי והסרת ציפת טקסט', () => change(null, 'none'));
+        if (this.options.onFree) control('חופשי', 'הזזה חופשית על הדף, כמו תיבת טקסט', () => {
+          const pos = typeof getPos === 'function' ? getPos() : null;
+          if (typeof pos !== 'number') return;
+          const rect = img.getBoundingClientRect();
+          this.options.onFree({ ref: 'embed', src: parse().name, width: rect.width, rect, pos });
+        });
         dom.append(img, tools);
         addResizeHandle(dom, img, (w) => change(w, parse().wrap));
         addMoveDrag(dom, img, editor, getPos);
@@ -307,7 +341,7 @@ export const Embed = Node.create({
 // attributes. This is valid Markdown HTML, not a file URL or renamed attachment.
 export const LocalImage = Image.extend({
   addOptions() {
-    return { ...this.parent?.(), inline: true, localSrc: () => [] };
+    return { ...this.parent?.(), inline: true, localSrc: () => [], onFree: null };
   },
   addAttributes() {
     return {
@@ -392,6 +426,13 @@ export const LocalImage = Image.extend({
       button('↤', 'טקסט עוטף מצד ימין', () => change(current.attrs.width || img.offsetWidth || 300, 'left'));
       button('↦', 'טקסט עוטף מצד שמאל', () => change(current.attrs.width || img.offsetWidth || 300, 'right'));
       button('איפוס', 'החזרת גודל טבעי ותחביר Markdown רגיל', () => change(null, 'none'));
+      const onFree = this.options.onFree;
+      if (onFree) button('חופשי', 'הזזה חופשית על הדף, כמו תיבת טקסט', () => {
+        const pos = typeof getPos === 'function' ? getPos() : null;
+        if (typeof pos !== 'number') return;
+        const rect = img.getBoundingClientRect();
+        onFree({ ref: 'md', src: current.attrs.src, alt: current.attrs.alt || '', width: rect.width, rect, pos });
+      });
       dom.append(img, tools);
       addResizeHandle(dom, img, (w) => change(w, current.attrs.wrap || 'none'));
       addMoveDrag(dom, img, editor, getPos);

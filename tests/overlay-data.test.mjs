@@ -97,3 +97,24 @@ test('one freehand entity preserves several separate strokes', () => {
   const restored = splitOverlay(joinOverlay('Note', [pen])).objects;
   assert.deepEqual(restored, [pen]);
 });
+
+test('free images (7.8) keep their source, size and kind, and reject unsafe sources', async () => {
+  const { cleanOverlayObjects } = await import('data:text/javascript;base64,' + source.toString('base64'));
+  const items = cleanOverlayObjects([
+    { id: 'a', kind: 'image', x: 40, y: 120, width: 320, height: 180, src: 'attachments/pic.png', ref: 'embed' },
+    { id: 'b', kind: 'image', x: 10, y: 10, width: 5, height: 99999, src: 'img/x.png', ref: 'md', alt: 'line1\nline2' },
+    { id: 'c', kind: 'image', x: 0, y: 0, src: '' },
+    { id: 'd', kind: 'image', x: 0, y: 0, src: 'a\nb.png' },
+    { id: 'e', kind: 'image', x: 0, y: 0, src: '<script>.png' },
+  ]);
+  assert.deepEqual(items.map((i) => i.id), ['a', 'b']);
+  assert.deepEqual(items[0], { id: 'a', kind: 'image', x: 40, y: 120, width: 320, height: 180, src: 'attachments/pic.png', ref: 'embed' });
+  assert.equal(items[1].width, 30);
+  assert.equal(items[1].height, 3000);
+  assert.equal(items[1].ref, 'md');
+  assert.equal(items[1].alt, 'line1 line2');
+  const text = 'שורה\n';
+  const back = splitOverlay(joinOverlay(text, items));
+  assert.equal(back.markdown, text);
+  assert.deepEqual(back.objects, items);
+});
