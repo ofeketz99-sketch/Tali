@@ -12,7 +12,7 @@
 //   perfect-freehand outline (stroke-smoothing.js). While drawing only the active stroke is redrawn.
 // - "Finish" (or Esc, or a click outside the page) ends the session and returns to writing.
 import { icon } from './icons.js';
-import { cleanOverlayObjects, groupedSelection } from './overlay-data.js';
+import { cleanOverlayObjects, groupedSelection, mergeShapes } from './overlay-data.js';
 import { freehandSvgPath, smoothSvgStroke, simplifyStroke } from './stroke-smoothing.js';
 import { dragShape, bboxOf, bboxOfMany, resizeBox, fitToBox, moveLineEnd } from './overlay-geometry.js';
 
@@ -31,7 +31,8 @@ const tools = [
   ['eraser', 'מחק', 'eraser', 'KeyE', 'E'],
 ];
 const HINTS = {
-  select: 'לחיצה על שרטוט בוחרת אותו · גרירה מזיזה · הידיות משנות גודל · Ctrl+D שכפול',
+  select: 'לחיצה בוחרת · Shift+לחיצה או גרירה על מקום ריק: בחירה מרובה · Ctrl+D שכפול · Ctrl+G מיזוג',
+  many: 'כמה נבחרו: גרירה מזיזה את כולם · Ctrl+G ממזג לישות אחת · Ctrl+D משכפל · Delete מוחק',
   pen: 'ציור חופשי. הקו מוחלק כשמרימים את העט',
   line: 'לחיצה ועוד לחיצה, או גרירה · Shift: זווית של 45°',
   arrow: 'לחיצה ועוד לחיצה, או גרירה · Shift: זווית של 45°',
@@ -71,8 +72,19 @@ const svgEl = (name, attrs = {}) => {
 const strokesOf = (object) => object.strokes || (object.points ? [object.points] : []);
 
 // resolveImage(object) -> list of URLs to try for a free image (7.8); onReturnImage(object) puts it back into the text.
-export function createPageOverlay({ page, onChange, resolveImage, onReturnImage }) {
-  let objects = [], mode = null, session = false, enabled = false, selected = null, drawing = null;
+// onTextClick(clientX, clientY): a plain click on the text in the select tool returns to writing at that point (8.3).
+export function createPageOverlay({ page, onChange, resolveImage, onReturnImage, onTextClick }) {
+  let objects = [], mode = null, session = false, enabled = false, drawing = null;
+  // 8.3: בחירה מרובה. selection מחזיק מזהים; selected (לתאימות לקוד הקיים) הוא הראשון שבהם, או null.
+  let selection = new Set();
+  let selected = null;
+  const setSelection = (ids) => {
+    selection = new Set((ids || []).filter(Boolean));
+    selected = selection.size ? [...selection][0] : null;
+  };
+  const isSelected = (id) => selection.has(id);
+  let marquee = null; // 8.3: מלבן בחירה בגרירה על מקום ריק
+  let clip = null; // 8.3: העתקה והדבקה של שרטוטים בתוך הדף (Ctrl+C / Ctrl+V בזמן סשן)
   let color = '#4b80bd', weight = 3, dash = false, fill = false;
   const lastToolKey = 'tali:last-page-drawing-tool';
   let lastTool = 'pen';
@@ -135,15 +147,22 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
     snapshot = from.pop();
     objects = JSON.parse(snapshot);
     sessionPen = null; drawing = null; typingUntil = 0;
-    if (selected && !objects.some((item) => item.id === selected)) selected = null;
+    setSelection([...selection].filter((id) => objects.some((item) => item.id === id)));
     render(); updateHistoryButtons(); onChange();
     return true;
   }
   const undo = () => restore(undoStack, redoStack);
   const redo = () => restore(redoStack, undoStack);
 
-  const selectedObjects = () => groupedSelection(objects, selected);
+  // כל הישויות שנבחרו, כולל שאר חברי הקבוצה של כל אחת
+  const selectedObjects = () => {
+    const out = new Set();
+    for (const id of selection) for (const o of groupedSelection(objects, id)) out.add(o);
+    return objects.filter((o) => out.has(o));
+  };
   const selectedShapes = () => selectedObjects().filter((o) => shapeKinds.includes(o.kind));
+  // מסגרת של ישות על הדף, לכל סוג (שרטוט, תיבה, תמונה)
+  const boundsOf = (o) => (shapeKinds.includes(o.kind) ? bboxOf(o) : { x: o.x, y: o.y, w: o.width || 0, h: o.height || 0 });
 
   // ===== הסרגל =====
   const group = (cls = '') => {
@@ -190,13 +209,17 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
     b.addEventListener('click', () => applyStyle({ color: c }));
     swatches.append(b);
   }
+  // 8.3: טבעת צבעונית עם הצבע הנוכחי באמצע; ה־input של הדפדפן שקוף מעליה (ראו styles.css)
+  const pickerWrap = document.createElement('label');
+  pickerWrap.className = 'tali-overlay-picker';
+  pickerWrap.dataset.tip = 'צבע אחר';
   const picker = document.createElement('input');
   picker.type = 'color';
   picker.value = color;
-  picker.dataset.tip = 'צבע אחר';
   picker.setAttribute('aria-label', 'צבע אחר');
   picker.addEventListener('input', () => applyStyle({ color: picker.value }));
-  swatches.append(picker);
+  pickerWrap.append(picker);
+  swatches.append(pickerWrap);
   styleGroup.append(swatches);
   const weightGroup = document.createElement('span');
   weightGroup.className = 'tali-overlay-weights';
@@ -212,8 +235,13 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
   const fillButton = addButton(styleGroup, { label: 'מילוי בהיר (מלבן ואליפסה)', iconName: 'fill', action: () => applyStyle({ fill: !fill }) });
 
   const editGroup = group();
-  const duplicateButton = addButton(editGroup, { label: 'שכפול (Ctrl+D)', iconName: 'copy', action: () => duplicateSelection() });
-  const deleteButton = addButton(editGroup, { label: 'מחיקה (Delete)', iconName: 'trash', action: () => deleteSelection() });
+  addButton(editGroup, { label: 'שכפול (Ctrl+D, או Alt+גרירה)', iconName: 'copy', action: () => duplicateSelection() });
+  // 8.3: כמה שרטוטים שנבחרו (Shift+לחיצה או גרירת מלבן בחירה) הופכים לישות אחת, ובחזרה
+  const mergeButton = addButton(editGroup, { label: 'מיזוג לישות אחת (Ctrl+G)', iconName: 'group', action: () => mergeSelection() });
+  const splitButton = addButton(editGroup, { label: 'פירוק המיזוג (Ctrl+Shift+G)', iconName: 'ungroup', action: () => ungroupSelection() });
+  addButton(editGroup, { label: 'הבאה לחזית', iconName: 'toFront', action: () => reorderSelection(1) });
+  addButton(editGroup, { label: 'שליחה לרקע', iconName: 'toBack', action: () => reorderSelection(-1) });
+  addButton(editGroup, { label: 'מחיקה (Delete)', iconName: 'trash', action: () => deleteSelection() });
 
   const historyGroup = group();
   undoButton = addButton(historyGroup, { label: 'ביטול (Ctrl+Z)', iconName: 'undo', action: undo });
@@ -269,11 +297,19 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
     dashButton.hidden = !has('line', 'arrow', 'rect', 'ellipse');
     fillButton.hidden = !has('rect', 'ellipse');
     swatches.querySelectorAll('.tali-overlay-swatch').forEach((b) => b.classList.toggle('on', b.dataset.color === color));
+    pickerWrap.style.setProperty('--picked', color);
+    pickerWrap.classList.toggle('on', !QUICK_COLORS.includes(color));
     weightGroup.querySelectorAll('button').forEach((b) => b.classList.toggle('on', Number(b.dataset.weight) === weight));
     dashButton.classList.toggle('on', dash);
     fillButton.classList.toggle('on', fill);
     editGroup.hidden = !sel.length;
-    hint.textContent = drawing?.phase === 'click' ? HINTS.pending : HINTS[mode || 'select'] || '';
+    const shapesSel = sel.filter((o) => shapeKinds.includes(o.kind));
+    const oneGroup = shapesSel.length > 1 && shapesSel.every((o) => o.group && o.group === shapesSel[0].group);
+    mergeButton.hidden = shapesSel.length < 2 || oneGroup;
+    splitButton.hidden = !shapesSel.some((o) => o.group);
+    const many = selectedObjects().length > 1 && !oneGroup;
+    hint.textContent = drawing?.phase === 'click' ? HINTS.pending
+      : many && (mode === 'select' || !mode) ? HINTS.many : HINTS[mode || 'select'] || '';
   }
 
   function applyStyle(change) {
@@ -307,32 +343,89 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
     if (['rect', 'ellipse'].includes(object.kind)) fill = object.fill === 'tint';
   }
 
-  function select(id) {
-    selected = id;
-    if (id) adoptStyle(objects.find((o) => o.id === id));
+  // add: Shift/Ctrl+לחיצה מוסיפה לבחירה או מוציאה ממנה (8.3)
+  function select(id, { add = false } = {}) {
+    if (add && id) {
+      const next = new Set(selection);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      setSelection([...next]);
+    } else setSelection(id ? [id] : []);
+    if (id && selection.has(id)) adoptStyle(objects.find((o) => o.id === id));
     drawShapes(); markBoxes(); updateToolbar();
   }
   function deleteSelection() {
-    if (!selected) return;
+    if (!selection.size) return;
     const ids = new Set(selectedObjects().map((item) => item.id));
     objects = objects.filter((item) => !ids.has(item.id));
-    selected = null; sessionPen = null;
+    setSelection([]); sessionPen = null;
     render(); notify();
+  }
+  // עותקים של רשימת ישויות: מזהים חדשים, וכל קבוצה מקבלת מזהה קבוצה חדש (כדי שהעותק לא יתחבר למקור)
+  function cloneAll(members, offset) {
+    const groups = new Map();
+    return members.map((m) => {
+      const copy = JSON.parse(JSON.stringify(m));
+      copy.id = makeId(); copy.x += offset; copy.y += offset;
+      if (copy.group) {
+        if (!groups.has(copy.group)) groups.set(copy.group, groupId());
+        copy.group = groups.get(copy.group);
+      }
+      return copy;
+    });
   }
   function duplicateSelection() {
     const members = selectedObjects();
     if (!members.length) return;
-    const g = members.some((m) => m.group) ? groupId() : null;
-    const copies = members.map((m) => {
-      const copy = JSON.parse(JSON.stringify(m));
-      copy.id = makeId(); copy.x += 16; copy.y += 16;
-      if (g) copy.group = g; else delete copy.group;
-      return copy;
-    });
+    const copies = cloneAll(members, 16);
     objects.push(...copies);
     sessionPen = null;
-    selected = copies[0].id;
+    setSelection(copies.map((c) => c.id));
     render(); notify();
+  }
+  // 8.3: מיזוג כמה שרטוטים לישות אחת (overlay-data.js, mergeShapes) ופירוק בחזרה
+  function mergeSelection() {
+    const ids = selectedShapes().map((o) => o.id);
+    if (ids.length < 2) return;
+    const keepOthers = selectedObjects().filter((o) => !shapeKinds.includes(o.kind)).map((o) => o.id);
+    objects = mergeShapes(objects, ids, groupId());
+    sessionPen = null;
+    const alive = ids.filter((id) => objects.some((o) => o.id === id));
+    setSelection([...alive, ...keepOthers]);
+    render(); notify();
+  }
+  function ungroupSelection() {
+    const members = selectedShapes().filter((o) => o.group);
+    if (!members.length) return;
+    for (const m of members) delete m.group;
+    sessionPen = null;
+    setSelection(selectedObjects().map((o) => o.id).concat(members.map((m) => m.id)));
+    render(); notify();
+  }
+  // סדר הציור: לחזית (1) או לרקע (-1). שרטוטים מצוירים לפי הסדר במערך.
+  function reorderSelection(direction) {
+    const members = selectedObjects();
+    if (!members.length) return;
+    const rest = objects.filter((o) => !members.includes(o));
+    objects = direction > 0 ? [...rest, ...members] : [...members, ...rest];
+    render(); notify();
+  }
+  function copySelection() {
+    const members = selectedObjects();
+    if (!members.length) return false;
+    clip = JSON.parse(JSON.stringify(members));
+    return true;
+  }
+  // הדבקה של מה שהועתק: קצת הצידה מהמקור, וכל הדבקה נוספת עוד קצת
+  let pasteCount = 0;
+  function pasteClip() {
+    if (!clip?.length) return false;
+    pasteCount += 1;
+    const copies = cloneAll(clip, 16 * pasteCount);
+    objects.push(...copies);
+    sessionPen = null;
+    setSelection(copies.map((c) => c.id));
+    render(); notify();
+    return true;
   }
   function nudge(dx, dy) {
     const members = selectedObjects();
@@ -341,7 +434,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
       m.x += dx; m.y += dy;
       if (m.kind === 'textbox') {
         m.x = limit(m.x, 0, Math.max(0, page.clientWidth - m.width));
-        m.y = limit(m.y, 0, Math.max(0, page.clientHeight - m.height));
+        m.y = Math.max(0, m.y);
       }
     }
     drawShapes(); drawBoxes(); notify({ typing: true });
@@ -357,15 +450,15 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
     }
     session = true;
     mode = next || 'select';
-    if (mode !== 'select') selected = null;
+    if (mode !== 'select') setSelection([]);
     drawShapes(); markBoxes(); updateToolbar();
     // הפוקוס עובר לסרגל (אחרי שהוא גלוי): אותיות הקיצור והחצים לא נכתבים לתוך המסמך בזמן ציור
     if (!toolbar.contains(document.activeElement) && !boxes.contains(document.activeElement)) toolbar.focus({ preventScroll: true });
   }
   function endSession() {
     if (drawing?.phase === 'click') cancelPending();
-    drawing = null; sessionPen = null;
-    mode = null; session = false; selected = null;
+    drawing = null; sessionPen = null; marquee = null;
+    mode = null; session = false; setSelection([]);
     drawShapes(); markBoxes(); updateToolbar();
   }
   function openDrawing() {
@@ -498,17 +591,51 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
       if (!enabled || (mode && mode !== 'select') || event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
-      if (!session) { session = true; mode = 'select'; }
-      select(object.id);
+      grabObject(object, event);
       toolbar.focus({ preventScroll: true });
-      moveDrag(object, event);
     });
     return g;
   }
+  // 8.3: לחיצה על ישות (שרטוט, תיבה או תמונה). Shift/Ctrl: הוספה לבחירה או הוצאה ממנה.
+  // ישות שכבר בתוך בחירה מרובה: הגרירה מזיזה את כל הבחירה. Alt+גרירה: גוררים עותק (המקור נשאר).
+  function grabObject(object, event, { drag = true } = {}) {
+    if (!session) { session = true; mode = 'select'; }
+    if (event.shiftKey || event.ctrlKey || event.metaKey) { select(object.id, { add: true }); return; }
+    const inside = selectedObjects().some((o) => o.id === object.id);
+    if (!inside) select(object.id);
+    if (!drag) return;
+    if (event.altKey) {
+      const copies = cloneAll(selectedObjects(), 0);
+      objects.push(...copies);
+      sessionPen = null;
+      setSelection(copies.map((c) => c.id));
+      render();
+    }
+    moveDrag(event);
+  }
   function drawHandles() {
     handles.replaceChildren();
-    if (!selected || drawing || (mode && mode !== 'select')) return;
-    const members = selectedShapes();
+    if (marquee) {
+      const m = svgEl('rect', { x: r1(Math.min(marquee.x1, marquee.x2)), y: r1(Math.min(marquee.y1, marquee.y2)),
+        width: r1(Math.abs(marquee.x2 - marquee.x1)), height: r1(Math.abs(marquee.y2 - marquee.y1)) });
+      m.classList.add('tali-overlay-marquee');
+      handles.append(m);
+      return;
+    }
+    if (!selection.size || drawing || (mode && mode !== 'select')) return;
+    const all = selectedObjects();
+    const members = all.filter((o) => shapeKinds.includes(o.kind));
+    // 8.3: בחירה מרובה שכוללת תיבות או תמונות: מסגרת סביב הכול, בלי ידיות (הזזה בגרירה של כל אחת מהן)
+    if (all.length > members.length) {
+      if (all.length < 2) return;
+      const boxesOf = all.map(boundsOf);
+      const x1 = Math.min(...boxesOf.map((b) => b.x)), y1 = Math.min(...boxesOf.map((b) => b.y));
+      const x2 = Math.max(...boxesOf.map((b) => b.x + b.w)), y2 = Math.max(...boxesOf.map((b) => b.y + b.h));
+      const frame = svgEl('rect', { x: r1(x1 - 6), y: r1(y1 - 6), width: r1(x2 - x1 + 12), height: r1(y2 - y1 + 12), rx: 3 });
+      frame.classList.add('tali-overlay-frame');
+      handles.append(frame);
+      return;
+    }
     if (!members.length) return;
     const handle = (name, x, y, round) => {
       const h = round
@@ -582,7 +709,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
 
   function markBoxes() {
     for (const element of boxes.children) {
-      element.classList.toggle('selected', element.dataset.id === selected);
+      element.classList.toggle('selected', isSelected(element.dataset.id));
     }
   }
   function placeBox(object, element) {
@@ -591,27 +718,53 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
     element.style.width = object.width + 'px';
     element.style.height = object.height + 'px';
   }
-  // הזזה: שרטוט (או קבוצת עט) בגרירה. הצורה זזה ב־transform בלבד, בלי ציור מחדש.
-  function moveDrag(object, event) {
-    const members = groupedSelection(objects, object.id);
+  // הזזה: כל מה שנבחר (שרטוטים, תיבות, תמונות) בגרירה. שרטוט זז ב־transform בלבד, בלי ציור מחדש.
+  // 8.3: תיבות ותמונות נתחמות לרוחב הדף, ולמעלה (y >= 0); למטה הדף מתארך לבד.
+  function moveDrag(event) {
+    const members = selectedObjects();
+    if (!members.length) return;
     const origins = members.map((item) => ({ item, x: item.x, y: item.y }));
     const start = { x: event.clientX, y: event.clientY };
     const move = (e) => {
       if (e.pointerId !== event.pointerId) return;
-      const dx = e.clientX - start.x, dy = e.clientY - start.y;
+      let dx = e.clientX - start.x, dy = e.clientY - start.y;
+      // הבחירה כולה זזה יחד: התחימה של תיבה אחת עוצרת את כולן, כדי שהמרחקים ביניהן לא ישתנו
+      for (const p of origins) {
+        if (p.item.kind === 'comment') dy = Math.max(dy, -p.y);
+        if (p.item.kind === 'textbox' || p.item.kind === 'image') {
+          dx = limit(dx, -p.x, Math.max(-p.x, page.clientWidth - p.item.width - p.x));
+          dy = Math.max(dy, -p.y);
+        }
+      }
       for (const p of origins) {
         p.item.x = Math.round(p.x + dx); p.item.y = Math.round(p.y + dy);
-        shapes.querySelector(`.tali-overlay-shape[data-id="${CSS.escape(p.item.id)}"]`)
-          ?.setAttribute('transform', 'translate(' + p.item.x + ' ' + p.item.y + ')');
+        if (shapeKinds.includes(p.item.kind)) {
+          shapes.querySelector(`.tali-overlay-shape[data-id="${CSS.escape(p.item.id)}"]`)
+            ?.setAttribute('transform', 'translate(' + p.item.x + ' ' + p.item.y + ')');
+        } else {
+          const el = boxes.querySelector(`[data-id="${CSS.escape(p.item.id)}"]`);
+          if (el) placeBox(p.item, el);
+          if (p.item.kind === 'comment') p.item.side = p.item.x + p.item.width / 2 < page.clientWidth / 2 ? 'start' : 'end';
+        }
       }
-      drawHandles();
+      if (members.some((m) => m.kind === 'comment')) drawShapes(); else drawHandles();
+      const bottom = Math.max(...members.map((m) => boundsOf(m).y + boundsOf(m).h));
+      if (bottom + 300 > page.offsetHeight) { liveBottom = bottom; fitPage(); }
     };
     const stop = (e) => {
       if (e.pointerId !== event.pointerId) return;
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', stop);
       window.removeEventListener('pointercancel', stop);
+      liveBottom = 0;
       if (origins.some((p) => p.item.x !== p.x || p.item.y !== p.y)) { sessionPen = null; notify(); }
+      else if (event.altKey) {
+        // Alt+לחיצה בלי גרירה: לא משאירים עותק מיותר על המקור
+        const ids = new Set(members.map((m) => m.id));
+        objects = objects.filter((o) => !ids.has(o.id));
+        setSelection([]);
+        render();
+      } else fitPage();
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', stop);
@@ -632,7 +785,10 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
       if (name === 'start' || name === 'end') {
         Object.assign(members[0], moveLineEnd(origs[0], name, mx, my, { shift: e.shiftKey }));
       } else {
-        const box = resizeBox(from, name, mx, my, { keepRatio: e.shiftKey });
+        // 8.3: ציור ביד חופשית, קבוצה או כמה שרטוטים שומרים על הפרופורציה כברירת מחדל (Shift: שינוי חופשי).
+        // מלבן ואליפסה בודדים: חופשי כברירת מחדל (Shift: שומר יחס), כמו קודם.
+        const ratioByDefault = members.length > 1 || members.some((m) => m.kind === 'pen');
+        const box = resizeBox(from, name, mx, my, { keepRatio: ratioByDefault ? !e.shiftKey : e.shiftKey });
         members.forEach((m, i) => {
           const next = fitToBox(origs[i], from, box, box);
           if (next.strokes) delete m.points;
@@ -652,42 +808,58 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
     window.addEventListener('pointerup', stop);
     window.addEventListener('pointercancel', stop);
   }
-  // תיבות טקסט והערות שוליים: גרירת הכותרת ושינוי גודל בפינה
-  function boxDrag(object, event, operation, element) {
+  // תיבות טקסט, הערות שוליים ותמונות: שינוי גודל בידיות. 8.3: שמונה ידיות (ארבע פינות וארבע צלעות),
+  // כך שאפשר להגדיל או להקטין לכל כיוון; הצלע או הפינה שמול הידית נשארת במקומה.
+  // תמונה: תמיד לפי היחס המקורי (בלי עיוות). תיבת טקסט: נשארת בתוך רוחב הדף.
+  const BOX_MIN = { image: [30, 20], textbox: [110, 60], comment: [110, 60] };
+  const BOX_MAX = { image: [2000, 3000], textbox: [2000, 600], comment: [900, 600] };
+  function boxDrag(object, event, dir, element) {
     const start = { x: event.clientX, y: event.clientY, left: object.x, top: object.y, width: object.width, height: object.height };
+    const [minW, minH] = BOX_MIN[object.kind] || [30, 20];
+    const [maxW0, maxH] = BOX_MAX[object.kind] || [2000, 3000];
+    const ratio = start.width / Math.max(1, start.height);
+    const right = start.left + start.width, bottom = start.top + start.height;
     const move = (e) => {
       if (e.pointerId !== event.pointerId) return;
       const dx = e.clientX - start.x, dy = e.clientY - start.y;
-      if (operation === 'resize' && object.kind === 'image') {
-        // תמונה חופשית: רק הרוחב נגרר, והגובה לפי היחס המקורי (בלי עיוות)
-        object.width = Math.round(limit(start.width + dx, 30, Math.max(30, page.clientWidth - object.x)));
-        object.height = Math.max(20, Math.round(object.width * start.height / Math.max(1, start.width)));
-      } else if (operation === 'resize') {
-        const maxWidth = object.kind === 'textbox' ? Math.max(110, page.clientWidth - object.x) : 900;
-        const maxHeight = Math.max(60, page.clientHeight - object.y);
-        object.width = limit(start.width + dx, 110, maxWidth);
-        object.height = limit(start.height + dy, 60, Math.min(600, maxHeight));
+      const west = dir.includes('w'), east = dir.includes('e'), north = dir.includes('n'), south = dir.includes('s');
+      // הגבול האופקי: תיבת טקסט ותמונה לא יוצאות מהדף
+      const inPage = object.kind !== 'comment';
+      const maxW = inPage ? Math.min(maxW0, west ? right : page.clientWidth - start.left) : maxW0;
+      let w = start.width + (east ? dx : west ? -dx : 0);
+      let h = start.height + (south ? dy : north ? -dy : 0);
+      if (object.kind === 'image') {
+        // פינה: לפי הכיוון שזז יותר; צלע: הצלע קובעת והשנייה לפי היחס
+        if ((east || west) && (north || south)) {
+          if (Math.abs(w - start.width) >= Math.abs(h - start.height) * ratio) h = w / ratio; else w = h * ratio;
+        } else if (east || west) h = w / ratio;
+        else w = h * ratio;
+        const scale = Math.min(1, maxW / Math.max(1, w), maxH / Math.max(1, h));
+        w *= scale; h *= scale;
+        const grow = Math.max(minW / Math.max(1, w), minH / Math.max(1, h), 1);
+        w *= grow; h *= grow;
       } else {
-        let nextX = Math.round(start.left + dx), nextY = Math.round(start.top + dy);
-        if (object.kind === 'textbox' || object.kind === 'image') {
-          nextX = limit(nextX, 0, Math.max(0, page.clientWidth - object.width));
-          nextY = limit(nextY, 0, Math.max(0, page.clientHeight - object.height));
-        } else {
-          nextX = limit(nextX, -object.width - 280, page.clientWidth + 280);
-          nextY = limit(nextY, 0, Math.max(0, page.clientHeight - object.height));
-          object.side = nextX + object.width / 2 < page.clientWidth / 2 ? 'start' : 'end';
-        }
-        object.x = nextX; object.y = nextY;
-        if (object.kind === 'comment') drawShapes();
+        w = limit(w, minW, Math.max(minW, maxW));
+        h = limit(h, minH, maxH);
       }
+      w = Math.round(w); h = Math.round(h);
+      object.width = w; object.height = h;
+      object.x = west ? right - w : start.left;
+      // צלע עליונה או תחתונה בתמונה: הרוחב (לפי היחס) משתנה סביב המרכז
+      if (object.kind === 'image' && !(east || west)) object.x = Math.round(start.left + (start.width - w) / 2);
+      object.y = north ? Math.max(0, bottom - h) : start.top;
+      if (inPage) object.x = Math.round(limit(object.x, 0, Math.max(0, page.clientWidth - object.width)));
       placeBox(object, element);
+      if (object.kind === 'comment') drawShapes();
+      if (object.y + h + 300 > page.offsetHeight) { liveBottom = object.y + h; fitPage(); }
     };
     const stop = (e) => {
       if (e.pointerId !== event.pointerId) return;
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', stop);
       window.removeEventListener('pointercancel', stop);
-      if (object.x !== start.left || object.y !== start.top || object.width !== start.width || object.height !== start.height) notify();
+      liveBottom = 0;
+      if (object.x !== start.left || object.y !== start.top || object.width !== start.width || object.height !== start.height) notify(); else fitPage();
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', stop);
@@ -697,12 +869,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
     boxes.replaceChildren();
     for (const object of objects.filter((item) => item.kind === 'image')) boxes.append(freeImageElement(object));
     for (const object of objects.filter((item) => item.kind === 'textbox' || item.kind === 'comment')) {
-      if (object.kind === 'textbox') {
-        object.width = Math.min(object.width, Math.max(110, page.clientWidth));
-        object.height = Math.min(object.height, Math.max(60, page.clientHeight));
-        object.x = limit(object.x, 0, Math.max(0, page.clientWidth - object.width));
-        object.y = limit(object.y, 0, Math.max(0, page.clientHeight - object.height));
-      }
+      // 8.3: בציור לא משנים את המיקום השמור. עד 8.2 התיבה "נתחמה" כאן לגובה הדף, אבל בפתיחת מסמך
+      // הדף עוד לא התארך לפי השרטוטים, ולכן תיבות נמוכות קפצו למעלה (ונשמרו כך) בכל פתיחה ויציאה.
       const element = document.createElement('div');
       element.className = 'tali-overlay-box' + (object.kind === 'comment' ? ' tali-margin-comment' : ' tali-text-box');
       element.dataset.id = object.id;
@@ -726,10 +894,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
         if (event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
-        if (!session) { session = true; mode = 'select'; }
-        select(object.id);
+        grabObject(object, event);
         head.focus({ preventScroll: true });
-        boxDrag(object, event, 'move', element);
       });
       const field = document.createElement('textarea');
       field.className = 'tali-overlay-text';
@@ -741,23 +907,34 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
       field.placeholder = object.kind === 'comment' ? 'הערה לציטוט…' : 'כתוב כאן…';
       field.value = object.text;
       setDir();
-      field.addEventListener('focus', () => { if (selected !== object.id) select(object.id); });
+      field.addEventListener('focus', () => { if (!(selection.size === 1 && isSelected(object.id))) select(object.id); });
       field.addEventListener('input', () => {
         setDir();
         object.text = field.value.slice(0, 20000); notify({ typing: true });
       });
-      const resize = document.createElement('span');
-      resize.className = 'tali-overlay-resize';
-      resize.dataset.tip = 'שינוי גודל התיבה';
-      resize.addEventListener('pointerdown', (event) => {
-        if (event.button !== 0) return;
-        event.preventDefault(); event.stopPropagation();
-        select(object.id); boxDrag(object, event, 'resize', element);
-      });
-      element.append(head, field, resize);
+      element.append(head, field);
+      addResizeHandles(object, element, 'שינוי גודל התיבה');
       boxes.append(element);
     }
     markBoxes();
+  }
+  // 8.3: שמונה ידיות לשינוי גודל: ארבע פינות וארבע צלעות (במקום ידית אחת בפינה הימנית התחתונה)
+  const BOX_HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+  function addResizeHandles(object, element, tip) {
+    for (const dir of BOX_HANDLES) {
+      const handle = document.createElement('span');
+      handle.className = 'tali-overlay-resize';
+      handle.dataset.dir = dir;
+      if (dir === 'se') handle.dataset.tip = tip;
+      handle.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault(); event.stopPropagation();
+        if (!session) { session = true; mode = 'select'; }
+        select(object.id);
+        boxDrag(object, event, dir, element);
+      });
+      element.append(handle);
+    }
   }
   // 7.8: תמונה חופשית על הדף, כמו תיבת טקסט: גרירה של התמונה עצמה מזיזה, ידית עגולה בפינה משנה גודל
   // (שומר יחס), "החזרה לטקסט" מחזירה אותה לטקסט, Delete מוחק אותה מהדף (הקובץ עצמו נשאר בכספת).
@@ -782,9 +959,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
       if (event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
-      if (!session) { session = true; mode = 'select'; }
-      select(object.id);
-      boxDrag(object, event, 'move', element);
+      grabObject(object, event);
+      toolbar.focus({ preventScroll: true });
     });
     const back = document.createElement('button');
     back.type = 'button';
@@ -795,19 +971,11 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
       event.stopPropagation();
       if (!onReturnImage || onReturnImage(object) === false) return;
       objects = objects.filter((item) => item !== object);
-      if (selected === object.id) selected = null;
+      setSelection([...selection].filter((id) => id !== object.id));
       render(); notify();
     });
-    const resize = document.createElement('span');
-    resize.className = 'tali-overlay-resize';
-    resize.dataset.tip = 'שינוי גודל התמונה';
-    resize.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
-      event.preventDefault(); event.stopPropagation();
-      if (!session) { session = true; mode = 'select'; }
-      select(object.id); boxDrag(object, event, 'resize', element);
-    });
-    element.append(img, back, resize);
+    element.append(img, back);
+    addResizeHandles(object, element, 'שינוי גודל התמונה (שומר על היחס)');
     return element;
   }
   // 8.0: כל השרטוטים (עט, קו, חץ, מלבן, אליפסה) כ־SVG עצמאי, להמרה לתמונה רגילה (המרה ל־Markdown רגיל).
@@ -967,7 +1135,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
     drawing = null;
     session = true;
     mode = 'select';
-    selected = object.id;
+    setSelection([object.id]);
     drawShapes(); markBoxes(); updateToolbar();
     notify();
     toolbar.focus({ preventScroll: true });
@@ -1017,11 +1185,14 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
   window.addEventListener('pointerdown', (event) => {
     if (!enabled || !session) return;
     if (toolbar.contains(event.target) || document.querySelector('dialog[open]')) return;
-    if (page.contains(event.target)) {
-      // כלי הבחירה: לחיצה על הטקסט (ולא על שרטוט, ידית או תיבה) חוזרת לכתיבה
-      if (mode === 'select' && !event.target.closest?.('.tali-overlay-shape, .tali-overlay-handles, .tali-overlay-box')) endSession();
+    const onItem = event.target.closest?.('.tali-overlay-shape, .tali-overlay-handles, .tali-overlay-box');
+    // 8.3: כלי הבחירה, על מקום ריק (בדף או סביבו): גרירה מציירת מלבן בחירה. לחיצה בלי גרירה על הטקסט
+    // חוזרת לכתיבה באותה נקודה (כמו קודם), ומחוץ לדף מסיימת את הסשן.
+    if (mode === 'select' && !onItem && event.button === 0 && page.closest('#pageWrap')?.contains(event.target)) {
+      startMarquee(event, page.contains(event.target));
       return;
     }
+    if (page.contains(event.target)) return;
     // Starting in the surrounding workspace is valid: coordinates may begin outside the paper,
     // and the stroke can enter it naturally instead of the tool being cancelled.
     if (drawTools.includes(mode) && page.closest('#pageWrap')?.contains(event.target)) {
@@ -1032,13 +1203,59 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
     endSession();
   }, true);
 
+  // מלבן בחירה (8.3). preventDefault על pointerdown מונע את ה־mousedown של העורך, ולכן לא נבחר טקסט בזמן הגרירה.
+  function startMarquee(event, onPage) {
+    event.preventDefault();
+    const add = event.shiftKey || event.ctrlKey || event.metaKey;
+    const before = add ? [...selection] : [];
+    const p0 = point(event);
+    const down = { x: event.clientX, y: event.clientY };
+    let active = false;
+    const move = (e) => {
+      if (e.pointerId !== event.pointerId) return;
+      if (!active && Math.hypot(e.clientX - down.x, e.clientY - down.y) < CLICK_SLOP) return;
+      active = true;
+      const p = point(e);
+      marquee = { x1: p0.x, y1: p0.y, x2: p.x, y2: p.y };
+      const x1 = Math.min(p0.x, p.x), x2 = Math.max(p0.x, p.x), y1 = Math.min(p0.y, p.y), y2 = Math.max(p0.y, p.y);
+      const hits = objects.filter((o) => {
+        const b = boundsOf(o);
+        return b.x <= x2 && b.x + b.w >= x1 && b.y <= y2 && b.y + b.h >= y1;
+      }).map((o) => o.id);
+      setSelection([...new Set([...before, ...hits])]);
+      drawHandles(); markBoxes(); updateToolbar();
+    };
+    const up = (e) => {
+      if (e.pointerId !== event.pointerId) return;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      marquee = null;
+      if (active) {
+        const first = selectedObjects()[0];
+        if (first) adoptStyle(first);
+        drawShapes(); markBoxes(); updateToolbar();
+        toolbar.focus({ preventScroll: true });
+        return;
+      }
+      if (add) return;
+      endSession();
+      if (onPage && e.type === 'pointerup') onTextClick?.(e.clientX, e.clientY);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+
   window.addEventListener('keydown', (event) => {
     if (!enabled || !session) return;
     // בתיבת טקסט על הדף ובשדות של הסרגל המקלדת שייכת לשדה. העורך עצמו לא נחשב: בזמן סשן ציור
     // הוא רק "מחזיק" פוקוס ישן, ומקש שיגיע אליו ימחק או יכתוב טקסט מתחת לשרטוט.
     const inText = event.target.closest?.('textarea, input:not([type="color"])');
     const ctrl = event.ctrlKey || event.metaKey;
-    const stop = () => { event.preventDefault(); event.stopPropagation(); };
+    // 8.3: stopImmediatePropagation: קיצורי האפליקציה (renderer.js) מאזינים על אותו window, ו־stopPropagation לבד
+    // לא עוצר אותם (כך Ctrl+G בסשן פתח את גרף הקישורים במקום למזג)
+    const stop = () => { event.preventDefault(); event.stopImmediatePropagation(); };
     if (event.key === 'Escape') {
       if (drawing?.phase === 'click') cancelPending();
       else endSession();
@@ -1052,15 +1269,25 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
       const isRedo = event.code === 'KeyY' || (event.code === 'KeyZ' && event.shiftKey);
       if (isUndo || isRedo) { (isUndo ? undo : redo)(); stop(); return; }
       if (event.code === 'KeyD') { duplicateSelection(); stop(); return; }
-      // עריכה בעורך שמתחת (גזירה, הדבקה, עיצוב) לא קורית בזמן ציור
-      if (['KeyX', 'KeyV', 'KeyB', 'KeyI', 'KeyU', 'KeyA'].includes(event.code)) stop();
+      // 8.3: מיזוג ופירוק, בחירת הכול, העתקה וגזירה של שרטוטים
+      if (event.code === 'KeyG') { (event.shiftKey ? ungroupSelection : mergeSelection)(); stop(); return; }
+      if (event.code === 'KeyA') {
+        mode = 'select'; setSelection(objects.map((o) => o.id));
+        drawShapes(); markBoxes(); updateToolbar(); stop(); return;
+      }
+      if (event.code === 'KeyC') { if (copySelection()) { pasteCount = 0; stop(); } return; }
+      if (event.code === 'KeyX') { if (copySelection()) { pasteCount = 0; deleteSelection(); } stop(); return; }
+      // Ctrl+V לא נעצר כאן: אירוע paste מגיע ל־renderer.js, שמדביק תמונה מהלוח או את השרטוטים שהועתקו (pasteClip)
+      if (event.code === 'KeyV') return;
+      // עריכה בעורך שמתחת (עיצוב) לא קורית בזמן ציור
+      if (['KeyB', 'KeyI', 'KeyU'].includes(event.code)) stop();
       return;
     }
     if (event.altKey) return;
-    if ((event.key === 'Delete' || event.key === 'Backspace') && selected) { deleteSelection(); stop(); return; }
-    if (event.key === 'Enter' && !selected) { endSession(); stop(); return; }
+    if ((event.key === 'Delete' || event.key === 'Backspace') && selection.size) { deleteSelection(); stop(); return; }
+    if (event.key === 'Enter' && !selection.size) { endSession(); stop(); return; }
     const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
-    if (arrows[event.key] && selected) {
+    if (arrows[event.key] && selection.size) {
       const step = event.shiftKey ? 10 : 1;
       nudge(arrows[event.key][0] * step, arrows[event.key][1] * step); stop(); return;
     }
@@ -1074,16 +1301,32 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage 
     getItems: () => cleanOverlayObjects(objects),
     setItems: (items) => {
       objects = cleanOverlayObjects(items);
-      selected = null; mode = null; session = false; drawing = null; sessionPen = null; render();
+      setSelection([]); mode = null; session = false; drawing = null; sessionPen = null; marquee = null; render();
       resetHistory();
     },
     setEnabled: (value) => {
       enabled = !!value;
       root.hidden = !enabled;
-      if (!enabled) { mode = null; session = false; selected = null; drawing = null; sessionPen = null; }
+      if (!enabled) { mode = null; session = false; setSelection([]); drawing = null; sessionPen = null; marquee = null; }
       render();
     },
     setMode: (next) => setMode(next),
+    inSession: () => enabled && session,
+    pasteClip,
+    // 8.3: תמונה מודבקת מוצגת מיד; כשהשמירה לקובץ מסתיימת, המקור מתעדכן לשם הסופי
+    updateImage: (id, change) => {
+      const object = objects.find((o) => o.id === id && o.kind === 'image');
+      if (!object) return false;
+      Object.assign(object, change);
+      drawBoxes(); notify();
+      return true;
+    },
+    removeItem: (id) => {
+      if (!objects.some((o) => o.id === id)) return;
+      objects = objects.filter((o) => o.id !== id);
+      setSelection([...selection].filter((x) => x !== id));
+      render(); notify();
+    },
     addImage,
     addNote,
     exportShapes,

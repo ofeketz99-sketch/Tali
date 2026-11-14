@@ -2,6 +2,7 @@
 // An unrecognized or invalid comment is NEVER removed (to avoid losing user data).
 const TRAILER = /(?:\r?\n){2}<!-- TALI-OVERLAY:v1:([^\r\n]*?) -->[ \t]*(?:\r?\n)?$/;
 const TYPES = new Set(['pen', 'line', 'arrow', 'rect', 'ellipse', 'textbox', 'comment', 'image']);
+const SHAPES = new Set(['pen', 'line', 'arrow', 'rect', 'ellipse']);
 // 7.8: free image. ref 'embed' = src is the ![[...]] target (name or path in the vault); ref 'md' = src is the ![](...) path.
 const cleanSrc = (v) => {
   const s = String(v || '').trim();
@@ -25,7 +26,8 @@ export function cleanOverlayObjects(input) {
       y: bounded(object.y, 50, -10000, 100000),
       color: /^#[0-9a-f]{6}$/i.test(object.color || '') ? object.color : '#4b80bd',
       weight: bounded(object.weight, 2.4, 1, 20),
-      ...(object.kind === 'pen' && /^[a-z0-9_-]{1,80}$/i.test(object.group || '') ? { group: object.group } : {}),
+      // 8.3: any drawn shape (not only pens) can belong to a group: "merge into one" in the drawing toolbar
+      ...(SHAPES.has(object.kind) && /^[a-z0-9_-]{1,80}$/i.test(object.group || '') ? { group: object.group } : {}),
       // 6.9: a dashed outline for lines and shapes, and a light fill for rectangles and ellipses (optional fields)
       ...(object.dash === true && ['line', 'arrow', 'rect', 'ellipse'].includes(object.kind) ? { dash: true } : {}),
       ...(object.fill === 'tint' && ['rect', 'ellipse'].includes(object.kind) ? { fill: 'tint' } : {}),
@@ -106,11 +108,45 @@ export function joinOverlay(markdown, objects) {
 }
 
 // Selection is session-aware: legacy ungrouped strokes remain independently editable.
-// Text boxes are intentionally never grouped with strokes.
+// Text boxes are intentionally never grouped with strokes. Since 8.3 every drawn shape can be grouped.
 export function groupedSelection(items, selectedId) {
   if (!Array.isArray(items)) return [];
   const chosen = items.find(item => item.id === selectedId);
   if (!chosen) return [];
-  if (!chosen.group || chosen.kind !== 'pen') return [chosen];
-  return items.filter(item => item.kind === 'pen' && item.group === chosen.group);
+  if (!chosen.group || !SHAPES.has(chosen.kind)) return [chosen];
+  return items.filter(item => SHAPES.has(item.kind) && item.group === chosen.group);
+}
+
+// 8.3: several selected shapes become one entity. Pens with the same colour and weight are joined into
+// a single pen (their strokes, moved to one origin) while they fit the pen limits; everything else
+// shares one group id, so it is selected, moved, resized and deleted together. Returns a new list.
+export function mergeShapes(items, ids, newGroup) {
+  const chosen = items.filter((o) => ids.includes(o.id) && SHAPES.has(o.kind));
+  if (chosen.length < 2) return items;
+  const pens = chosen.filter((o) => o.kind === 'pen');
+  let keep = items;
+  let joined = null;
+  const same = pens.length > 1 && pens.every((p) => p.color === pens[0].color && p.weight === pens[0].weight);
+  const strokesOf = (o) => o.strokes || (o.points ? [o.points] : []);
+  if (same) {
+    const total = pens.reduce((n, p) => n + strokesOf(p).reduce((m, s) => m + s.length, 0), 0);
+    const count = pens.reduce((n, p) => n + strokesOf(p).length, 0);
+    if (total <= 2500 && count <= 200) {
+      const base = pens[0];
+      joined = { ...base, strokes: [] };
+      delete joined.points;
+      for (const p of pens) {
+        const ox = p.x - base.x, oy = p.y - base.y;
+        for (const s of strokesOf(p)) joined.strokes.push(s.map(([x, y]) => [Math.round((x + ox) * 10) / 10, Math.round((y + oy) * 10) / 10]));
+      }
+      const gone = new Set(pens.slice(1).map((p) => p.id));
+      keep = items.filter((o) => !gone.has(o.id)).map((o) => (o.id === base.id ? joined : o));
+    }
+  }
+  const members = keep.filter((o) => ids.includes(o.id) && SHAPES.has(o.kind));
+  if (members.length < 2) {
+    // only one entity is left (all were pens that joined): it no longer needs a group
+    return keep.map((o) => (members[0] && o.id === members[0].id ? (({ group, ...rest }) => rest)(o) : o));
+  }
+  return keep.map((o) => (members.includes(o) ? { ...o, group: newGroup } : o));
 }

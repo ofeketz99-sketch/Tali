@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld('api', {
   setPrefs: call('set-prefs'),
   importImages: call('import-images'),
   saveAttachment: call('save-attachment'),
+  fetchImage: call('fetch-image'),
+  clipboardImage: call('clipboard-image'),
   reveal: call('reveal'),
   duplicate: call('duplicate'),
   copyTable: call('copy-table'),

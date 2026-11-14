@@ -10,6 +10,7 @@ import { resolveLink, extractLinks, getFrontmatterLinks, setFrontmatterLinks } f
 import { openLinkPicker } from './linkpicker.js';
 import { showLinkHubOffer } from './linkhub.js';
 import { fileUrl, bumpImage, returnImageToText } from './embed.js';
+import { imageFilesFrom, lonelyImageSrc, fileFromDataUrl } from './paste-images.js';
 import { convertToPlainMarkdown } from './plain-md.js';
 import { normalizeToolbarLayout } from './toolbar-layout.js';
 import { openPaint } from './paint.js';
@@ -205,7 +206,7 @@ const editorApi = createEditor({
 });
 onPrefsChange(() => editorApi.refreshPreferences());
 // 8.2: סדר והסתרה של קבוצות בסרגל הכלים (הגדרות ← סרגל הכלים)
-const applyToolbarLayout = () => { const p = getPrefs(); toolbarApi.applyLayout(normalizeToolbarLayout(p.toolbarOrder, p.toolbarHidden)); };
+const applyToolbarLayout = () => { const p = getPrefs(); toolbarApi.applyLayout(normalizeToolbarLayout(p.toolbarOrder, p.toolbarHidden, p.toolbarShown)); };
 onPrefsChange(applyToolbarLayout);
 const hoverPreview = setupHoverPreview({
   resolve: resolveTarget, read: (p) => window.api.read(p), fileUrl, onOpen: openLink, isNote,
@@ -305,13 +306,25 @@ async function goHome({ history = true } = {}) {
   showEmpty();
   updateNavButtons();
 }
+// 8.3: תצוגה מיידית של תמונה מודבקת, עוד לפני שנשמרה לקובץ: src בשכבה ← כתובת blob: של התוכן שבזיכרון
+const previewUrls = new Map();
 const pageOverlay = createPageOverlay({
   page: $('page'), onChange: noteChanged,
   // 7.8: תמונה חופשית. ![[...]] נפתרת כמו בעורך; ![](נתיב) יחסית להערה ואז לתיקייה הראשית
   resolveImage: (o) => {
     if (o.ref === 'md') return localSrc(o.src);
     const p = resolveTarget(o.src);
-    return p ? [fileUrl(p)] : [];
+    // 8.3: תמונה שהודבקה עכשיו: קודם מהזיכרון (מיידי, גם לפני שהקובץ נשמר), ואז מהקובץ
+    const pre = previewUrls.get(o.src);
+    return [pre, p && fileUrl(p)].filter(Boolean);
+  },
+  // 8.3: לחיצה על הטקסט בכלי הבחירה מחזירה לכתיבה בדיוק בנקודה שנלחצה
+  onTextClick: (x, y) => {
+    const view = editorApi.editor.view;
+    const hit = view.posAtCoords({ left: x, top: y });
+    const chain = editorApi.editor.chain().focus(undefined, { scrollIntoView: false });
+    if (hit) chain.setTextSelection(hit.pos);
+    chain.run();
   },
   onReturnImage: (o) => {
     const r = $('page').getBoundingClientRect();
@@ -380,6 +393,7 @@ const toolbarApi = buildToolbar($('toolbar'), editorApi, {
   onTaskSection: insertTaskSection,
   onFocusMode: () => toggleFocusMode(),
   onSleep: () => enterSleep(),
+  onExport: (format) => exportNote(format),
 });
 applyToolbarLayout();
 
@@ -674,28 +688,19 @@ const naturalSize = (url) => new Promise((resolve) => {
   img.onerror = () => resolve({ w: 300, h: 200 });
   img.src = url;
 });
-async function placeFreeImages(paths, where) {
-  if (!paths.length) return;
-  if (editorApi.isRaw()) { await insertImages(paths); return; }
-  state.attachments = await window.api.attachments();
+// המקור של תמונה בשכבה לפי הנתיב שלה: השם בלבד אם הוא חד־משמעי בכספת, אחרת הנתיב היחסי
+function embedSrcFor(p) {
+  const name = p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1);
+  return resolveTarget(name) === p ? name : p.slice(state.root.length + 1).replace(/\\/g, '/');
+}
+// הנקודה על הדף (בקואורדינטות הדף) שבה תונח תמונה: בגרירה נקודת השחרור, בהדבקה מרכז החלק הגלוי של הדף.
+// מחושב ברגע ההדבקה (לפני כל המתנה), כדי שגלילה בזמן השמירה לא תזיז את היעד.
+function viewAnchor(where) {
   const page = $('page').getBoundingClientRect();
   const wrap = $('pageWrap').getBoundingClientRect();
-  // מרכז החלק של הדף שרואים עכשיו (הדף יכול להיות ארוך מהחלון)
   const cx = where ? where.x : (Math.max(page.left, wrap.left) + Math.min(page.right, wrap.right)) / 2;
   const cy = where ? where.y : (Math.max(page.top, wrap.top) + Math.min(page.bottom, wrap.bottom)) / 2;
-  pageOverlay.setEnabled(true);
-  for (const [i, p] of paths.entries()) {
-    const name = p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1);
-    const src = resolveTarget(name) === p ? name : p.slice(state.root.length + 1).replace(/\\/g, '/');
-    const nat = await naturalSize(fileUrl(p));
-    const width = Math.round(Math.min(nat.w, 480, page.width * 0.7));
-    const height = Math.round(width * nat.h / Math.max(1, nat.w));
-    pageOverlay.addImage({ ref: 'embed', src, width, height,
-      x: cx - page.left - width / 2 + i * 24, y: cy - page.top - height / 2 + i * 24 });
-  }
-  setStatus(paths.length === 1
-    ? 'התמונה נוספה כתמונה חופשית: גוררים אותה למקום. "החזרה לטקסט" מכניסה אותה לטקסט.'
-    : `נוספו ${paths.length} תמונות חופשיות`);
+  return { x: cx - page.left, y: cy - page.top, pageWidth: page.width };
 }
 
 async function importImages() {
@@ -705,22 +710,110 @@ async function importImages() {
   catch (err) { setStatus('שגיאה בייבוא: ' + err.message); }
 }
 
-async function saveDroppedImages(files, where = null) {
-  if (!state.currentPath) return;
-  try {
-    const d = new Date();
-    const two = (n) => String(n).padStart(2, '0');
-    const stamp = `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`;
-    const paths = [];
-    for (const [i, f] of files.entries()) {
-      const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace('svg+xml', 'svg');
-      // תמונה מהלוח מגיעה בשם כללי (image.png), אז נותנים לה שם עם תאריך כמו באובסידיאן
-      const name = f.name && !/^image\.\w+$/i.test(f.name) ? f.name : `Pasted image ${stamp}${i ? '-' + i : ''}.${ext}`;
-      paths.push(await window.api.saveAttachment(attachmentDir(), name, new Uint8Array(await f.arrayBuffer())));
+// 8.2: תמונה שהודבקה או נגררה נכנסת כתמונה חופשית על הדף (אפשר להחזיר לטקסט ב"החזרה לטקסט").
+// 8.3: מופיעה מיד (מהזיכרון), ורק אחר כך נשמרת לקובץ. עד 8.2 השמירה וסריקת כל הכספת (attachments)
+// קדמו להצגה, ובכספת גדולה עברו כמה שניות בלי שום סימן. now: נקודת היעד שחושבה ברגע ההדבקה.
+async function saveDroppedImages(files, where = null, anchor = null) {
+  if (!state.currentPath || !files.length) return;
+  const d = new Date();
+  const two = (n) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`;
+  // תמונה מהלוח מגיעה בשם כללי (image.png), אז נותנים לה שם עם תאריך כמו באובסידיאן
+  const nameOf = (f, i) => {
+    const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace('svg+xml', 'svg');
+    return f.name && !/^image\.\w+$/i.test(f.name) ? f.name : `Pasted image ${stamp}${i ? '-' + i : ''}.${ext}`;
+  };
+  if (editorApi.isRaw()) {
+    // תצוגת Markdown: כמו קודם, בטקסט
+    try {
+      const paths = [];
+      for (const [i, f] of files.entries()) paths.push(await window.api.saveAttachment(attachmentDir(), nameOf(f, i), new Uint8Array(await f.arrayBuffer())));
+      await insertImages(paths);
+    } catch (err) { setStatus('שגיאה בשמירת התמונה: ' + err.message); }
+    return;
+  }
+  const at = anchor || viewAnchor(where);
+  const notePath = state.currentPath;
+  pageOverlay.setEnabled(true);
+  setStatus(files.length === 1 ? 'מוסיף את התמונה…' : `מוסיף ${files.length} תמונות…`);
+  let placed = 0;
+  for (const [i, f] of files.entries()) {
+    const name = nameOf(f, i);
+    const dir = attachmentDir();
+    const sep = dir.includes('\\') ? '\\' : '/';
+    const blob = URL.createObjectURL(f);
+    const nat = await naturalSize(blob);
+    const width = Math.round(Math.min(nat.w, 480, at.pageWidth * 0.7));
+    const height = Math.round(width * nat.h / Math.max(1, nat.w));
+    // המקור הזמני: השם שהקובץ אמור לקבל. אם השם תפוס, השמירה תחזיר שם אחר והמקור יתעדכן.
+    const guess = embedSrcFor(dir + sep + name);
+    previewUrls.set(guess, blob);
+    const id = pageOverlay.addImage({ ref: 'embed', src: guess, width, height,
+      x: at.x - width / 2 + i * 24, y: at.y - height / 2 + i * 24 });
+    try {
+      const p = await window.api.saveAttachment(dir, name, new Uint8Array(await f.arrayBuffer()));
+      if (!state.attachments.includes(p)) state.attachments.push(p);
+      const src = embedSrcFor(p);
+      previewUrls.set(src, blob);
+      // המסמך התחלף בזמן השמירה: הקובץ נשמר, אבל לא נוגעים בשכבה של מסמך אחר
+      if (src !== guess && state.currentPath === notePath && id) pageOverlay.updateImage(id, { src });
+      placed++;
+    } catch (err) {
+      if (id && state.currentPath === notePath) pageOverlay.removeItem(id);
+      setStatus('שגיאה בשמירת התמונה: ' + err.message);
+      return;
     }
-    await placeFreeImages(paths, where);
-  } catch (err) { setStatus('שגיאה בשמירת התמונה: ' + err.message); }
+  }
+  setStatus(placed === 1
+    ? 'התמונה נוספה כתמונה חופשית: גוררים אותה למקום, הידיות משנות גודל. "החזרה לטקסט" מכניסה אותה לטקסט.'
+    : `נוספו ${placed} תמונות חופשיות`);
 }
+
+// 8.3: הדבקה של תמונה מכל מקור (paste-images.js). מחזיר true אם ההדבקה טופלה כתמונה.
+// ההחלטה סינכרונית (כדי לעצור את ההדבקה הרגילה), וההורדה או הקריאה מהלוח ממשיכות ברקע.
+function pasteImage(data) {
+  if (!state.currentPath || !data) return false;
+  const files = imageFilesFrom(data);
+  const anchor = editorApi.isRaw() ? null : viewAnchor(null);
+  if (files.length) { saveDroppedImages(files, null, anchor); return true; }
+  const src = lonelyImageSrc(data.getData('text/html'));
+  if (src) {
+    setStatus('מוסיף את התמונה…');
+    (async () => {
+      let file = null;
+      if (/^data:/i.test(src)) file = fileFromDataUrl(src);
+      else {
+        const got = await window.api.fetchImage(src);
+        if (got) file = new File([got.bytes], 'image.' + (got.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace('svg+xml', 'svg'), { type: got.type });
+      }
+      if (file) saveDroppedImages([file], null, anchor);
+      else setStatus('לא הצלחתי להוריד את התמונה שהודבקה. אפשר לשמור אותה למחשב ולגרור לכאן.');
+    })();
+    return true;
+  }
+  // בלוח אין טקסט בכלל: אולי תמונה שהדפדפן לא חושף (מתוכנות מסוימות ב־Windows). שואלים את main.js.
+  const types = [...(data.types || [])];
+  if (!types.some((t) => t.startsWith('text/'))) {
+    (async () => {
+      const bytes = await window.api.clipboardImage();
+      if (bytes) saveDroppedImages([new File([bytes], 'image.png', { type: 'image/png' })], null, anchor);
+    })();
+    return true;
+  }
+  return false;
+}
+// כל הדבקה עוברת כאן קודם (capture), חוץ משדות טקסט רגילים. בזמן סשן שרטוט: תמונה, או השרטוטים שהועתקו
+// (Ctrl+C בסשן), ואף פעם לא טקסט לתוך המסמך שמתחת. מחוץ לסשן: תמונה, או ההדבקה הרגילה של העורך.
+document.addEventListener('paste', (event) => {
+  const t = event.target;
+  if (t?.closest?.('textarea, input') && !t.closest('.ProseMirror')) return;
+  if (pageOverlay.inSession()) {
+    event.preventDefault(); event.stopPropagation();
+    if (!pasteImage(event.clipboardData)) pageOverlay.pasteClip();
+    return;
+  }
+  if (pasteImage(event.clipboardData)) { event.preventDefault(); event.stopPropagation(); }
+}, true);
 
 function setStatus(text) { $('status').textContent = text; }
 

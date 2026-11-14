@@ -6,7 +6,7 @@ import { updateTheme } from './theme.js';
 import { buildThemeSection } from './theme-editor.js';
 import { DEFAULT_THEMES, DEFAULT_SCHEDULE, migratePrefs } from './theme-core.js';
 import { commandHotkey, eventToHotkey } from './hotkeys.js';
-import { normalizeToolbarLayout, moveToolbarGroup, toolbarLabel } from './toolbar-layout.js';
+import { normalizeToolbarLayout, moveToolbarGroup, toolbarLabel, setToolbarGroupVisible } from './toolbar-layout.js';
 
 export const DEFAULTS = {
   version: 4,
@@ -36,6 +36,7 @@ export const DEFAULTS = {
   // 8.2: סרגל הכלים (toolbar-layout.js). ריק = סדר ברירת המחדל, הכול מוצג
   toolbarOrder: [],
   toolbarHidden: [],
+  toolbarShown: [], // 8.3: קבוצות רשות (מוסתרות כברירת מחדל) שהמשתמש בחר להציג
 };
 
 // משמש כרוחב העמודה של הדף (grid), ולכן "מלא" הוא מספר גדול ולא none
@@ -286,12 +287,14 @@ function buildDialog() {
   // 8.2: סרגל הכלים: אילו קבוצות מוצגות ובאיזה סדר. כל שינוי מוחל מיד (renderer.js → toolbarApi.applyLayout)
   const toolbarList = el('div', { class: 'set-tb-list' });
   const drawToolbarList = () => {
-    const { order, hidden } = normalizeToolbarLayout(prefs.toolbarOrder, prefs.toolbarHidden);
+    const { order, hidden } = normalizeToolbarLayout(prefs.toolbarOrder, prefs.toolbarHidden, prefs.toolbarShown);
     toolbarList.replaceChildren(...order.map((id, i) => {
       const shown = el('input', { type: 'checkbox', 'aria-label': 'הצגה בסרגל' });
       shown.checked = !hidden.includes(id);
       shown.addEventListener('change', () => {
-        setPref('toolbarHidden', shown.checked ? hidden.filter((x) => x !== id) : [...hidden, id]);
+        const next = setToolbarGroupVisible(prefs.toolbarHidden, prefs.toolbarShown, id, shown.checked);
+        setPref('toolbarHidden', next.hidden);
+        setPref('toolbarShown', next.shown);
         drawToolbarList();
       });
       const move = (delta, iconName, label) => {
@@ -307,9 +310,9 @@ function buildDialog() {
     }));
   };
   bind(drawToolbarList);
-  const toolbarReset = el('button', { type: 'button', class: 'btn', on: { click: () => { setPref('toolbarOrder', []); setPref('toolbarHidden', []); drawToolbarList(); } } }, 'החזרה לברירת המחדל');
+  const toolbarReset = el('button', { type: 'button', class: 'btn', on: { click: () => { setPref('toolbarOrder', []); setPref('toolbarHidden', []); setPref('toolbarShown', []); drawToolbarList(); } } }, 'החזרה לברירת המחדל');
   const toolbarPage = el('section', { class: 'set-page', 'data-page': 'toolbar', hidden: '' },
-    el('p', { class: 'set-note' }, 'הסדר כאן הוא הסדר בסרגל, מימין לשמאל. קבוצה לא מסומנת לא מוצגת. כשאין מקום בחלון, יישור, צבעים, רשימות וביטול עוברים לתפריט "עוד".'),
+    el('p', { class: 'set-note' }, 'הסדר כאן הוא הסדר בסרגל, מימין לשמאל. קבוצה לא מסומנת לא מוצגת. יש גם קבוצות נוספות (כותרות, קוד, הוספה מהירה, ייצוא ועוד) שאפשר לסמן. כשאין מקום בחלון, יישור, צבעים, רשימות וביטול עוברים לתפריט "עוד".'),
     toolbarList, toolbarReset);
 
   const pages = [appearance, writing, files, toolbarPage, shortcuts];

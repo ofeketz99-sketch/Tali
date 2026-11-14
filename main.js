@@ -1,6 +1,6 @@
 // תהליך ראשי של Electron: חלון, וכל הגישה לקבצים במחשב.
 // כל פעולה על קבצים עוברת כאן ונבדקת שהיא בתוך התיקייה שנבחרה.
-const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, powerMonitor, net } = require('electron');
 // Windows: own title bar in the page (#titlebar), native window buttons on top of it (titleBarOverlay)
 const CUSTOM_TITLE_BAR = process.platform === 'win32';
 const TITLE_BAR_H = 32;
@@ -464,6 +464,27 @@ function registerIpc() {
     const dest = await uniquePath(dir, name);
     await fs.writeFile(dest, Buffer.from(bytes));
     return dest;
+  });
+
+  // 8.3: תמונה שהודבקה כקישור (HTML מדפדפן): ההורדה כאן, כי ה־CSP של הממשק חוסם כתובות חיצוניות.
+  // רק http/https, רק תוכן מסוג תמונה, עד 25MB, עם הגבלת זמן. מחזיר { type, bytes } או null.
+  ipcMain.handle('fetch-image', async (_e, url) => {
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url) || url.length > 4000) return null;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    try {
+      const res = await net.fetch(url, { signal: ctrl.signal });
+      const type = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+      if (!res.ok || !type.startsWith('image/')) return null;
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length > 25 * 1024 * 1024) return null;
+      return { type, bytes: new Uint8Array(buf) };
+    } catch { return null; } finally { clearTimeout(timer); }
+  });
+  // 8.3: תמונה שבלוח של Windows כשהדפדפן לא חושף אותה כקובץ (מתוכנות מסוימות). PNG, או null.
+  ipcMain.handle('clipboard-image', () => {
+    const img = clipboard.readImage();
+    return img.isEmpty() ? null : new Uint8Array(img.toPNG());
   });
 
   // שמירה מחדש של תמונה קיימת (ציור שנערך). רק קבצי תמונה, ורק בתוך תיקיית העבודה.

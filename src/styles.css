@@ -7,6 +7,7 @@
   --splash-paper: #fbfaf7;
   --splash-edge: #c9d9f2;
   --splash-ink: #3f6aa8;
+  --picker-rainbow: conic-gradient(#e5484d, #f5a524, #f5d90a, #46a758, #12a5c4, #3e63dd, #8e4ec6, #e5484d); /* 8.3: כפתור "צבע אחר" בסרגל השרטוט */
   --accent: #6cb8e6;                 /* תכלת */
   --bg: #f1eee8;                     /* מסביב לדף */
   --sidebar-bg: #f8f6f1;
@@ -2012,3 +2013,44 @@ body.page-drawing-session .block-handle { display: none !important; }
 #settings .set-tb-row.off { opacity: .55; }
 #settings .set-tb-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 #settings .set-tb-move { display: flex; gap: 2px; }
+
+/* ===== 8.3: שכבת הדף: שמונה ידיות לתיבות ולתמונות, מלבן בחירה, וכפתור "צבע אחר" ===== */
+.tali-overlay-resize[data-dir] { right: auto; bottom: auto; }
+.tali-overlay-resize[data-dir="nw"] { left: -6px; top: -6px; cursor: nwse-resize; }
+.tali-overlay-resize[data-dir="ne"] { right: -6px; top: -6px; cursor: nesw-resize; }
+.tali-overlay-resize[data-dir="se"] { right: -6px; bottom: -6px; cursor: nwse-resize; }
+.tali-overlay-resize[data-dir="sw"] { left: -6px; bottom: -6px; cursor: nesw-resize; }
+.tali-overlay-resize[data-dir="n"] { left: calc(50% - 6px); top: -6px; cursor: ns-resize; }
+.tali-overlay-resize[data-dir="s"] { left: calc(50% - 6px); bottom: -6px; cursor: ns-resize; }
+.tali-overlay-resize[data-dir="e"] { right: -6px; top: calc(50% - 6px); cursor: ew-resize; }
+.tali-overlay-resize[data-dir="w"] { left: -6px; top: calc(50% - 6px); cursor: ew-resize; }
+/* בתיבת טקסט ידית ההזזה יושבת מעל המרכז: הידית העליונה זזה הצידה כדי לא להסתיר אותה */
+.tali-text-box .tali-overlay-resize[data-dir="n"] { left: calc(50% + 24px); }
+/* ידיות הצלעות קטנות יותר, כדי שלא יעמיסו על תיבה קטנה */
+.tali-overlay-resize[data-dir="n"], .tali-overlay-resize[data-dir="s"],
+.tali-overlay-resize[data-dir="e"], .tali-overlay-resize[data-dir="w"] { width: 10px; height: 10px; }
+.tali-overlay-resize[data-dir="n"], .tali-overlay-resize[data-dir="s"] { margin-left: 1px; }
+.tali-overlay-resize[data-dir="e"], .tali-overlay-resize[data-dir="w"] { margin-top: 1px; }
+.tali-overlay-marquee { fill: color-mix(in srgb, var(--accent) 10%, transparent); stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
+.tali-overlay-box.selected .tali-overlay-resize { opacity: 1; }
+/* "צבע אחר": עד 8.2 זה היה ה־input[type=color] של הדפדפן, שבריחוף צויר לבן. עכשיו טבעת צבעונית
+   עם הצבע הנוכחי באמצע, וה־input שקוף מעליה (רק כדי לפתוח את חלון בחירת הצבע). */
+.tali-overlay-picker {
+  position: relative; display: inline-grid; place-items: center; flex: none;
+  width: 22px; height: 22px; border-radius: 50%; background: var(--picker-rainbow); cursor: pointer;
+  transition: transform .15s var(--ease), box-shadow .15s var(--ease);
+}
+.tali-overlay-picker::after {
+  content: ''; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--picked, var(--accent)); box-shadow: 0 0 0 2px var(--page-bg); pointer-events: none;
+}
+.tali-overlay-picker:hover { transform: scale(1.12); }
+.tali-overlay-picker.on { box-shadow: 0 0 0 2px var(--page-bg), 0 0 0 4px var(--accent); }
+.tali-overlay-toolbar .tali-overlay-picker input[type="color"] {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0;
+  border: 0; border-radius: 50%; opacity: 0; cursor: pointer;
+}
+/* 8.3: תיקון: הכלל הכללי button:hover צבע את עיגולי הצבע בסרגל השרטוט בצבע הריחוף (כמעט לבן).
+   הצבע של העיגול נשאר שלו גם בריחוף. */
+.tali-overlay-toolbar .tali-overlay-swatch,
+.tali-overlay-toolbar .tali-overlay-swatch:hover { background: var(--swatch); border-color: var(--page-bg); }

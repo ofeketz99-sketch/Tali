@@ -1,8 +1,10 @@
 // סרגל הכלים העליון. מחולק לקבוצות:
 // ביטול/חזרה · סגנון פסקה · B I U S · צבעים · רשימות וציטוט · יישור · הוספה (טבלה, תמונה, ציור...) · Markdown
+// 8.3: ועוד קבוצות רשות שמוסתרות עד שמסמנים אותן בהגדרות (toolbar-layout.js): כותרות, קוד, הוספה מהירה, ציור, ייצוא
 // כפתור חדש: מוסיפים אותו לקבוצה המתאימה ב־buildToolbar. tip הוא ההסבר שמופיע בריחוף.
 import { icon } from './icons.js';
 import { createEditActions } from './edit-actions.js';
+import { OPTIONAL_IDS } from './toolbar-layout.js';
 
 const TEXT_COLORS = [
   [null, 'ברירת מחדל'], ['#d64545', 'אדום'], ['#e07b2a', 'כתום'], ['#b8860b', 'חרדל'], ['#2f9e6a', 'ירוק'],
@@ -101,12 +103,24 @@ export function buildToolbar(container, editorApi, actions = {}) {
   });
   refreshers.push(() => { styleBtn.innerHTML = `<span>${STYLES.find((s) => s[0] === styleOf())[1]}</span>${icon('chevron', 14)}`; });
 
+  // ===== 8.3 (רשות): כותרות בלחיצה אחת =====
+  const gHead = group('', 'headings');
+  for (const level of [1, 2, 3]) {
+    button(gHead, { html: icon('h' + level), tip: `כותרת ${level}`, run: () => chain().toggleHeading({ level }).run(), active: () => editor.isActive('heading', { level }) });
+  }
+
   // ===== עיצוב תווים =====
   const g3 = group('', 'marks');
   button(g3, { html: icon('bold'), tip: 'מודגש (Ctrl+B)', run: () => chain().toggleBold().run(), active: () => editor.isActive('bold') });
   button(g3, { html: icon('italic'), tip: 'נטוי (Ctrl+I)', run: () => chain().toggleItalic().run(), active: () => editor.isActive('italic') });
   button(g3, { html: icon('underline'), tip: 'קו תחתון (Ctrl+U)', run: () => chain().toggleUnderline().run(), active: () => editor.isActive('underline') });
   button(g3, { html: icon('strike'), tip: 'קו חוצה', run: () => chain().toggleStrike().run(), active: () => editor.isActive('strike') });
+
+  // ===== 8.3 (רשות): קוד וניקוי עיצוב =====
+  const gCode = group('', 'code');
+  button(gCode, { html: icon('code'), tip: 'קוד בשורה', run: () => chain().toggleCode().run(), active: () => editor.isActive('code') });
+  button(gCode, { html: icon('codeBlock'), tip: 'בלוק קוד', run: () => ed.codeBlock(), active: () => editor.isActive('codeBlock') });
+  button(gCode, { html: icon('clearFormat'), tip: 'ניקוי עיצוב מהטקסט המסומן', run: () => chain().unsetAllMarks().run() });
 
   // ===== צבעים =====
   const g4 = group('', 'colors');
@@ -196,6 +210,25 @@ export function buildToolbar(container, editorApi, actions = {}) {
   button(gDraw, { html: icon('pen'), tip: 'שרטוט על הדף: עט, קווים וצורות שזזים חופשי', run: () => ed.pageDrawing() });
   button(gDraw, { html: icon('textBox'), tip: 'תיבת טקסט שזזה חופשי על הדף', run: () => ed.floatingBox() });
 
+  // ===== 8.3 (רשות): הוספה מהירה, בלי לפתוח את "הוספה" =====
+  const gQuick = group('', 'quickInsert');
+  const tableBtn = button(gQuick, { html: icon('table'), tip: 'טבלה', run: () => ed.pickTable(tableBtn) });
+  button(gQuick, { html: icon('image'), tip: 'תמונה מקובץ', run: () => ed.image() });
+  button(gQuick, { html: icon('link'), tip: 'קישור למסמך', run: () => ed.link() });
+  button(gQuick, { html: icon('math'), tip: 'נוסחה', run: () => ed.mathInline() });
+  button(gQuick, { html: icon('taskSection'), tip: 'משימות להמשך', run: () => ed.taskSection() });
+  button(gQuick, { html: icon('rule'), tip: 'קו מפריד', run: () => ed.rule() });
+
+  // ===== 8.3 (רשות): ציור שנשמר כתמונה והערת שוליים =====
+  const gDrawExtra = group('', 'drawExtra');
+  button(gDrawExtra, { html: icon('draw'), tip: 'ציור (נשמר כתמונה)', run: () => ed.drawing() });
+  button(gDrawExtra, { html: icon('comment'), tip: 'הערת שוליים לטקסט המסומן', run: () => ed.marginComment() });
+
+  // ===== 8.3 (רשות): ייצוא =====
+  const gExport = group('', 'export');
+  button(gExport, { html: icon('exportPdf'), tip: 'ייצוא ל־PDF', run: () => actions.onExport?.('pdf') });
+  button(gExport, { html: icon('exportWord'), tip: 'ייצוא ל־Word', run: () => actions.onExport?.('docx') });
+
   // ===== עוד: קבוצות שלא נכנסות בשורה אחת עוברות לתפריט =====
   const gMore = group('tb-more');
   const moreBtn = button(gMore, { html: icon('more', 19), tip: 'עוד כלים', run: () => openMore() });
@@ -215,8 +248,9 @@ export function buildToolbar(container, editorApi, actions = {}) {
   // ----- התאמה לרוחב: מסתירים קבוצות לפי הסדר, והן מופיעות בתפריט "עוד" -----
   // הסדר: יישור, צבעים, רשימות, ביטול/חזרה. סגנון, B I U S והוספה תמיד בשורה.
   // 8.2: הסדר וההסתרה לפי ההגדרות (applyLayout). קבוצה שהמשתמש הסתיר לא נכנסת גם לתפריט "עוד".
-  const fitOrder = [g6, g4, g5, g1];
-  let layout = { order: Object.keys(groups), hidden: [] };
+  // 8.3: קבוצות הרשות (אם הוצגו) עוברות ל"עוד" ראשונות
+  const fitOrder = [gExport, gDrawExtra, gQuick, gCode, gHead, g6, g4, g5, g1];
+  let layout = { order: Object.keys(groups), hidden: [...OPTIONAL_IDS] };
   const userHidden = (g) => layout.hidden.includes(g.dataset.group);
   let collapsible = fitOrder;
   let hiddenGroups = [];
