@@ -1135,7 +1135,7 @@ function drawTree() {
 async function refreshTree() {
   const r = await window.api.tree();
   state.tree = r.tree;
-  state.attachments = await window.api.attachments();
+  state.attachments = r.attachments || [];
   notesCache = null;
   drawTree();
   refreshFlags();
@@ -1286,7 +1286,7 @@ async function enterRoot(r) {
   state.tree = r.tree;
   $('vaultName').textContent = r.root.split(/[\\/]/).filter(Boolean).pop() || r.root;
   $('vaultName').title = r.root;
-  state.attachments = await window.api.attachments();
+  state.attachments = r.attachments || [];
   notesCache = null;
   state.currentPath = null;
   state.dirty = false;

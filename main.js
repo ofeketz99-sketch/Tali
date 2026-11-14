@@ -4,14 +4,16 @@ const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, powerMonitor, net
 // Windows: own title bar in the page (#titlebar), native window buttons on top of it (titleBarOverlay)
 const CUSTOM_TITLE_BAR = process.platform === 'win32';
 const TITLE_BAR_H = 32;
+const nativeFs = require('fs');
 const fs = require('fs/promises');
 const path = require('path');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
-const { resolveLink, extractLinks, replaceLinks } = require('./links');
-const { extractTags, extractTasks, extractTargets, getFlag, isLinkHub, withCreated, getCreatedDate } = require('./vault-data');
+const { resolveLink, replaceLinks } = require('./links');
+const { withCreated } = require('./vault-data');
 const { resolveNewNoteFolderPath, relativeNewNoteFolderPath } = require('./new-note-folder');
+const { createVaultIndex } = require('./vault-index');
 const os = require('os');
 
 // שם האפליקציה: Tali. ההגדרות נשארות בתיקייה המקורית (my-notes), כדי ששינוי השם לא ימחק אותן.
@@ -24,7 +26,30 @@ if (!app.commandLine.hasSwitch('user-data-dir')) app.setPath('userData', path.jo
 if (process.platform === 'win32') app.setAppUserModelId('app.tali.notes'); // אייקון ושם נכונים בשורת המשימות
 
 let root = null;
+const vaultIndex = createVaultIndex({ getRoot: () => root });
+let vaultWatcher = null;
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
+
+// Windows תומך בצפייה רקורסיבית. כך שינוי מאובסידיאן או מסנכרון מבטל מיד
+// את המטמון; אם הכונן לא תומך ב־watch, ה־TTL הקצר באינדקס הוא רשת הביטחון.
+function watchRoot() {
+  vaultWatcher?.close();
+  vaultWatcher = null;
+  if (!root) return;
+  try {
+    const watchedRoot = root;
+    const watcher = nativeFs.watch(watchedRoot, { recursive: true }, (_event, filename) => {
+      const rel = String(filename || '');
+      if (rel && rel.split(/[\\/]/).some((part) => part.startsWith('.'))) return;
+      vaultIndex.invalidate(rel ? path.join(watchedRoot, rel) : null);
+    });
+    vaultWatcher = watcher;
+    watcher.on('error', () => {
+      watcher.close();
+      if (vaultWatcher === watcher) vaultWatcher = null;
+    });
+  } catch { /* כונן רשת/ספק ענן בלי fs.watch רקורסיבי: המטמון פג אחרי כמה שניות */ }
+}
 
 // ה־CHANGELOG נמצא במאגר פרטי. מושכים אותו דרך Git של התהליך הראשי (בלי token בממשק).
 // git fetch לא נוגע בקבצי העבודה או בענף המקומי; אם אין חיבור נופלים לעותק המקומי.
@@ -111,19 +136,20 @@ async function prepareNewNoteFolder(relative = 'מסמכים חדשים') {
 
 async function readTree(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
-  const out = [];
-  for (const e of entries) {
-    if (e.name.startsWith('.')) continue;
+  const parts = await Promise.all(entries.map(async (e) => {
+    if (e.name.startsWith('.')) return { node: null, attachments: [] };
     const full = path.join(dir, e.name);
     if (e.isDirectory()) {
-      out.push({ name: e.name, path: full, type: 'dir', children: await readTree(full) });
-    } else if (e.name.toLowerCase().endsWith('.md')) {
-      out.push({ name: e.name, path: full, type: 'file' });
+      const child = await readTree(full);
+      return { node: { name: e.name, path: full, type: 'dir', children: child.tree }, attachments: child.attachments };
     }
-  }
+    if (e.name.toLowerCase().endsWith('.md')) return { node: { name: e.name, path: full, type: 'file' }, attachments: [] };
+    return { node: null, attachments: [full] };
+  }));
+  const out = parts.map((part) => part.node).filter(Boolean);
   out.sort((a, b) =>
     a.type === b.type ? a.name.localeCompare(b.name, 'he') : a.type === 'dir' ? -1 : 1);
-  return out;
+  return { tree: out, attachments: parts.flatMap((part) => part.attachments) };
 }
 
 async function walkFiles(dir, acc = [], wantMd = true) {
@@ -185,44 +211,6 @@ async function updateLinksAfterRename(from, to, before) {
   return changed;
 }
 
-// ===== אינדקס הכספת: קישורים, תגיות ומשימות לכל הערה =====
-// הניתוח של כל קובץ נשמר בזיכרון לפי זמן השינוי שלו, כך שקריאה חוזרת זולה.
-const parseCache = new Map(); // path -> { mtime, targets, tags, tasks }
-async function vaultIndex() {
-  if (!root) return { notes: [] };
-  const files = await walkFiles(root);
-  const attachments = await walkFiles(root, [], false);
-  const resolve = makeResolver(files.concat(attachments));
-  const notes = [];
-  for (const file of files) {
-    let st;
-    try { st = await fs.stat(file); } catch { continue; }
-    let parsed = parseCache.get(file);
-    if (!parsed || parsed.mtime !== st.mtimeMs) {
-      let text;
-      try { text = await fs.readFile(file, 'utf8'); } catch { continue; } // קובץ שלא נקרא (נעול, בענן בלבד): מדלגים, ולא מפילים את כל האינדקס
-      parsed = { mtime: st.mtimeMs, targets: extractTargets(text), tags: [...new Set(extractTags(text).map((t) => t.tag))], tasks: extractTasks(text), flag: getFlag(text), hub: isLinkHub(text), created: getCreatedDate(text) };
-      parseCache.set(file, parsed);
-    }
-    const links = [], missing = [];
-    for (const t of parsed.targets) {
-      const p = resolve(t);
-      if (p) { if (/\.md$/i.test(p) && p !== file) links.push(p); }
-      else if (!/\.[a-z0-9]{2,5}$/i.test(t) || /\.md$/i.test(t)) missing.push(t.split('#')[0].trim());
-    }
-    notes.push({
-      path: file,
-      name: path.basename(file).replace(/\.md$/i, ''),
-      rel: path.relative(root, file).replace(/\\/g, '/').replace(/\.md$/i, ''),
-      links: [...new Set(links)], missing: [...new Set(missing.filter(Boolean))],
-      tags: parsed.tags, tasks: parsed.tasks, flag: parsed.flag, hub: parsed.hub,
-      // תאריכים לחלון "מסמכים אחרונים": נערך (זמן השינוי), ונוצר (מתוך ההערה, ואם אין: המוקדם מבין יצירה ושינוי של הקובץ)
-      mtime: st.mtimeMs, created: parsed.created ? new Date(parsed.created + 'T00:00').getTime() : Math.min(st.birthtimeMs || st.mtimeMs, st.mtimeMs),
-    });
-  }
-  return { notes };
-}
-
 // ===== ייצוא: PDF דרך מנוע ההדפסה של Chromium, ו־Word כ־HTML שוורד פותח (תמונות מוטמעות בקובץ) =====
 const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', avif: 'image/avif' };
 async function inlineImages(html) {
@@ -258,14 +246,17 @@ function exportDocument(title, body, css, forWord) {
 
 async function setRoot(dir) {
   root = path.resolve(dir);
+  vaultIndex.invalidate();
+  watchRoot();
   const s = await loadSettings();
   s.lastRoot = root;
   await saveSettings(s);
-  return { root, tree: await readTree(root) };
+  const snapshot = await readTree(root);
+  return { root, ...snapshot };
 }
 
 function registerIpc() {
-  ipcMain.handle('vault-index', vaultIndex);
+  ipcMain.handle('vault-index', () => vaultIndex.index());
 
   // העברת הערה או תיקייה לתיקייה אחרת (גרירה בעץ). הקישורים אל ההערות שעברו מתעדכנים.
   ipcMain.handle('move', async (_e, p, destDir) => {
@@ -292,6 +283,7 @@ function registerIpc() {
         list = list.map((f) => (f === oldFile ? newFile : f));
       }
     }
+    vaultIndex.invalidate();
     return { to, changed: [...changed] };
   });
 
@@ -392,7 +384,7 @@ function registerIpc() {
   });
   ipcMain.handle('prepare-new-note-folder', async (_e, relative) => prepareNewNoteFolder(relative));
 
-  ipcMain.handle('tree', async () => ({ root, tree: await readTree(root) }));
+  ipcMain.handle('tree', async () => ({ root, ...await readTree(root) }));
 
   ipcMain.handle('read', async (_e, p) => fs.readFile(safe(p), 'utf8'));
 
@@ -409,7 +401,9 @@ function registerIpc() {
       if (now != null && Math.abs(now - expectedMtime) > 1) throw new Error('CONFLICT');
     }
     await fs.writeFile(file, content, 'utf8');
-    return mtimeOf(file);
+    const mtime = await mtimeOf(file);
+    vaultIndex.invalidate(file);
+    return mtime;
   });
 
   // הערה שנערכה גם בחוץ וגם כאן: הגרסה מבחוץ נשמרת כעותק לידה, "שם (גרסה מבחוץ 14-32).md"
@@ -420,11 +414,12 @@ function registerIpc() {
     const base = path.basename(file).replace(/\.md$/i, '');
     const dest = await uniquePath(path.dirname(file), `${base} (גרסה מבחוץ ${two(d.getHours())}-${two(d.getMinutes())}).md`);
     await fs.writeFile(dest, content, 'utf8');
+    vaultIndex.invalidate();
     return dest;
   });
 
   // קבצים שאינם הערות (תמונות, PDF): לתצוגת ![[...]] ולקישורים אליהם
-  ipcMain.handle('attachments', async () => (root ? walkFiles(root, [], false) : []));
+  ipcMain.handle('attachments', async () => (root ? vaultIndex.attachments() : []));
 
   // הגדרות התצוגה (גופן, צבעים וכו'), נשמרות לצד התיקייה האחרונה
   // גזירה/העתקה/הדבקה מתפריט הלחיצה הימנית: אותה פקודה כמו Ctrl+X/C/V, על הרכיב שבפוקוס
@@ -454,6 +449,7 @@ function registerIpc() {
       await fs.copyFile(src, dest);
       out.push(dest);
     }
+    if (out.length) vaultIndex.invalidate();
     return out;
   });
 
@@ -463,6 +459,7 @@ function registerIpc() {
     await fs.mkdir(dir, { recursive: true });
     const dest = await uniquePath(dir, name);
     await fs.writeFile(dest, Buffer.from(bytes));
+    vaultIndex.invalidate();
     return dest;
   });
 
@@ -501,6 +498,7 @@ function registerIpc() {
     const ext = path.extname(src);
     const dest = await uniquePath(path.dirname(src), `${path.basename(src, ext)} (עותק)${ext}`);
     await fs.copyFile(src, dest);
+    vaultIndex.invalidate();
     return dest;
   });
 
@@ -525,6 +523,7 @@ function registerIpc() {
     catch (err) { if (err.message === 'כבר קיים קובץ בשם הזה') throw err; }
     // כל מסמך חדש (רגיל, מתבנית, מקישור רפאים, פתק קישור) מקבל created מוסתר: התאריך מעל הדף נשאר נכון גם אחרי העתקה
     await fs.writeFile(file, withCreated(String(content || '')), 'utf8');
+    vaultIndex.invalidate();
     return file;
   });
 
@@ -594,37 +593,17 @@ function registerIpc() {
     const before = isFile ? await walkFiles(root) : null;
     await fs.rename(from, to);
     const changed = isFile ? await updateLinksAfterRename(from, to, before) : [];
+    vaultIndex.invalidate();
     return { to, changed };
   });
 
-  // הערות שמקשרות להערה הזו, עם השורה שבה מופיע הקישור
-  ipcMain.handle('backlinks', async (_e, p) => {
-    const target = safe(p);
-    const files = await walkFiles(root);
-    const resolve = makeResolver(files);
-    const out = [];
-    for (const file of files) {
-      if (file === target) continue;
-      const text = await fs.readFile(file, 'utf8');
-      const hits = extractLinks(text).filter((l) => resolve(l.target) === target);
-      if (!hits.length) continue;
-      const i = hits[0].index;
-      const lineStart = text.lastIndexOf('\n', i) + 1;
-      const lineEnd = text.indexOf('\n', i);
-      const line = text.slice(lineStart, lineEnd < 0 ? undefined : lineEnd).trim();
-      out.push({
-        path: file,
-        name: path.basename(file).replace(/\.md$/i, ''),
-        snippet: line.length > 160 ? line.slice(0, 160) + '…' : line,
-        count: hits.length,
-      });
-    }
-    out.sort((a, b) => a.name.localeCompare(b.name, 'he'));
-    return out;
-  });
+  // הערות שמקשרות להערה הזו. משתמש באותו ניתוח שכבר נבנה לאינדקס,
+  // ולכן מעבר בין מסמכים לא קורא מחדש את כל הכספת.
+  ipcMain.handle('backlinks', async (_e, p) => vaultIndex.backlinks(safe(p)));
 
   ipcMain.handle('delete', async (_e, p) => {
     await shell.trashItem(safe(p)); // מעביר לסל המחזור, לא מוחק לצמיתות
+    vaultIndex.invalidate();
     return true;
   });
 
@@ -734,5 +713,6 @@ app.whenReady().then(() => {
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
+app.on('before-quit', () => { vaultWatcher?.close(); vaultWatcher = null; });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
