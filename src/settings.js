@@ -125,7 +125,7 @@ export function openSettings() {
 
 function el(tag, attrs = {}, ...kids) {
   const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
+  for (const [k, v] of Object.entries(attrs || {})) { // 8.1: null לא מפיל את חלון ההגדרות
     if (k === 'on') for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn);
     else if (k === 'style') e.style.cssText = v;
     else if (v != null) e.setAttribute(k, v);
@@ -231,7 +231,7 @@ function buildDialog() {
     row('קו ההפרדה: סגנון', 'הקו בין משימות פתוחות למשימות שבוצעו', seg('doneDividerStyle', [['solid', 'רציף'], ['dashed', 'מקווקו'], ['dotted', 'נקודות'], ['double', 'כפול'], ['none', 'בלי קו']])),
     row('קו ההפרדה: צבע', null, seg('doneDividerColor', [['accent', 'צבע הערכה'], ['muted', 'עדין'], ['text', 'אפור כהה']])),
     row('קו ההפרדה: עובי', null, range('doneDividerWidth', 1, 4, 1, (v) => v + 'px')),
-    el('div', { class: 'preview done-divider-preview' }, el('div', null, '☐ משימה פתוחה'), el('div', { class: 'ddp-line' }), el('div', { style: 'opacity:.6;text-decoration:line-through' }, '☑ משימה שבוצעה')),
+    el('div', { class: 'preview done-divider-preview' }, el('div', {}, '☐ משימה פתוחה'), el('div', { class: 'ddp-line' }), el('div', { style: 'opacity:.6;text-decoration:line-through' }, '☑ משימה שבוצעה')),
   );
   const files = el('section', { class: 'set-page', 'data-page': 'files', hidden: '' },
     row('מסמך חדש נוצר', null, select('newNoteLocation', [
