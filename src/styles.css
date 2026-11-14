@@ -1944,6 +1944,8 @@ body[data-focus] .block-handle { display: none; }
   -webkit-app-region: drag; user-select: none;
 }
 #titlebar img { width: 16px; height: 16px; }
+/* 7.6: כפתור היציאה ממצב מיקוד (fixed, top: 10px) הוסתר מתחת לשורת הכותרת (z-index 55). יורד מתחתיה. */
+:root[data-titlebar] #focusExit { top: calc(var(--titlebar-h) + 10px); }
 
 /* ===== ארכיון (src/archive.js, 7.3): התיקייה בסוף העץ, דהויה, עם קו מעליה ===== */
 #tree .node.dir.archive { opacity: .62; margin-top: 6px; border-top: 1px dashed var(--border); padding-top: 4px; }
