@@ -8,6 +8,32 @@ export const BASE_LABELS = {
   bg: 'רקע האפליקציה', page: 'רקע הדף', panel: 'סרגלים ולוחות', text: 'טקסט', accent: 'צבע מודגש', border: 'מסגרות וקווים',
 };
 
+// צבעים מפורטים הם דריסות רשות מעל לצבעים שנגזרים מששת צבעי היסוד.
+// השמות הן סמנטיות (תיבה צפה, פריט נבחר...) ולא תלויות במסך מסוים.
+export const DETAIL_GROUPS = [
+  { title: 'משטחים ומסגרות', keys: ['sidebar', 'input', 'floating', 'floatingBorder', 'toolbar'] },
+  { title: 'מצבים ובחירה', keys: ['hover', 'selected', 'selectedText', 'accentLine', 'onAccent'] },
+  { title: 'טקסט ותוכן', keys: ['muted', 'faint', 'folder', 'document', 'link', 'headingLine'] },
+  { title: 'קוד והתראות', keys: ['code', 'codeBlock', 'codeText', 'danger', 'dangerText'] },
+];
+export const DETAIL_KEYS = DETAIL_GROUPS.flatMap((group) => group.keys);
+export const DETAIL_LABELS = {
+  sidebar: 'רקע עץ המסמכים', input: 'רקע שדות וכפתורים', floating: 'רקע תיבות צפות',
+  floatingBorder: 'מסגרת תיבות צפות', toolbar: 'רקע כותרות וסרגלים', hover: 'רקע בריחוף',
+  selected: 'רקע פריט נבחר', selectedText: 'טקסט פריט נבחר', accentLine: 'קווי הדגשה',
+  onAccent: 'טקסט על צבע מודגש', muted: 'טקסט משני', faint: 'טקסט חלש', folder: 'שמות תיקיות',
+  document: 'שמות מסמכים', link: 'קישורים ותגיות', headingLine: 'קווים ליד כותרות',
+  code: 'רקע קוד בתוך שורה', codeBlock: 'רקע בלוק קוד', codeText: 'טקסט בלוק קוד',
+  danger: 'רקע שגיאה או מחיקה', dangerText: 'טקסט שגיאה או מחיקה',
+};
+export const DETAIL_VARS = {
+  sidebar: '--sidebar-bg', input: '--input-bg', floating: '--floating-bg', floatingBorder: '--floating-border',
+  toolbar: '--toolbar-bg', hover: '--accent-hover', selected: '--accent-soft', selectedText: '--accent-strong',
+  accentLine: '--accent-line', onAccent: '--on-accent', muted: '--muted', faint: '--faint', folder: '--folder-ink',
+  document: '--document-ink', link: '--link', headingLine: '--h2-rule', code: '--code-bg', codeBlock: '--pre-bg',
+  codeText: '--pre-text', danger: '--danger', dangerText: '--danger-ink',
+};
+
 // ערכות מוכנות. הראשונה בכל סוג היא ברירת המחדל (הצבעים שהיו עד 3.7).
 export const PRESETS = [
   { id: 'warm', name: 'לבן חמים', kind: 'day', colors: { bg: '#f1eee8', page: '#fffdf9', panel: '#fcfbf8', text: '#2a2d33', accent: '#6cb8e6', border: '#e5e0d6' } },
@@ -64,6 +90,10 @@ export function readableAgainst(fg, bg, target = 4.5) {
 export function completeTheme(colors, fallback = DEFAULT_THEMES.day) {
   const out = {};
   for (const k of BASE_KEYS) out[k] = normalizeHex(colors?.[k]) || fallback[k];
+  for (const k of DETAIL_KEYS) {
+    const value = normalizeHex(colors?.[k]);
+    if (value) out[k] = value;
+  }
   return out;
 }
 
@@ -103,6 +133,38 @@ export function deriveVars(colors) {
     '--btn-new-tile-ink': mix(c.accent, '#0e2433', 0.55),
     '--focus-ring': dark ? mix(c.accent, '#ffffff', 0.25) : mix(c.accent, '#0e2433', 0.5),
   };
+  const accentSoft = mix(c.accent, c.page, dark ? 0.78 : 0.84);
+  const accentHover = mix(c.accent, c.page, dark ? 0.88 : 0.91);
+  const accentStrong = readableAgainst(mix(c.accent, c.text, dark ? 0.25 : 0.38), c.page, 4.5);
+  const accentLine = mix(c.accent, c.border, dark ? 0.6 : 0.65);
+  const danger = dark ? '#4a2428' : '#f9e3e3';
+  const dangerText = readableAgainst(dark ? '#ff9b9b' : '#b23b3b', c.page, 4.5);
+  Object.assign(v, {
+    '--sidebar-bg': c.sidebar || v['--sidebar-bg'],
+    '--input-bg': c.input || v['--input-bg'],
+    '--floating-bg': c.floating || c.panel,
+    '--floating-border': c.floatingBorder || c.border,
+    '--toolbar-bg': c.toolbar || mix(c.accent, c.panel, dark ? 0.93 : 0.94),
+    '--accent-hover': c.hover || accentHover,
+    '--accent-soft': c.selected || accentSoft,
+    '--accent-strong': c.selectedText || accentStrong,
+    '--accent-tint': c.toolbar || mix(c.accent, c.panel, dark ? 0.93 : 0.94),
+    '--accent-line': c.accentLine || accentLine,
+    '--on-accent': c.onAccent || v['--on-accent'],
+    '--muted': c.muted || v['--muted'],
+    '--faint': c.faint || v['--faint'],
+    '--link': c.link || v['--accent-ink'],
+    '--accent-ink': c.link || v['--accent-ink'],
+    '--h2-rule': c.headingLine || mix(c.border, c.text, dark ? 0.18 : 0.08),
+    '--code-bg': c.code || v['--code-bg'],
+    '--pre-bg': c.codeBlock || v['--pre-bg'],
+    '--pre-text': c.codeText || v['--pre-text'],
+    '--danger': c.danger || danger,
+    '--danger-ink': c.dangerText || dangerText,
+  });
+  const itemInk = mix(c.text, v['--muted'], 0.15);
+  v['--folder-ink'] = c.folder || itemInk;
+  v['--document-ink'] = c.document || itemInk;
   // כותרת הכפתור צריכה להיות קריאה על החלק הכהה ביותר שלו
   const darkInk = mix(c.accent, '#0e2433', 0.75);
   v['--btn-new-ink'] = contrast(darkInk, v['--btn-new-3']) >= 4.5 ? darkInk : readableAgainst(darkInk, v['--btn-new-3'], 4.5);
@@ -126,6 +188,22 @@ export function contrastIssues(colors) {
     if (ratio < k.min) {
       issues.push({ key: k.fg, against: k.bg, ratio: Math.round(ratio * 100) / 100, min: k.min, what: k.what, suggestion: readableAgainst(c[k.fg], c[k.bg], k.min) });
     }
+  }
+  const vars = deriveVars(c).vars;
+  const detailed = [
+    { key: 'muted', fg: '--muted', bg: '--page-bg', watch: ['muted'], what: 'הטקסט המשני על הדף' },
+    { key: 'folder', fg: '--folder-ink', bg: '--sidebar-bg', watch: ['folder', 'sidebar'], what: 'שמות התיקיות בעץ' },
+    { key: 'document', fg: '--document-ink', bg: '--sidebar-bg', watch: ['document', 'sidebar'], what: 'שמות המסמכים בעץ' },
+    { key: 'link', fg: '--link', bg: '--page-bg', watch: ['link'], what: 'קישורים על הדף' },
+    { key: 'selectedText', fg: '--accent-strong', bg: '--accent-soft', watch: ['selectedText', 'selected'], what: 'טקסט של פריט נבחר' },
+    { key: 'onAccent', fg: '--on-accent', bg: '--accent', watch: ['onAccent'], what: 'טקסט על הצבע המודגש' },
+    { key: 'codeText', fg: '--pre-text', bg: '--pre-bg', watch: ['codeText', 'codeBlock'], what: 'טקסט בבלוק קוד' },
+    { key: 'dangerText', fg: '--danger-ink', bg: '--danger', watch: ['dangerText', 'danger'], what: 'טקסט התראה' },
+  ];
+  for (const check of detailed) {
+    if (!check.watch.some((key) => Object.prototype.hasOwnProperty.call(c, key))) continue;
+    const ratio = contrast(vars[check.fg], vars[check.bg]);
+    if (ratio < 4.5) issues.push({ key: check.key, against: check.bg, ratio: Math.round(ratio * 100) / 100, min: 4.5, what: check.what, suggestion: readableAgainst(vars[check.fg], vars[check.bg], 4.5) });
   }
   return issues;
 }

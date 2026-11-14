@@ -71,11 +71,27 @@ test('migration keeps the old accent and paper, maps the old theme, and keeps ot
 });
 
 test('day and night profiles are independent and incomplete ones are filled', () => {
-  const p = T.migratePrefs({ themes: { day: { accent: '#ff0000' }, night: { page: 'zzz' } }, themeMode: 'night' });
+  const p = T.migratePrefs({ themes: { day: { accent: '#ff0000', floating: '#112233' }, night: { page: 'zzz' } }, themeMode: 'night' });
   assert.equal(p.themes.day.accent, '#ff0000');
+  assert.equal(p.themes.day.floating, '#112233');
   assert.equal(p.themes.day.page, T.DEFAULT_THEMES.day.page);
   assert.equal(p.themes.night.page, T.DEFAULT_THEMES.night.page);
   assert.equal(p.themeMode, 'night');
+});
+
+test('semantic detail colours are optional overrides and invalid values are dropped', () => {
+  const automatic = T.deriveVars(T.DEFAULT_THEMES.day).vars;
+  const custom = T.completeTheme({ ...T.DEFAULT_THEMES.day, floating: '#123456', folder: 'abc', input: 'nope' });
+  assert.equal(custom.floating, '#123456');
+  assert.equal(custom.folder, '#aabbcc');
+  assert.equal(Object.hasOwn(custom, 'input'), false);
+  const vars = T.deriveVars(custom).vars;
+  assert.equal(vars['--floating-bg'], '#123456');
+  assert.equal(vars['--folder-ink'], '#aabbcc');
+  assert.equal(vars['--input-bg'], automatic['--input-bg']);
+  for (const key of T.DETAIL_KEYS) assert.match(T.DETAIL_VARS[key], /^--/, key);
+  const issues = T.contrastIssues({ ...T.DEFAULT_THEMES.day, floating: '#123456', folder: '#ffffff', sidebar: '#ffffff' });
+  assert.ok(issues.some((issue) => issue.key === 'folder'));
 });
 
 test('contrast: WCAG ratio, readable suggestions, and warnings never change the input', () => {

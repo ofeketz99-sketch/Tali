@@ -5,7 +5,7 @@
 import { icon } from './icons.js';
 import { setThemePreview, profileNow } from './theme.js';
 import {
-  BASE_KEYS, BASE_LABELS, PRESETS, DEFAULT_THEMES, contrastIssues, deriveVars, normalizeHex,
+  BASE_KEYS, BASE_LABELS, DETAIL_GROUPS, DETAIL_LABELS, DETAIL_VARS, PRESETS, DEFAULT_THEMES, contrastIssues, deriveVars, normalizeHex,
   validSchedule, parseHM, formatHM, nextSwitch,
 } from './theme-core.js';
 
@@ -91,7 +91,8 @@ export function buildThemeSection({ el, row, getPrefs, setPref }) {
       el('span', {}, p.name));
     chip.addEventListener('click', () => { draft[target] = { ...p.colors }; changed(); });
     presetBox.append(chip);
-    bind(() => chip.classList.toggle('on', JSON.stringify(draft[target]) === JSON.stringify(p.colors)));
+    bind(() => chip.classList.toggle('on', BASE_KEYS.every((key) => draft[target][key] === p.colors[key])
+      && Object.keys(draft[target]).every((key) => BASE_KEYS.includes(key))));
   }
 
   // ----- צבעי היסוד -----
@@ -125,6 +126,42 @@ export function buildThemeSection({ el, row, getPrefs, setPref }) {
     colorRows.append(line);
   }
 
+  // ----- צבעים מפורטים -----
+  // כל שדה מתחיל מהצבע הלוגי שנגזר מהערכה. ברגע שהמשתמש משנה אותו הוא נשמר כדריסה;
+  // כפתור האיפוס מוחק רק את הדריסה ומחזיר את הקשר לצבעי היסוד.
+  const detailRows = el('div', { class: 'theme-details' });
+  const resolvedDetail = (key) => deriveVars(draft[target]).vars[DETAIL_VARS[key]];
+  for (const group of DETAIL_GROUPS) {
+    const body = el('div', { class: 'theme-detail-body' });
+    for (const key of group.keys) {
+      const picker = el('input', { type: 'color', class: 'theme-swatch', 'aria-label': DETAIL_LABELS[key] });
+      const hex = el('input', { type: 'text', class: 'theme-hex', maxlength: '7', spellcheck: 'false', 'aria-label': `${DETAIL_LABELS[key]} (HEX)` });
+      const auto = el('button', { type: 'button', class: 'icon-btn theme-auto', 'data-tip': 'חישוב אוטומטי מצבעי הערכה', 'aria-label': 'חישוב אוטומטי מצבעי הערכה' });
+      auto.innerHTML = icon('undo', 14);
+      const setValue = (value) => { draft[target][key] = value; changed(); };
+      picker.addEventListener('input', () => setValue(picker.value));
+      hex.addEventListener('input', () => {
+        const value = normalizeHex(hex.value);
+        hex.classList.toggle('bad', !value);
+        if (value) setValue(value);
+      });
+      hex.addEventListener('blur', () => { hex.value = resolvedDetail(key); hex.classList.remove('bad'); });
+      auto.addEventListener('click', () => { delete draft[target][key]; changed(); });
+      bind(() => {
+        const value = resolvedDetail(key);
+        picker.value = value;
+        if (document.activeElement !== hex) hex.value = value;
+        auto.disabled = !Object.prototype.hasOwnProperty.call(draft[target], key);
+        auto.classList.toggle('is-auto', auto.disabled);
+      });
+      body.append(el('div', { class: 'theme-color' }, el('span', { class: 'theme-color-name' }, DETAIL_LABELS[key]), picker, hex, auto));
+    }
+    const details = el('details', { class: 'theme-detail-group' },
+      el('summary', {}, group.title, el('small', {}, ' · נגזרים אוטומטית אלא אם שונו')),
+      body);
+    detailRows.append(details);
+  }
+
   // ----- אזהרות ניגודיות: מציעות תיקון, לא מתקנות לבד -----
   const warnBox = el('div', { class: 'theme-warnings', 'aria-live': 'polite' });
   bind(() => {
@@ -144,15 +181,16 @@ export function buildThemeSection({ el, row, getPrefs, setPref }) {
   const preview = el('div', { class: 'theme-preview', 'aria-hidden': 'true' },
     el('div', { class: 'tp-side' },
       el('div', { class: 'tp-logo' }),
-      el('div', { class: 'tp-node on' }, 'מסמך פתוח'),
-      el('div', { class: 'tp-node' }, 'מסמך אחר'),
-      el('div', { class: 'tp-node' }, 'תיקייה')),
+      el('div', { class: 'tp-node tp-document on' }, 'מסמך פתוח'),
+      el('div', { class: 'tp-node tp-document' }, 'מסמך אחר'),
+      el('div', { class: 'tp-node tp-folder' }, 'תיקייה')),
     el('div', { class: 'tp-main' },
       el('div', { class: 'tp-bar' }, el('span', { class: 'tp-btn on' }, 'B'), el('span', { class: 'tp-btn' }, 'I'), el('span', { class: 'tp-btn' }, 'U')),
       el('div', { class: 'tp-page' },
         el('div', { class: 'tp-h' }, 'כותרת לדוגמה'),
         el('div', { class: 'tp-p' }, 'טקסט רגיל עם ', el('span', { class: 'tp-link' }, 'קישור למסמך'), ' ו', el('span', { class: 'tp-muted' }, 'טקסט משני'), '.'),
-        el('div', { class: 'tp-row' }, el('span', { class: 'tp-primary' }, 'כפתור'), el('span', { class: 'tp-input' }, 'שדה טקסט')))));
+        el('div', { class: 'tp-row' }, el('span', { class: 'tp-primary' }, 'כפתור'), el('span', { class: 'tp-input' }, 'שדה טקסט')),
+        el('div', { class: 'tp-floating' }, 'תיבה צפה'))));
   bind(() => {
     const { vars } = deriveVars(draft[target]);
     for (const [k, v] of Object.entries(vars)) preview.style.setProperty(k, v);
@@ -177,6 +215,9 @@ export function buildThemeSection({ el, row, getPrefs, setPref }) {
   const editor = el('div', { class: 'theme-editor' },
     targetBox, presetBox,
     el('div', { class: 'theme-grid' }, colorRows, preview),
+    el('div', { class: 'theme-detail-head' },
+      el('div', {}, el('strong', {}, 'צבעים מפורטים'), el('small', {}, 'פתח קבוצה כדי לשלוט ברכיבים נוספים. כפתור האיפוס מחזיר צבע לחישוב אוטומטי.'))),
+    detailRows,
     warnBox,
     el('div', { class: 'theme-actions' }, resetBtn, el('span', { class: 'theme-spacer' }), dirtyNote, cancelBtn, applyBtn));
 

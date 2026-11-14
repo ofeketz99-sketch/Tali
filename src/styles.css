@@ -14,10 +14,18 @@
   --page-bg: #fffdf9;                /* לבן פסטלי חמים */
   --panel-bg: #fcfbf8;               /* סרגל כלים, שורת מצב, תפריטים */
   --input-bg: #ffffff;
+  --floating-bg: #fcfbf8;
+  --floating-border: #e5e0d6;
+  --toolbar-bg: #f9faf9;
   --border: #e5e0d6;
   --text: #2a2d33;
   --muted: #7b7f87;
   --faint: #a9acb2;
+  --folder-ink: #363a41;
+  --document-ink: #363a41;
+  --link: #39799f;
+  --danger: #f9e3e3;
+  --danger-ink: #b23b3b;
   --code-bg: #f2f0eb;
   --pre-bg: #2b303b;
   --pre-text: #e8ebf2;
@@ -119,13 +127,13 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { border-colo
 #tree { flex: 1; overflow: auto; padding: 4px 6px 12px; }
 .node {
   position: relative; display: flex; align-items: center; gap: 6px; padding: 5px 8px; margin: 1px 0; border-radius: 7px;
-  cursor: pointer; user-select: none; color: color-mix(in srgb, var(--text) 85%, var(--muted));
+  cursor: pointer; user-select: none; color: var(--document-ink);
   transition: background-color .14s var(--ease), color .14s var(--ease), padding .14s var(--ease);
 }
 .node:hover { background: var(--accent-hover); color: var(--text); padding-inline-start: 11px; }
 .node .icon { width: 16px; display: grid; place-items: center; color: var(--faint); transition: transform .2s var(--ease), color .14s; }
 .node:hover .icon { color: var(--accent-strong); }
-.node.dir { font-weight: 600; }
+.node.dir { font-weight: 600; color: var(--folder-ink); }
 .node.dir.collapsed .icon { transform: rotate(90deg); } /* חץ שמאלה = סגור (מימין לשמאל) */
 .node .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .node.active { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
@@ -161,7 +169,8 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { border-colo
 
 .tb-menu {
   position: fixed; z-index: 40; min-width: 180px; padding: 5px; background: var(--panel-bg); color: var(--text);
-  border: 1px solid var(--border); border-radius: 11px; box-shadow: 0 10px 30px rgba(0,0,0,.14);
+  border: 1px solid var(--floating-border); border-radius: 11px; box-shadow: 0 10px 30px rgba(0,0,0,.14);
+  background: var(--floating-bg);
   animation: pop .16s var(--ease);
 }
 .tb-menu-item {
@@ -284,7 +293,7 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { border-colo
 #props[hidden] { display: none; }
 
 /* ===== קישורים, תמונות, HTML גולמי ===== */
-.ProseMirror a { color: var(--accent-strong); cursor: pointer; }
+.ProseMirror a { color: var(--link); cursor: pointer; }
 .ProseMirror img { max-width: 100%; height: auto; border-radius: 4px; vertical-align: middle; }
 .ProseMirror img.broken { min-width: 40px; min-height: 24px; outline: 1px dashed var(--border); }
 .ProseMirror .embed { display: inline-block; max-width: 100%; }
@@ -326,7 +335,7 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { border-colo
 
 .wikilink-suggest {
   position: fixed; z-index: 20; min-width: 220px; max-width: 360px; max-height: 280px; overflow: auto;
-  background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+  background: var(--floating-bg); border: 1px solid var(--floating-border); border-radius: 8px; color: var(--text);
   box-shadow: 0 6px 20px rgba(0,0,0,.15); padding: 4px; font-family: var(--font-ui); font-size: 14px;
 }
 .wikilink-suggest .item { padding: 6px 10px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; }
@@ -363,14 +372,14 @@ dialog[open]::backdrop { animation: fade .2s ease; }
 }
 
 /* ===== דיאלוג ותפריט ימני ===== */
-dialog { border: 1px solid var(--border); border-radius: 14px; padding: 18px; min-width: 320px; background: var(--panel-bg); color: var(--text); box-shadow: 0 20px 50px rgba(0,0,0,.2); }
+dialog { border: 1px solid var(--floating-border); border-radius: 14px; padding: 18px; min-width: 320px; background: var(--floating-bg); color: var(--text); box-shadow: 0 20px 50px rgba(0,0,0,.2); }
 dialog::backdrop { background: color-mix(in srgb, var(--text) 30%, transparent); backdrop-filter: blur(2px); }
 #dlg label { font-weight: 600; }
 #dlg menu { justify-content: flex-end; }
 dialog label { display: block; margin-bottom: 8px; }
 dialog input { width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); }
 dialog menu { display: flex; gap: 8px; justify-content: flex-start; padding: 0; margin: 14px 0 0; }
-#ctx { position: fixed; z-index: 10; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 11px; box-shadow: 0 10px 30px rgba(0,0,0,.14); padding: 5px; }
+#ctx { position: fixed; z-index: 10; background: var(--floating-bg); border: 1px solid var(--floating-border); border-radius: 11px; box-shadow: 0 10px 30px rgba(0,0,0,.14); padding: 5px; }
 #ctx div { padding: 7px 14px; border-radius: 7px; cursor: pointer; transition: background-color .12s var(--ease); }
 #ctx div:hover { background: var(--accent-soft); color: var(--accent-strong); }
 
@@ -383,7 +392,7 @@ dialog menu { display: flex; gap: 8px; justify-content: flex-start; padding: 0; 
 :root[data-theme="dark"] .ProseMirror td[style*="background-color"], :root[data-theme="dark"] .ProseMirror th[style*="background-color"] { color: #1f2328; }
 
 .table-grid {
-  position: fixed; z-index: 25; padding: 10px; background: var(--panel-bg); border: 1px solid var(--border);
+  position: fixed; z-index: 25; padding: 10px; background: var(--floating-bg); border: 1px solid var(--floating-border);
   border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.15);
 }
 .table-grid[hidden] { display: none; }
@@ -395,13 +404,13 @@ dialog menu { display: flex; gap: 8px; justify-content: flex-start; padding: 0; 
 
 .table-bar {
   position: fixed; z-index: 15; display: flex; flex-wrap: wrap; align-items: center; gap: 3px; padding: 4px;
-  background: var(--panel-bg); border: 1px solid var(--border); border-radius: 9px; box-shadow: 0 6px 18px rgba(0,0,0,.12);
+  background: var(--floating-bg); border: 1px solid var(--floating-border); border-radius: 9px; box-shadow: 0 6px 18px rgba(0,0,0,.12);
   font-size: 13px; max-width: calc(100vw - 16px);
 }
 .table-bar[hidden] { display: none; }
 .table-bar button { padding: 3px 8px; border-color: transparent; background: none; white-space: nowrap; }
 .table-bar button:hover { background: var(--accent-hover); border-color: var(--border); }
-.table-bar button.danger:hover { background: color-mix(in srgb, #e06c6c 15%, var(--page-bg)); }
+.table-bar button.danger:hover { background: color-mix(in srgb, var(--danger) 55%, var(--page-bg)); color: var(--danger-ink); }
 .table-bar .sep { width: 1px; align-self: stretch; background: var(--border); margin: 2px 2px; }
 .table-bar .tb-colors { display: flex; gap: 4px; width: 100%; justify-content: center; padding: 4px 0 2px; border-top: 1px solid var(--border); }
 .table-bar .tb-colors[hidden] { display: none; }
@@ -437,7 +446,7 @@ dialog menu { display: flex; gap: 8px; justify-content: flex-start; padding: 0; 
 #toast {
   position: fixed; bottom: 36px; left: 20px; z-index: 30; max-width: 420px;
   display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 14px;
-  background: var(--panel-bg); border: 1px solid var(--border); border-inline-start: 4px solid var(--accent);
+  background: var(--floating-bg); border: 1px solid var(--floating-border); border-inline-start: 4px solid var(--accent);
   border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.15); font-size: 14px;
 }
 #toast[hidden] { display: none; }
@@ -662,7 +671,9 @@ dialog { border-radius: 18px; }
 .ProseMirror table { border-radius: 10px; overflow: hidden; }
 .ProseMirror code { border-radius: 6px; }
 .ProseMirror pre { border-radius: 12px; }
-.ProseMirror hr { border-top: 2px dotted var(--accent-line); }
+.ProseMirror hr {
+  border-top: var(--done-divider-width, 1px) var(--done-divider-style, solid) var(--done-divider-color, var(--accent-line));
+}
 
 /* תיבת סימון של משימה: עגולה ורכה, קופצת כשמסמנים */
 .ProseMirror ul[data-type="taskList"] li > label { margin-top: .3em; }
@@ -747,8 +758,8 @@ dialog { border-radius: 18px; }
 #ctx .ctx-item kbd { direction: ltr; font-family: var(--font-ui); font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 5px; padding: 0 6px; background: var(--input-bg); }
 #ctx .ctx-item:hover { background: var(--accent-soft); color: var(--accent-strong); padding-inline-start: 15px; }
 #ctx .ctx-item:hover .ic { color: var(--accent-strong); }
-#ctx .ctx-item.danger:hover { background: color-mix(in srgb, #e06c6c 13%, var(--page-bg)); color: #c24545; }
-#ctx .ctx-item.danger:hover .ic { color: #c24545; }
+#ctx .ctx-item.danger:hover { background: var(--danger); color: var(--danger-ink); }
+#ctx .ctx-item.danger:hover .ic { color: var(--danger-ink); }
 
 /* ----- בורר קישורים: חיפוש + בחירה מרובה ----- */
 #linkPicker { width: min(520px, 92vw); padding: 0; }
@@ -793,8 +804,8 @@ dialog { border-radius: 18px; }
 .ProseMirror .embed-tools {
   position: absolute; z-index: 3; inset-block-start: -35px; inset-inline-start: 0;
   display: flex; gap: 2px; padding: 3px;
-  border: 1px solid var(--border); border-radius: 9px;
-  background: var(--panel-bg); box-shadow: var(--shadow-soft);
+  border: 1px solid var(--floating-border); border-radius: 9px;
+  background: var(--floating-bg); box-shadow: var(--shadow-soft);
   opacity: 0; pointer-events: none; transform: translateY(3px);
   transition: opacity .15s var(--ease), transform .15s var(--ease);
   white-space: nowrap;
@@ -893,7 +904,7 @@ dialog { border-radius: 18px; }
 .tali-text-box .tali-overlay-text { padding: 8px 12px; border-radius: 8px; }
 .tali-box-move {
   position: absolute; top: -13px; left: 50%; transform: translateX(-50%); height: 22px; width: 34px; padding: 0;
-  border: 1px solid var(--accent-line); border-radius: 999px; background: var(--panel-bg);
+  border: 1px solid var(--accent-line); border-radius: 999px; background: var(--floating-bg);
   justify-content: center; opacity: 0; transition: opacity .15s var(--ease);
 }
 .tali-text-box:hover .tali-box-move, .tali-text-box.selected .tali-box-move,
@@ -902,8 +913,8 @@ dialog { border-radius: 18px; }
 .tali-overlay-toolbar {
   position: fixed; z-index: 50; bottom: 46px; left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 4px; padding: 6px 8px;
-  border-radius: 15px; border: 1px solid var(--accent-line);
-  background: var(--panel-bg); box-shadow: var(--shadow-lift); max-width: 95vw;
+  border-radius: 15px; border: 1px solid var(--floating-border);
+  background: var(--floating-bg); box-shadow: var(--shadow-lift); max-width: 95vw;
   font: 12px var(--font-ui); color: var(--text); animation: rise-small .16s var(--ease);
 }
 .tali-overlay-toolbar[hidden] { display: none; }
@@ -937,7 +948,7 @@ dialog { border-radius: 18px; }
 /* ההסבר לכלי הפעיל: מעל הסרגל, משתנה לפי הכלי */
 .tali-overlay-toolbar .tali-overlay-hint {
   position: absolute; bottom: calc(100% + 7px); left: 50%; transform: translateX(-50%);
-  padding: 3px 11px; border-radius: 10px; background: var(--panel-bg); border: 1px solid var(--border);
+  padding: 3px 11px; border-radius: 10px; background: var(--floating-bg); border: 1px solid var(--floating-border);
   box-shadow: var(--shadow-soft); font-size: 11.5px; color: var(--muted); white-space: nowrap; pointer-events: none;
 }
 .tali-overlay-toolbar .tali-overlay-hint:empty { display: none; }
@@ -1200,7 +1211,7 @@ body[data-sidebar-mode="compact"] #btnNote .btn-new-icon .ic { width: 18px; heig
 /* ===== Patch Notes (לוח פקודות) ===== */
 .patch-notes-dialog {
   width: min(640px, calc(100vw - 32px)); max-height: min(82vh, 760px); padding: 0; overflow: hidden;
-  border-radius: 16px; border: 1px solid var(--border); background: var(--panel-bg); color: var(--text);
+  border-radius: 16px; border: 1px solid var(--floating-border); background: var(--floating-bg); color: var(--text);
 }
 .patch-notes-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 20px 12px; }
 .patch-notes-header h2 { margin: 0; font: 700 19px var(--font-ui); }
@@ -1258,7 +1269,7 @@ body[data-sidebar-mode="compact"] .side-top #btnNote {
 .side-views .icon-btn:hover { border-color: var(--accent-line); }
 
 /* חלונות התצוגות */
-.vault-dialog { width: min(760px, calc(100vw - 40px)); max-height: min(84vh, 820px); padding: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--panel-bg); color: var(--text); overflow: hidden; display: none; }
+.vault-dialog { width: min(760px, calc(100vw - 40px)); max-height: min(84vh, 820px); padding: 0; border: 1px solid var(--floating-border); border-radius: 16px; background: var(--floating-bg); color: var(--text); overflow: hidden; display: none; }
 .vault-dialog[open] { display: flex; flex-direction: column; animation: dialog-in .22s var(--ease); }
 .vault-dialog::backdrop { background: color-mix(in srgb, var(--text) 22%, transparent); }
 .vd-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 12px; border-bottom: 1px solid var(--border); background: var(--accent-tint); }
@@ -1282,9 +1293,9 @@ body[data-sidebar-mode="compact"] .side-top #btnNote {
 .graph-hint { position: absolute; bottom: 10px; inset-inline-start: 14px; font-size: 12px; color: var(--faint); pointer-events: none; }
 /* לוח הכוחות: כפתור בפינה, וסליידרים מתחתיו */
 .graph-forces { position: absolute; top: 12px; inset-inline-end: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-.graph-forces-btn { background: var(--panel-bg); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.graph-forces-btn { background: var(--floating-bg); border: 1px solid var(--floating-border); box-shadow: var(--shadow); }
 .graph-forces-btn[aria-expanded="true"] { color: var(--accent-strong); border-color: var(--accent-line); }
-.graph-forces-body { width: 220px; padding: 10px 12px 12px; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--panel-bg) 92%, transparent); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; animation: pop-spring .22s var(--spring); }
+.graph-forces-body { width: 220px; padding: 10px 12px 12px; border: 1px solid var(--floating-border); border-radius: 12px; background: color-mix(in srgb, var(--floating-bg) 92%, transparent); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; animation: pop-spring .22s var(--spring); }
 .graph-forces-body[hidden] { display: none; }
 .gf-row { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
 .gf-row input { -webkit-appearance: none; appearance: none; width: 100%; height: 16px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: pointer; }
@@ -1341,7 +1352,7 @@ body[data-sidebar-mode="compact"] .side-top #btnNote {
 .task-row.done .task-text { color: var(--faint); text-decoration: line-through; }
 
 /* תצוגה מקדימה בריחוף על קישור */
-.note-preview { position: fixed; z-index: 900; width: 380px; max-height: 320px; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-bg); box-shadow: var(--shadow); overflow: hidden; opacity: 0; transform: translateY(4px); transition: opacity .16s var(--ease), transform .16s var(--ease); }
+.note-preview { position: fixed; z-index: 900; width: 380px; max-height: 320px; display: flex; flex-direction: column; border: 1px solid var(--floating-border); border-radius: 12px; background: var(--floating-bg); box-shadow: var(--shadow); overflow: hidden; opacity: 0; transform: translateY(4px); transition: opacity .16s var(--ease), transform .16s var(--ease); }
 .note-preview[hidden] { display: none; }
 .note-preview.show { opacity: 1; transform: none; }
 .np-head { display: flex; align-items: center; gap: 7px; padding: 8px 12px; border: none; border-bottom: 1px solid var(--border); background: var(--accent-tint); color: var(--accent-strong); font-weight: 600; text-align: start; border-radius: 0; }
@@ -1425,7 +1436,7 @@ body[data-sidebar-mode="compact"] .side-top #btnNote {
 /* הסרגל הצף */
 .tb-bubble {
   position: fixed; z-index: 35; display: flex; align-items: center; gap: 1px; padding: 3px;
-  background: var(--panel-bg); border: 1px solid var(--accent-line); border-radius: 11px; box-shadow: var(--shadow-lift);
+  background: var(--floating-bg); border: 1px solid var(--floating-border); border-radius: 11px; box-shadow: var(--shadow-lift);
 }
 .tb-bubble[hidden] { display: none; }
 .tb-bubble.show { animation: bubble-in .18s var(--spring) both; }
@@ -1477,6 +1488,19 @@ body[data-focus] #page { animation: rise-spring .4s var(--spring); }
 .theme-colors { display: flex; flex-direction: column; gap: 7px; }
 .theme-color { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .theme-color-name { flex: 1; min-width: 7.5em; font-size: 13px; }
+.theme-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-top: 2px; border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent); }
+.theme-detail-head strong, .theme-detail-head small { display: block; }
+.theme-detail-head small { margin-top: 3px; color: var(--muted); font-size: 11.5px; }
+.theme-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.theme-detail-group { border: 1px solid var(--border); border-radius: 10px; background: color-mix(in srgb, var(--input-bg) 60%, transparent); overflow: hidden; }
+.theme-detail-group[open] { grid-column: 1 / -1; }
+.theme-detail-group summary { padding: 8px 10px; cursor: pointer; color: var(--text); font-size: 13px; user-select: none; }
+.theme-detail-group summary:hover { background: var(--accent-hover); }
+.theme-detail-group summary small { color: var(--muted); font-size: 11px; }
+.theme-detail-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; padding: 8px 10px 10px; border-top: 1px solid var(--border); }
+.theme-detail-body .theme-color { min-width: 0; }
+.theme-auto { width: 28px; height: 26px; flex: none; border: 1px solid var(--border); background: var(--input-bg); }
+.theme-auto.is-auto { opacity: .45; }
 .theme-swatch { width: 30px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 7px; background: none; cursor: pointer; }
 .theme-swatch::-webkit-color-swatch-wrapper { padding: 2px; }
 .theme-swatch::-webkit-color-swatch { border: none; border-radius: 5px; }
@@ -1512,6 +1536,8 @@ body[data-focus] #page { animation: rise-spring .4s var(--spring); }
 .tp-logo { width: 16px; height: 16px; border-radius: 5px; background: var(--accent); margin-bottom: 4px; }
 .tp-node { padding: 2px 4px; border-radius: 4px; white-space: nowrap; overflow: hidden; }
 .tp-node.on { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+.tp-node.tp-folder:not(.on) { color: var(--folder-ink); font-weight: 600; }
+.tp-node.tp-document:not(.on) { color: var(--document-ink); }
 .tp-main { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; min-width: 0; }
 .tp-bar { display: flex; gap: 3px; padding: 5px 8px; background: var(--accent-tint); border-bottom: 1px solid var(--accent-line); }
 .tp-btn { width: 17px; height: 17px; display: grid; place-items: center; border-radius: 4px; font-weight: 700; color: var(--text); }
@@ -1524,7 +1550,12 @@ body[data-focus] #page { animation: rise-spring .4s var(--spring); }
 .tp-row { display: flex; gap: 6px; align-items: center; }
 .tp-primary { padding: 2px 9px; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-weight: 600; }
 .tp-input { padding: 2px 7px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--muted); }
+.tp-floating { align-self: flex-end; margin-top: auto; padding: 3px 7px; border: 1px solid var(--floating-border); border-radius: 6px; background: var(--floating-bg); color: var(--muted); box-shadow: var(--shadow); }
 @media (max-width: 760px) { .theme-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) {
+  .theme-details, .theme-detail-body { grid-template-columns: 1fr; }
+  .theme-detail-group[open] { grid-column: auto; }
+}
 /* חלון ההגדרות עם עורך הערכות: רחב יותר, ושדות בגודל קבוע (בלי הרוחב המלא של שדות טקסט אחרים) */
 #settings { width: min(820px, 94vw); }
 #settings .row > label { min-width: 10em; }
@@ -1545,7 +1576,7 @@ body[data-focus] #page { animation: rise-spring .4s var(--spring); }
 .cm-menu {
   position: fixed; pointer-events: auto; min-width: 196px; max-width: 280px; padding: 5px;
   display: flex; flex-direction: column; gap: 1px;
-  background: var(--panel-bg); color: var(--text); border: 1px solid var(--border); border-radius: 11px;
+  background: var(--floating-bg); color: var(--text); border: 1px solid var(--floating-border); border-radius: 11px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, .06), 0 12px 32px -8px rgba(0, 0, 0, .22);
 }
 :root[data-theme="dark"] .cm-menu { box-shadow: 0 2px 6px rgba(0, 0, 0, .3), 0 14px 34px -8px rgba(0, 0, 0, .55); }
@@ -2001,7 +2032,7 @@ body.page-drawing-session .block-handle { display: none !important; }
 .tali-free-image:hover .tali-image-back, .tali-free-image.selected .tali-image-back, .tali-image-back:focus-visible { opacity: 1; }
 .tali-image-back:hover { color: var(--accent-strong); border-color: var(--accent); }
 
-/* 8.0: תצוגה מקדימה של קו ההפרדה של משימות בהגדרות */
+/* 8.7: תצוגה מקדימה של קו מפריד במסמך ובמשימות */
 #settings .done-divider-preview .ddp-line { margin: 8px 0; border-top: var(--done-divider-width, 1px) var(--done-divider-style, solid) var(--done-divider-color, var(--accent-line)); }
 
 /* 8.2: דגל המסמך גם בכרטיסייה */

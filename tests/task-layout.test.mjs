@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import esbuild from 'esbuild';
 
@@ -44,4 +45,14 @@ test('the cursor follows its item when the list is reordered', () => {
   assert.equal(followItem(19 + 2, 10, before, after), 11 + 2); // inside c: same offset, now first
   assert.equal(followItem(11 + 1, 10, before, after), 17 + 1); // inside a: shifted down by c's size
   assert.equal(followItem(5, 10, before, after), 5); // outside the list: unchanged
+});
+
+test('document horizontal rules use the same configurable divider tokens as completed tasks', () => {
+  const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  const rule = /\.ProseMirror hr\s*\{([^}]*)\}/g;
+  const declarations = [...css.matchAll(rule)].map((match) => match[1]).join('\n');
+  assert.match(declarations, /--done-divider-style/);
+  assert.match(declarations, /--done-divider-color/);
+  assert.match(declarations, /--done-divider-width/);
+  assert.doesNotMatch(declarations, /\bdotted\b/);
 });

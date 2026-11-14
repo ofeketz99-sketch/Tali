@@ -90,7 +90,8 @@ export function applyPrefs({ animate = false } = {}) {
   if (prefs.pageLook) delete root.dataset.page; else root.dataset.page = 'flat';
   root.dataset.textdir = prefs.textDir;
   if (prefs.justify) root.dataset.justify = 'on'; else delete root.dataset.justify;
-  // 8.0: סגנון קו ההפרדה של משימות שבוצעו. הצבעים הם משתני ערכה, ולכן מתאימים גם למצב כהה
+  // 8.7: אותו עיצוב משמש גם לקו --- במסמך וגם לקו של משימות שבוצעו.
+  // הצבעים הם משתני ערכה, ולכן מתאימים גם למצב כהה.
   const dividerColors = { accent: 'var(--accent)', muted: 'var(--accent-line)', text: 'var(--muted)' };
   const style = ['solid', 'dashed', 'dotted', 'double', 'none'].includes(prefs.doneDividerStyle) ? prefs.doneDividerStyle : 'solid';
   const width = Math.max(1, Math.min(4, Number(prefs.doneDividerWidth) || 1));
@@ -233,10 +234,10 @@ function buildDialog() {
       el('div', { style: 'font-family:var(--font-heading);font-weight:700;font-size:1.3em;margin-bottom:4px' }, 'כותרת לדוגמה'),
       'כך ייראה הטקסט במסמכים. The quick brown fox jumps over the lazy dog.'),
     row('משימות שבוצעו בסוף הרשימה', 'בעת סימון תיבת משימה היא עוברת, עם תנועה וקו מפריד, לסוף הרשימה שלה', check('completedTasksAtBottom')),
-    row('קו ההפרדה: סגנון', 'הקו בין משימות פתוחות למשימות שבוצעו', seg('doneDividerStyle', [['solid', 'רציף'], ['dashed', 'מקווקו'], ['dotted', 'נקודות'], ['double', 'כפול'], ['none', 'בלי קו']])),
-    row('קו ההפרדה: צבע', null, seg('doneDividerColor', [['accent', 'צבע הערכה'], ['muted', 'עדין'], ['text', 'אפור כהה']])),
-    row('קו ההפרדה: עובי', null, range('doneDividerWidth', 1, 4, 1, (v) => v + 'px')),
-    el('div', { class: 'preview done-divider-preview' }, el('div', {}, '☐ משימה פתוחה'), el('div', { class: 'ddp-line' }), el('div', { style: 'opacity:.6;text-decoration:line-through' }, '☑ משימה שבוצעה')),
+    row('קו מפריד: סגנון', 'לקו --- במסמך ולקו שבין משימות פתוחות למשימות שבוצעו', seg('doneDividerStyle', [['solid', 'רציף'], ['dashed', 'מקווקו'], ['dotted', 'נקודות'], ['double', 'כפול'], ['none', 'בלי קו']])),
+    row('קו מפריד: צבע', null, seg('doneDividerColor', [['accent', 'צבע הערכה'], ['muted', 'עדין'], ['text', 'אפור כהה']])),
+    row('קו מפריד: עובי', null, range('doneDividerWidth', 1, 4, 1, (v) => v + 'px')),
+    el('div', { class: 'preview done-divider-preview' }, el('div', {}, 'טקסט לפני קו מפריד'), el('div', { class: 'ddp-line' }), el('div', { style: 'opacity:.7' }, 'טקסט אחרי הקו')),
   );
   const files = el('section', { class: 'set-page', 'data-page': 'files', hidden: '' },
     row('מסמך חדש נוצר', null, select('newNoteLocation', [
