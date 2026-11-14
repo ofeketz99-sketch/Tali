@@ -81,6 +81,7 @@
 | `src/styles.css` | כל העיצוב. צבעים וגופנים במשתנים בראש הקובץ |
 | `src/renderer.js` | חיווט כללי: מצב האפליקציה, דיאלוגים, תפריט ימני, שמירה אוטומטית, היסטוריית ניווט, `COMMANDS` |
 | `src/editor.js` | העורך (`TipTap`), טעינה ושמירה כ־Markdown, מעבר לתצוגה גולמית |
+| `src/archive.js` | ארכיון: תיקיית `ארכיון` בראש הכספת, נתיב ההעברה וההחזרה, וסינון האינדקס לתצוגות של שליפה מהירה (פונקציות טהורות, עם בדיקות) |
 | `src/view-anchor.js` | מעבר בין התצוגה המעוצבת ל־Markdown באותו מקום בחלון: הגוש שבראש החלון ↔ השורה שלו בטקסט, ותיבת הטקסט בגובה התוכן |
 | `src/list-direction.js` | הרחבות רשימה עם RTL/LTR מפורש ושמירה כ־HTML כשצריך; `HeadingDirection` (`dir="auto"` על H2 במצב "אוטומטי", קישוט בלבד, בשביל הקו שאחרי הכותרת) |
 | `src/task-layout.js` | מיון יציב של משימות שבוצעו לתחתית הרשימה וסימון קו ההפרדה (עם בדיקות) |
@@ -553,3 +554,14 @@
 - **החלון** נפתח מוסתר (`show: false`) ומוצג ב־`ready-to-show`, כשהפריים הראשון שלו כבר כחול. יש גיבוי של 3 שניות.
 - **עד 5.5** הפתיח היה סרטון מרונדר מראש של ספר שנפתח (`src/splash.webm`, 5.2 שניות, Three.js ב־`tools/splash-render/`). הקובץ והכלי עדיין במאגר אבל לא נטענים. `npm run splash:emblem` עדיין שימושי: הוא בונה מחדש את `src/splash-emblem.png` מ־`build/icon.png`. הפירוט של הסרטון בהיסטוריה של `AGENTS.md` ב־Git.
 
+
+### ארכיון (7.3)
+
+- `src/archive.js`. התיקייה `ארכיון` בראש הכספת (`ARCHIVE_DIR`). "העברה לארכיון" מעבירה מסמך או תיקייה ל־`ארכיון/<אותן תיקיות>` דרך `moveNode` (הקישורים מתעדכנים), ו"החזרה מהארכיון" מחזירה למקום ומסירה תיקיות ריקות שנשארו בארכיון (`prune-empty-folders` ב־`main.js`, `rmdir` בלבד). `ensure-folder` יוצר את שרשרת התיקיות.
+- **מה מסתיר את הארכיון:** `quickNotes()` (Ctrl+O, `pickNote`), `quickIndex()` (משימות, אחרונים), `withoutArchived` במסך הבית, ו־`stepFolder`. **לא** מסתירים: `allNotes()` (פענוח קישורים, השלמה אוטומטית), החיפוש בסרגל, הגרף והתגיות. תצוגה חדשה של "שליפה מהירה" צריכה להשתמש ב־`quickNotes`/`quickIndex`.
+- בעץ: `archiveLast` ב־`renderer.js` מסמן את התיקייה (`archive: true`), ו־`sidebar.js` שם אותה אחרונה, דהויה, עם סמל `Archive`.
+
+### שורת הכותרת של החלון (Windows, 7.3)
+
+- `main.js`: `titleBarStyle: 'hidden'` ו־`titleBarOverlay` (גובה 32px) רק ב־Windows (`CUSTOM_TITLE_BAR`). הממשק מצייר את `#titlebar` (`-webkit-app-region: drag`), ו־`theme-boot.js` מסמן `data-titlebar` לפני הציור הראשון, כדי שהגוף יקבל `padding-top`.
+- הצבעים: `syncTitleBar` ב־`theme.js` קורא את הרקע של `#titlebar` ואת `--text` אחרי כל החלה, ממיר ל־`#rrggbb` דרך canvas (הערך המחושב של `color-mix` הוא `color(srgb …)`, ש־Electron לא מקבל), ושולח `title-bar-colors`. כפתורי החלון מכסים את הפינה הימנית של השורה: אין לשים שם פקדים.

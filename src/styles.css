@@ -1929,3 +1929,22 @@ body[data-sidebar-mode="compact"] .tree-head { display: none; }
 .block-handle.dragging { cursor: grabbing; opacity: .4; }
 body[data-focus] .block-handle { display: none; }
 .ProseMirror .ProseMirror-selectednode:not(img):not(.embed) { outline: 2px solid var(--accent-line); outline-offset: 3px; border-radius: 4px; }
+
+/* ===== שורת הכותרת של החלון (Windows, מ־7.3) =====
+   main.js מסתיר את שורת הכותרת של Windows (שהייתה כהה או לבנה לפי המערכת, ולא לפי הערכה) ומשאיר רק
+   את כפתורי החלון, מעל הפינה הימנית של השורה הזו. הצבע כמו ראש הסרגל (--accent-tint), וכפתורי החלון
+   מקבלים אותו צבע מ־theme.js (syncTitleBar). גרירה מזיזה את החלון, ולחיצה כפולה מגדילה, כמו בשורה הרגילה. */
+:root { --titlebar-h: 32px; }
+#titlebar { display: none; }
+:root[data-titlebar] body { padding-top: var(--titlebar-h); }
+:root[data-titlebar] #titlebar {
+  display: flex; align-items: center; gap: 8px; position: fixed; top: 0; left: 0; right: 0; z-index: 55;
+  height: var(--titlebar-h); padding: 0 12px; direction: ltr; /* כמו ב־Windows: הסמל והשם משמאל, הכפתורים מימין */
+  background: var(--accent-tint); color: var(--muted); font: 12px var(--font-ui);
+  -webkit-app-region: drag; user-select: none;
+}
+#titlebar img { width: 16px; height: 16px; }
+
+/* ===== ארכיון (src/archive.js, 7.3): התיקייה בסוף העץ, דהויה, עם קו מעליה ===== */
+#tree .node.dir.archive { opacity: .62; margin-top: 6px; border-top: 1px dashed var(--border); padding-top: 4px; }
+#tree .node.dir.archive:hover, #tree .node.dir.archive:focus-visible { opacity: .9; }

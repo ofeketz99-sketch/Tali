@@ -23,6 +23,7 @@ import { createHome } from './home.js';
 import { createMeta } from './vault-meta.js';
 import { openIconPicker } from './icon-picker.js';
 import { renderNoteHtml } from './note-render.js';
+import { ARCHIVE_DIR, isArchived, isArchiveRoot, archiveDirFor, restoreDirFor, withoutArchived } from './archive.js';
 
 // אייקונים בכפתורים שב־index.html: <span data-icon="plus">
 for (const el of document.querySelectorAll('[data-icon]')) el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon, 18));
@@ -241,7 +242,7 @@ const home = createHome({
   api: {
     getRoot: () => state.root,
     sep: () => (state.root.includes('\\') ? '\\' : '/'),
-    vaultIndex: () => window.api.vaultIndex(),
+    vaultIndex: async () => withoutArchived(await window.api.vaultIndex()), // בלי הארכיון
     read: (p) => window.api.read(p),
     write: (p, t) => window.api.write(p, t, null),
     createNote: (dir, name, content) => window.api.createNote(dir, name, content),
@@ -909,7 +910,7 @@ function drawTree() {
   const q = $('search').value.trim();
   if (q) { clearTimeout(searchTimer); drawSearch(q); return; }
   const focusedPath = document.activeElement?.closest?.('#tree .node')?.dataset.path;
-  renderTree($('tree'), meta.sortTree(state.tree), {
+  renderTree($('tree'), archiveLast(meta.sortTree(state.tree)), {
     iconOf: (p) => meta.iconOf(p),
     onReorder: reorderNode,
     onStep: stepItem,
@@ -1196,8 +1197,60 @@ async function moveNode(src, destDir) {
   } catch (err) { setStatus(err.message); }
 }
 
+// ===== ארכיון (src/archive.js) =====
+// מסמך או תיקייה עוברים ל"ארכיון/<אותן תיקיות>" בהעברה רגילה (הקישורים מתעדכנים), וחוזרים משם למקום.
+const relOf = (p) => (state.root && p.startsWith(state.root) ? p.slice(state.root.length + 1).replace(/\\/g, '/') : '');
+const archivedPath = (p) => isArchived(relOf(p));
+// מה שמוצע בשליפה מהירה (Ctrl+O, בחירת מסמך): בלי הארכיון. הקישורים משתמשים ב־allNotes, עם הארכיון.
+const quickNotes = () => allNotes().filter((n) => !isArchived(n.rel));
+// בעץ: תיקיית הארכיון בסוף הרמה העליונה, ומסומנת (class archive ב־sidebar.js)
+function archiveLast(nodes) {
+  const i = nodes.findIndex((n) => n.type === 'dir' && isArchiveRoot(relOf(n.path)));
+  if (i < 0) return nodes;
+  const out = [...nodes];
+  const [box] = out.splice(i, 1);
+  out.push({ ...box, archive: true });
+  return Object.assign(out, { custom: nodes.custom });
+}
+async function archiveNode(node) {
+  const parts = archiveDirFor(relOf(node.path));
+  if (!parts) return;
+  try {
+    const dest = await window.api.ensureFolder(parts);
+    // הארכיון מכווץ, כדי שלא יתפוס מקום בעץ (moveNode פותח את תיקיית היעד)
+    const box = state.root + (state.root.includes('\\') ? '\\' : '/') + ARCHIVE_DIR;
+    await moveNode(node.path, dest);
+    for (const d of allDirs()) if (d === box || d.startsWith(box + '\\') || d.startsWith(box + '/')) state.collapsed.add(d);
+    saveCollapsed();
+    drawTree();
+    setStatus(`"${node.name.replace(/\.md$/i, '')}" עבר לארכיון`);
+  } catch (err) { setStatus(err.message); }
+}
+async function restoreNode(node) {
+  const parts = restoreDirFor(relOf(node.path));
+  if (!parts) return;
+  try {
+    const dest = parts.length ? await window.api.ensureFolder(parts) : state.root;
+    await moveNode(node.path, dest);
+    // תיקיות שנשארו ריקות בארכיון (ארכיון/לימודים/גנטיקה) יורדות; הארכיון עצמו נשאר
+    await window.api.pruneEmptyFolders([ARCHIVE_DIR, ...parts]);
+    await refreshTree();
+    setStatus(`"${node.name.replace(/\.md$/i, '')}" הוחזר מהארכיון`);
+  } catch (err) { setStatus(err.message); }
+}
+// פריט התפריט: העברה לארכיון, או החזרה ממנו (לא על תיקיית הארכיון עצמה)
+function archiveItem(node) {
+  const rel = relOf(node.path);
+  if (!rel || isArchiveRoot(rel)) return [];
+  return isArchived(rel)
+    ? [{ label: 'החזרה מהארכיון', icon: 'archiveRestore', run: () => restoreNode(node) }]
+    : [{ label: 'העברה לארכיון', icon: 'archive', run: () => archiveNode(node) }];
+}
+
 // ===== תצוגות על כל הכספת: גרף, תגיות, משימות, הערות רפאים =====
 const vaultIndex = async () => { await flushSave(); return window.api.vaultIndex(); };
+// לשליפה מהירה (משימות, אחרונים, מסך הבית): בלי מה שבארכיון. הגרף והתגיות מציגים את כל הכספת.
+const quickIndex = async () => withoutArchived(await vaultIndex());
 async function showGraph() {
   if (!state.root) return;
   openGraph({
@@ -1215,8 +1268,8 @@ async function showRecent() {
   const at = store.get('openedAt:' + state.root, {}) || {};
   const paths = [...new Set([...Object.keys(at).sort((a, b) => at[b] - at[a]), ...state.recent])];
   openRecent({
-    index: await vaultIndex(), store, current: state.currentPath,
-    opened: paths.map((p) => ({ path: p, at: at[p] || 0 })),
+    index: await quickIndex(), store, current: state.currentPath,
+    opened: paths.filter((p) => !archivedPath(p)).map((p) => ({ path: p, at: at[p] || 0 })),
     onOpen: (p, o) => openNote(p, o),
   });
 }
@@ -1227,7 +1280,7 @@ async function showGhosts() {
 // kind: 'followUp' (משימות להמשך) או 'checks' (תיבות סימון). בלי: מה שנבחר בפעם הקודמת
 async function showTasks(kind) {
   if (!state.root) return;
-  openTasks({ index: await vaultIndex(), store, kind, onOpenTask: openTask, onToggle: toggleTask });
+  openTasks({ index: await quickIndex(), store, kind, onOpenTask: openTask, onToggle: toggleTask });
 }
 
 // ===== דגלים (flags.js): נשמרים במאפייני המסמך, ומוצגים בעץ וברשימת המסומנים =====
@@ -1412,6 +1465,7 @@ function fileItems(node) {
       { label: 'ייצוא ל־Word', icon: 'exportWord', run: () => exportNote('docx', node) },
     ] },
     { label: 'העברת הכותרת למאפיינים', icon: 'outline', run: () => convertHeader(node.path) },
+    ...archiveItem(node),
   ];
 }
 function showContextMenu(node, x, y, before = []) {
@@ -1422,6 +1476,7 @@ function showContextMenu(node, x, y, before = []) {
     { label: 'מסמך חדש מתבנית', icon: 'template', run: () => { state.selectedDir = node.path; newNoteFromTemplate(); } },
     'sep',
     { label: 'שינוי שם', icon: 'edit', keys: 'F2', run: () => renameNode(node) },
+    ...archiveItem(node),
   );
   // לשניהם: סמל, והזזה בתוך התיקייה (סדר ידני)
   items.push(
@@ -1845,7 +1900,7 @@ function stepFolder(dir) {
   const folders = [];
   const direct = (nodes) => nodes.find((n) => n.type === 'file');
   if (direct(state.tree)) folders.push({ path: state.root, first: direct(state.tree).path });
-  const walk = (nodes) => { for (const n of nodes) if (n.type === 'dir') { const f = direct(n.children); if (f) folders.push({ path: n.path, first: f.path }); walk(n.children); } };
+  const walk = (nodes) => { for (const n of nodes) if (n.type === 'dir' && !archivedPath(n.path)) { const f = direct(n.children); if (f) folders.push({ path: n.path, first: f.path }); walk(n.children); } };
   walk(state.tree);
   if (!folders.length) return;
   const cur = state.currentPath ? dirname(state.currentPath) : state.selectedDir || null;
@@ -1874,7 +1929,7 @@ function openSwitcher() {
     footer: '↑↓ בחירה · Enter פתיחה · Esc סגירה',
     emptyText: 'אין מסמכים',
     items: (query) => {
-      const notes = allNotes();
+      const notes = quickNotes(); // בלי הארכיון
       const recentRank = new Map(state.recent.map((p, i) => [p, i]));
       const folder = (n) => (n.rel.includes('/') ? n.rel.slice(0, n.rel.lastIndexOf('/')).split('/').join(' › ') : '');
       const q = query.trim();
@@ -1896,7 +1951,8 @@ function openSwitcher() {
           list.push({ score: m.score + bonus, title: n.name, marks: m.marks, hint: folder(n), run: () => openNote(n.path) });
         }
         list.sort((a, b) => b.score - a.score);
-        if (!notes.some((n) => n.name.toLowerCase() === q.toLowerCase())) {
+        // גם מסמך בארכיון תופס את השם: לא מציעים ליצור כפול שלו
+        if (!allNotes().some((n) => n.name.toLowerCase() === q.toLowerCase())) {
           list.push({ title: `יצירת מסמך חדש: ${q}`, className: 'pal-create', run: () => newNote(q) });
         }
       }
@@ -1914,7 +1970,7 @@ function pickNote(placeholder, cb) {
     placeholder,
     footer: '↑↓ בחירה · Enter בחירה · Esc ביטול',
     emptyText: 'אין מסמכים',
-    items: (query) => allNotes()
+    items: (query) => quickNotes()
       .filter((n) => n.path !== state.currentPath)
       .map((n) => ({ n, m: fuzzy(query, n.name) }))
       .filter((x) => x.m)
@@ -1943,6 +1999,8 @@ const COMMANDS = [
   { title: 'מסמך חדש מתבנית…', run: newNoteFromTemplate, needs: 'root' },
   { title: 'הוספת תבנית במקום הסמן…', run: insertTemplate, needs: 'note' },
   { title: 'העברת הכותרת למאפיינים', run: () => convertHeader(), needs: 'note' },
+  { title: 'העברת המסמך לארכיון', run: () => { if (!archivedPath(state.currentPath)) archiveNode(currentNode()); }, needs: 'note' },
+  { title: 'החזרת המסמך מהארכיון', run: () => { if (archivedPath(state.currentPath)) restoreNode(currentNode()); }, needs: 'note' },
   { title: 'העברת הכותרות למאפיינים בכל המסמכים…', run: convertAllHeaders, needs: 'root' },
   { title: 'תיקייה חדשה', keys: 'Ctrl+Shift+N', run: newFolder, needs: 'root' },
   { title: 'חיפוש בכל המסמכים', keys: 'Ctrl+Shift+F', run: () => { $('search').focus(); $('search').select(); }, needs: 'root' },

@@ -48,10 +48,12 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
     const frag = document.createDocumentFragment();
     // תיקייה בלי מסמכים בכלל (תמונות וקבצים מצורפים): דהויה ובסוף הרמה
     // תיקייה בלי מסמכים: בסוף הרמה, אלא אם המשתמש סידר את הרמה הזו ידנית (list.custom, מ־vault-meta)
-    const nodes = list.custom ? [...list] : [...list.filter((n) => n.type !== 'dir' || hasNotes(n)), ...list.filter((n) => n.type === 'dir' && !hasNotes(n))];
+    const sorted = list.custom ? [...list] : [...list.filter((n) => n.type !== 'dir' || hasNotes(n)), ...list.filter((n) => n.type === 'dir' && !hasNotes(n))];
+    const nodes = [...sorted.filter((n) => !n.archive), ...sorted.filter((n) => n.archive)]; // הארכיון תמיד אחרון
     nodes.forEach((n, i) => {
       const row = document.createElement('div');
       row.className = 'node ' + n.type + (n.path === activePath ? ' active' : '') + (n.type === 'dir' && !hasNotes(n) ? ' no-notes' : '');
+      if (n.archive) { row.classList.add('archive'); row.dataset.tip = 'ארכיון: לא מופיע במעבר המהיר, באחרונים ובמשימות'; }
       row.style.setProperty('--i', i);
       row.tabIndex = 0;
       row.dataset.path = n.path;
@@ -128,7 +130,8 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
       }
       row.append(icon, label);
       // סמל שהמשתמש בחר (vault-meta): במסמך במקום סמל הקובץ, בתיקייה בין החץ לשם
-      const custom = iconOf?.(n.path);
+      // תיקיית הארכיון (archive, מ־archiveLast ב־renderer.js): סמל ארכיון אם לא נבחר סמל אחר
+      const custom = iconOf?.(n.path) || (n.archive ? { name: 'Archive' } : null);
       const customSvg = custom ? lucide(custom.name, n.type === 'dir' ? 15 : 15) : '';
       const paint = (el) => { if (custom?.color) el.style.color = `var(--flag-${custom.color})`; };
 

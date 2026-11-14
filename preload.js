@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('api', {
   // המחשב התעורר משינה או נפתחה נעילה (לבדיקה מחדש של ערכת הצבעים לפי שעה)
   onSystemWake: (fn) => ipcRenderer.on('system-wake', () => fn()),
   onCloseTab: (fn) => ipcRenderer.on('close-tab', () => fn()),
+  // Windows: הממשק מצייר את שורת הכותרת (#titlebar), וכפתורי החלון נצבעים לפי הערכה
+  customTitleBar: process.platform === 'win32',
+  setTitleBarColors: (colors) => ipcRenderer.send('title-bar-colors', colors),
   init: call('init'),
   patchNotes: call('patch-notes'),
   appVersion: call('app-version'),
@@ -19,6 +22,8 @@ contextBridge.exposeInMainWorld('api', {
   write: call('write'),
   createNote: call('create-note'),
   createFolder: call('create-folder'),
+  ensureFolder: call('ensure-folder'),
+  pruneEmptyFolders: call('prune-empty-folders'),
   rename: call('rename'),
   remove: call('delete'),
   search: call('search'),

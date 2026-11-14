@@ -21,6 +21,28 @@ export const profileNow = (p = prefs) => activeProfile({
 export const shownProfile = () => shown;
 export function onThemeChange(fn) { listeners.push(fn); }
 
+// Windows: כפתורי החלון (מזעור, הגדלה, סגירה) בצבע של #titlebar. הצבעים נקראים מהדף עצמו אחרי
+// ההחלה (כולל color-mix), ומומרים ל־#rrggbb דרך canvas, כי זה הפורמט ש־main.js מקבל.
+const toHex = (css) => {
+  const c = toHex.ctx || (toHex.ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+  c.clearRect(0, 0, 1, 1);
+  c.fillStyle = '#000';
+  c.fillStyle = css;
+  c.fillRect(0, 0, 1, 1);
+  const [r, g, b] = c.getImageData(0, 0, 1, 1).data;
+  return '#' + [r, g, b].map((n) => n.toString(16).padStart(2, '0')).join('');
+};
+function syncTitleBar() {
+  const bar = document.getElementById('titlebar');
+  if (!window.api?.customTitleBar || !bar) return;
+  // אחרי המעבר הרך (theme-anim, 200ms), כדי לקרוא את הצבע הסופי
+  clearTimeout(syncTitleBar.t);
+  syncTitleBar.t = setTimeout(() => {
+    const cs = getComputedStyle(document.documentElement);
+    window.api.setTitleBarColors({ color: toHex(getComputedStyle(bar).backgroundColor), symbolColor: toHex(cs.getPropertyValue('--text').trim() || '#1f2328') });
+  }, 280);
+}
+
 function paint(colors, { animate, cache }) {
   const key = JSON.stringify(colors);
   if (key === shownKey) return;
@@ -35,6 +57,7 @@ function paint(colors, { animate, cache }) {
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
   root.dataset.theme = dark ? 'dark' : 'light';
   root.style.colorScheme = dark ? 'dark' : 'light';
+  syncTitleBar();
   if (cache) { try { localStorage.setItem(CACHE_KEY, JSON.stringify({ vars, dark })); } catch { /* לא קריטי */ } }
 }
 

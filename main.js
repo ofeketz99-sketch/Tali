@@ -1,6 +1,9 @@
 // תהליך ראשי של Electron: חלון, וכל הגישה לקבצים במחשב.
 // כל פעולה על קבצים עוברת כאן ונבדקת שהיא בתוך התיקייה שנבחרה.
 const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, powerMonitor } = require('electron');
+// Windows: own title bar in the page (#titlebar), native window buttons on top of it (titleBarOverlay)
+const CUSTOM_TITLE_BAR = process.platform === 'win32';
+const TITLE_BAR_H = 32;
 const fs = require('fs/promises');
 const path = require('path');
 const { execFile } = require('child_process');
@@ -334,6 +337,13 @@ function registerIpc() {
 
   ipcMain.handle('patch-notes', getPatchNotes);
   ipcMain.handle('app-version', getAppVersion);
+  // צבע כפתורי החלון (מזעור, הגדלה, סגירה) לפי הערכה: רקע ופס כמו #titlebar
+  ipcMain.on('title-bar-colors', (e, { color, symbolColor } = {}) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    const hex = (c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
+    if (!CUSTOM_TITLE_BAR || !win || !hex(color) || !hex(symbolColor)) return;
+    try { win.setTitleBarOverlay({ color, symbolColor, height: TITLE_BAR_H }); } catch { /* חלון בלי overlay */ }
+  });
   // שמירת טבלה מלאה ללוח בפורמט HTML ובפורמט טקסט לתאימות עם Word, Excel ועורכי פתקים.
   ipcMain.handle('copy-table', (_e, html, text) => {
     clipboard.write({ html: String(html || ''), text: String(text || '') });
@@ -513,6 +523,23 @@ function registerIpc() {
     };
   });
 
+  // ארכיון (src/archive.js): יוצר את שרשרת התיקיות אם חסרה ומחזיר את הנתיב המלא. parts יחסיים לכספת.
+  const validParts = (parts) => Array.isArray(parts) && parts.every((p) => typeof p === 'string' && p && !/[\\/:*?"<>|]/.test(p) && p !== '..' && p !== '.');
+  ipcMain.handle('ensure-folder', async (_e, parts) => {
+    if (!root || !validParts(parts)) throw new Error('נתיב לא תקין');
+    const dir = safe(path.join(root, ...parts));
+    await fs.mkdir(dir, { recursive: true });
+    return dir;
+  });
+  // אחרי החזרה מהארכיון: מסיר תיקיות שהתרוקנו, מהעמוקה ועד (לא כולל) parts[0] (תיקיית הארכיון).
+  // rmdir בלבד, שנכשל בתיקייה שיש בה משהו, ולכן אף קובץ לא נמחק.
+  ipcMain.handle('prune-empty-folders', async (_e, parts) => {
+    if (!root || !validParts(parts)) return;
+    for (let n = parts.length; n > 1; n--) {
+      try { await fs.rmdir(safe(path.join(root, ...parts.slice(0, n)))); } catch { return; }
+    }
+  });
+
   ipcMain.handle('create-folder', async (_e, dir, name) => {
     const clean = name.replace(/[\\/:*?"<>|]/g, '').trim();
     if (!clean) throw new Error('שם ריק');
@@ -598,6 +625,9 @@ function createWindow() {
     icon: path.join(__dirname, 'build', 'icon.ico'),
     backgroundColor: '#aac7f2', // the intro's background (src/splash.js)
     show: false, // shown on its first painted frame, which is already the intro: no white window
+    // Windows: the native title bar (dark/white by system theme) is replaced by #titlebar in the page,
+    // and only the min/max/close buttons stay native. Their colors follow the theme (title-bar-colors).
+    ...(CUSTOM_TITLE_BAR ? { titleBarStyle: 'hidden', titleBarOverlay: { color: '#aac7f2', symbolColor: '#1f2328', height: TITLE_BAR_H } } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
