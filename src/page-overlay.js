@@ -219,8 +219,33 @@ export function createPageOverlay({ page, onChange }) {
   redoButton = addButton(historyGroup, { label: 'חזרה (Ctrl+Y)', iconName: 'redo', action: redo });
   updateHistoryButtons();
 
+  // 7.7: הדף מתארך לבד בשביל הציור, בלי Enter. גובה מינימלי = התחתית של הטקסט או של השרטוט הנמוך ביותר
+  // (או של המשיכה שמציירים עכשיו), ועוד רווח ריק: 600px בזמן ציור, 200px אחרי. רק min-height של התצוגה:
+  // הקובץ לא משתנה, והשרטוטים נשמרים בפיקסלים כמו קודם. בלי שרטוטים ובלי ציור: ה־CSS הרגיל (1050px).
+  const BASE_PAGE_HEIGHT = 1050;
+  let liveBottom = 0;
+  function fitPage() {
+    let bottom = liveBottom;
+    for (const o of objects) {
+      try {
+        const b = o.kind === 'textbox' || o.kind === 'comment' ? { y: o.y || 0, h: o.height || 0 } : bboxOf(o);
+        bottom = Math.max(bottom, b.y + b.h);
+      } catch { /* ישות לא מוכרת */ }
+    }
+    if (enabled && session) {
+      const last = page.querySelector('.ProseMirror')?.lastElementChild;
+      if (last) bottom = Math.max(bottom, last.getBoundingClientRect().bottom - page.getBoundingClientRect().top);
+    }
+    const wanted = Math.ceil(bottom + (enabled && session ? 600 : 200));
+    const next = enabled && wanted > BASE_PAGE_HEIGHT && (session || objects.length) ? wanted + 'px' : '';
+    if (page.style.minHeight !== next) page.style.minHeight = next;
+  }
   // מצב הסרגל לפי הכלי והבחירה: מה שלא רלוונטי מוסתר, כדי שהסרגל יהיה קצר
   function updateToolbar() {
+    // 7.7: ידית הגרירה של השורות (⋮⋮, block-handle.js) מוסתרת בזמן ציור, כדי שלא תפריע
+    document.body.classList.toggle('page-drawing-session', enabled && session);
+    if (!drawing) liveBottom = 0;
+    fitPage();
     toolbar.hidden = !enabled || !session;
     root.classList.toggle('drawing', drawTools.includes(mode));
     root.dataset.mode = mode || '';
@@ -648,15 +673,21 @@ export function createPageOverlay({ page, onChange }) {
         object.y = limit(object.y, 0, Math.max(0, page.clientHeight - object.height));
       }
       const element = document.createElement('div');
-      element.className = 'tali-overlay-box' + (object.kind === 'comment' ? ' tali-margin-comment' : '');
+      element.className = 'tali-overlay-box' + (object.kind === 'comment' ? ' tali-margin-comment' : ' tali-text-box');
       element.dataset.id = object.id;
       element.style.setProperty('--box-color', object.color);
       placeBox(object, element);
       const head = document.createElement('div');
-      head.className = 'tali-overlay-grip';
       head.tabIndex = 0;
-      head.innerHTML = icon('move', 15) + '<span></span>';
-      head.querySelector('span').textContent = object.kind === 'comment' ? `„${object.quote.slice(0, 64)}${object.quote.length > 64 ? '…' : ''}“` : 'תיבת טקסט';
+      if (object.kind === 'comment') {
+        head.className = 'tali-overlay-grip';
+        head.innerHTML = icon('move', 15) + '<span></span>';
+        head.querySelector('span').textContent = `„${object.quote.slice(0, 64)}${object.quote.length > 64 ? '…' : ''}“`;
+      } else {
+        // 7.7: בלי פס כותרת. ידית הזזה קטנה מעל התיבה, רק בריחוף או כשהיא נבחרה
+        head.className = 'tali-overlay-grip tali-box-move';
+        head.innerHTML = icon('grip', 14);
+      }
       head.dataset.tip = 'גרירה מזיזה את התיבה';
       head.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) return;
@@ -669,12 +700,17 @@ export function createPageOverlay({ page, onChange }) {
       });
       const field = document.createElement('textarea');
       field.className = 'tali-overlay-text';
-      field.dir = 'auto';
+      // 7.7: תיבה ריקה עם dir="auto" נקבעת משמאל לימין (אין טקסט לזהות ממנו), ולכן הייתה מיושרת שמאלה.
+      // ריקה: לפי כיוון הדף (ימין לשמאל כברירת מחדל). עם טקסט: אוטומטי, לפי השפה.
+      const pageDir = () => getComputedStyle(page).direction === 'ltr' ? 'ltr' : 'rtl';
+      const setDir = () => { field.dir = field.value.trim() ? 'auto' : pageDir(); };
       field.spellcheck = true;
       field.placeholder = object.kind === 'comment' ? 'הערה לציטוט…' : 'כתוב כאן…';
       field.value = object.text;
+      setDir();
       field.addEventListener('focus', () => { if (selected !== object.id) select(object.id); });
       field.addEventListener('input', () => {
+        setDir();
         object.text = field.value.slice(0, 20000); notify({ typing: true });
       });
       const resize = document.createElement('span');
@@ -802,6 +838,9 @@ export function createPageOverlay({ page, onChange }) {
     } else {
       Object.assign(object, dragShape(object.kind, drawing.start, point(event), { shift: event.shiftKey, alt: event.altKey }));
     }
+    // ציור קרוב לתחתית: הדף מתארך כבר בזמן המשיכה (fitPage)
+    const y = point(event).y;
+    if (y > liveBottom) { liveBottom = y; if (y + 300 > page.offsetHeight) fitPage(); }
     scheduleUpdate(object);
   });
   function finishShape() {

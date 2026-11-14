@@ -41,6 +41,89 @@ function addResizeHandle(dom, img, onCommit) {
   dom.append(handle);
 }
 
+// גרירת תמונה למקום אחר בדף (7.7). התמונה היא צומת inline בתוך הטקסט, ולכן "מקום אחר" הוא מיקום בטקסט:
+// בין מילים, בתחילת פסקה או בין פסקאות (שם נוצרת פסקה חדשה בשבילה). קו מהבהב מראה איפה היא תנחת.
+// כך הקובץ נשאר Markdown רגיל (![[...]] / ![](...)), שאובסידיאן קורא, וציפה עם עטיפת טקסט ממשיכה לעבוד.
+// גרירה רק אחרי 5px; לחיצה בלי תזוזה בוחרת את התמונה כמו קודם. Esc מבטל. Ctrl+Z מחזיר.
+function addMoveDrag(dom, img, editor, getPos) {
+  img.style.cursor = 'grab';
+  img.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || !editor.isEditable) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const view = editor.view;
+    const startX = event.clientX, startY = event.clientY;
+    let dragging = false, target = null;
+    const caret = document.createElement('div');
+    caret.className = 'embed-drop-caret';
+    const place = (e) => {
+      const hit = view.posAtCoords({ left: e.clientX, top: e.clientY });
+      const from = getPos();
+      if (!hit || typeof from !== 'number') { target = null; caret.hidden = true; return; }
+      target = hit.pos;
+      if (target === from || target === from + 1) { target = null; caret.hidden = true; return; }
+      const c = view.coordsAtPos(target);
+      caret.hidden = false;
+      caret.style.left = Math.round(c.left - 1) + 'px';
+      caret.style.top = Math.round(c.top) + 'px';
+      caret.style.height = Math.max(18, Math.round(c.bottom - c.top)) + 'px';
+    };
+    const move = (e) => {
+      if (!dragging) {
+        if (Math.hypot(e.clientX - startX, e.clientY - startY) < 5) return;
+        dragging = true;
+        dom.classList.add('moving');
+        document.body.classList.add('embed-dragging');
+        document.body.append(caret);
+      }
+      e.preventDefault();
+      place(e);
+    };
+    const finish = (commit) => {
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', cancel, true);
+      window.removeEventListener('keydown', key, true);
+      caret.remove();
+      dom.classList.remove('moving');
+      document.body.classList.remove('embed-dragging');
+      const from = getPos();
+      if (typeof from !== 'number') return;
+      if (!dragging) { // לחיצה רגילה: בחירת התמונה
+        try { editor.commands.setNodeSelection(from); } catch { /* בלי בחירה */ }
+        view.focus();
+        return;
+      }
+      if (!commit || target == null) return;
+      moveNodeTo(editor, from, target);
+    };
+    const up = () => finish(true);
+    const cancel = () => finish(false);
+    const key = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); } };
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', cancel, true);
+    window.addEventListener('keydown', key, true);
+  });
+}
+
+// מעביר את הצומת שב־from (inline, גודל 1) למיקום to במסמך, בפעולה אחת (Ctrl+Z אחד מחזיר).
+// מיקום שאינו בתוך טקסט (בין פסקאות, בתחילת רשימה) מקבל פסקה חדשה שמכילה רק את התמונה.
+export function moveNodeTo(editor, from, to) {
+  editor.commands.command(({ tr, state, dispatch }) => {
+    const node = state.doc.nodeAt(from);
+    if (!node) return false;
+    try {
+      tr.delete(from, from + node.nodeSize);
+      const at = tr.mapping.map(to);
+      if (tr.doc.resolve(at).parent.inlineContent) tr.insert(at, node);
+      else tr.insert(at, state.schema.nodes.paragraph.create(null, node));
+    } catch { return false; } // מיקום שאי אפשר לשים בו תמונה (למשל בין תאי טבלה): התמונה נשארת במקומה
+    if (dispatch) dispatch(tr.scrollIntoView());
+    return true;
+  });
+}
+
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i;
 
 // נתיב בדיסק -> כתובת file:// שהדפדפן מבין (כולל # ורווחים בשם).
@@ -160,6 +243,7 @@ export const Embed = Node.create({
         control('איפוס', 'גודל טבעי והסרת ציפת טקסט', () => change(null, 'none'));
         dom.append(img, tools);
         addResizeHandle(dom, img, (w) => change(w, parse().wrap));
+        addMoveDrag(dom, img, editor, getPos);
         const render = () => {
           const a = parse();
           img.style.width = a.width ? a.width + 'px' : '';
@@ -310,6 +394,7 @@ export const LocalImage = Image.extend({
       button('איפוס', 'החזרת גודל טבעי ותחביר Markdown רגיל', () => change(null, 'none'));
       dom.append(img, tools);
       addResizeHandle(dom, img, (w) => change(w, current.attrs.wrap || 'none'));
+      addMoveDrag(dom, img, editor, getPos);
       const render = () => {
         const a = current.attrs;
         img.alt = a.alt || '';

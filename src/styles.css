@@ -874,11 +874,30 @@ dialog { border-radius: 18px; }
   font-size: var(--doc-size); line-height: var(--doc-line); text-align: start;
   unicode-bidi: plaintext; overflow: auto;
 }
+/* 7.7: ידית שינוי גודל עגולה בפינה הימנית התחתונה (פיזית, גם בעברית: הקוד מגדיל ימינה ולמטה).
+   עד 7.6 היא הייתה בפינה השמאלית בעברית, וגרירה החוצה הקטינה את התיבה. */
 .tali-overlay-resize {
-  position: absolute; inset-inline-end: 0; bottom: 0; width: 17px; height: 17px;
-  cursor: nwse-resize; touch-action: none;
-  background: linear-gradient(135deg, transparent 42%, var(--accent-line) 43%, var(--accent-line) 53%, transparent 54%);
+  position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--page-bg); border: 2px solid var(--accent); box-sizing: border-box;
+  cursor: nwse-resize; touch-action: none; opacity: 0; transition: opacity .15s var(--ease);
 }
+.tali-overlay-box:hover .tali-overlay-resize, .tali-overlay-box.selected .tali-overlay-resize,
+.tali-overlay-box:focus-within .tali-overlay-resize { opacity: 1; }
+.tali-overlay-resize:hover { background: var(--accent); }
+/* תיבת טקסט (לא הערת שוליים): בלי פס כותרת, מסגרת עדינה, וידית הזזה קטנה מעליה */
+.tali-overlay-box { overflow: visible; }
+.tali-text-box { border-color: transparent; box-shadow: none; background: color-mix(in srgb, var(--page-bg) 92%, var(--accent)); border-radius: 8px; }
+.tali-text-box:hover { border-color: var(--accent-line); }
+.tali-text-box.selected, .tali-text-box:focus-within { border-color: var(--accent); outline: none; }
+.tali-text-box .tali-overlay-text { padding: 8px 12px; border-radius: 8px; }
+.tali-box-move {
+  position: absolute; top: -13px; left: 50%; transform: translateX(-50%); height: 22px; width: 34px; padding: 0;
+  border: 1px solid var(--accent-line); border-radius: 999px; background: var(--panel-bg);
+  justify-content: center; opacity: 0; transition: opacity .15s var(--ease);
+}
+.tali-text-box:hover .tali-box-move, .tali-text-box.selected .tali-box-move,
+.tali-text-box:focus-within .tali-box-move, .tali-box-move:focus-visible { opacity: 1; }
+.tali-box-move:hover { color: var(--accent-strong); border-color: var(--accent); }
 .tali-overlay-toolbar {
   position: fixed; z-index: 50; bottom: 46px; left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 4px; padding: 6px 8px;
@@ -1950,3 +1969,17 @@ body[data-focus] .block-handle { display: none; }
 /* ===== ארכיון (src/archive.js, 7.3): התיקייה בסוף העץ, דהויה, עם קו מעליה ===== */
 #tree .node.dir.archive { opacity: .62; margin-top: 6px; border-top: 1px dashed var(--border); padding-top: 4px; }
 #tree .node.dir.archive:hover, #tree .node.dir.archive:focus-visible { opacity: .9; }
+
+/* ===== 7.7: גרירת תמונה למקום אחר בטקסט (addMoveDrag ב־embed.js) ===== */
+.embed-image img { cursor: grab; }
+body.embed-dragging, body.embed-dragging * { cursor: grabbing !important; user-select: none; }
+.embed-image.moving { opacity: .35; }
+.embed-image.moving .embed-tools, .embed-image.moving .embed-resize { display: none; }
+.embed-drop-caret { position: fixed; z-index: 60; width: 3px; border-radius: 2px; background: var(--accent); pointer-events: none; box-shadow: 0 0 0 2px var(--accent-soft); animation: embed-caret-blink 1s steps(2, start) infinite; }
+.embed-drop-caret[hidden] { display: none; }
+@keyframes embed-caret-blink { to { visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .embed-drop-caret { animation: none; } }
+/* 7.7: ידית הגרירה של השורות לא מופיעה בזמן ציור על הדף (page-overlay.js מסמן את הגוף) */
+body.page-drawing-session .block-handle { display: none !important; }
+.tali-margin-comment { overflow: visible; }
+.tali-margin-comment .tali-overlay-grip { border-radius: 10px 10px 0 0; }
