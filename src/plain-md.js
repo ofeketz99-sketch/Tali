@@ -92,6 +92,8 @@ export async function convertToPlainMarkdown({ editor, overlay, page, saveDrawin
     else if (o.kind === 'textbox' || o.kind === 'comment') entries.push({ y: o.y, kind: 'note', o });
   }
   entries.sort((a, b) => b.y - a.y);
+  // 8.4: y בקואורדינטות השכבה; הגובה על המסך לפי קנה המידה של הדף
+  for (const e of entries) e.y = overlay.toScreen ? overlay.toScreen(e.y) : e.y;
   const r = () => page.getBoundingClientRect();
   const counts = { images: 0, notes: 0, drawings: 0 };
   for (const e of entries) {

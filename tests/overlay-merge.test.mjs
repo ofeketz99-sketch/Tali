@@ -42,3 +42,15 @@ test('one selected shape is left as it is', () => {
   const items = [pen('a', 0, 0)];
   assert.equal(mergeShapes(items, ['a'], 'g'), items);
 });
+
+test('the page width the drawings refer to survives saving (8.4), and bad values are dropped', async () => {
+  const src = readFileSync(new URL('../src/overlay-data.js', import.meta.url));
+  const { joinOverlay, splitOverlay } = await import('data:text/javascript;base64,' + src.toString('base64'));
+  const items = [{ id: 'r', kind: 'rect', x: 5, y: 5, dx: 20, dy: 10, color: '#000000', weight: 2 }];
+  const out = joinOverlay('Text\n', items, { pageWidth: 820 });
+  assert.equal(splitOverlay(out).pageWidth, 820);
+  assert.equal(splitOverlay(out).markdown, 'Text\n');
+  assert.equal(splitOverlay(joinOverlay('Text\n', items, { pageWidth: 'x' })).pageWidth, undefined);
+  assert.equal(splitOverlay(joinOverlay('Text\n', items, { pageWidth: 50 })).pageWidth, undefined);
+  assert.equal(joinOverlay('Text\n', [], { pageWidth: 820 }), 'Text\n');
+});

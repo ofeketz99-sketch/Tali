@@ -328,7 +328,7 @@ const pageOverlay = createPageOverlay({
   },
   onReturnImage: (o) => {
     const r = $('page').getBoundingClientRect();
-    return returnImageToText(editorApi.editor, o, r.left + o.x + 4, r.top + o.y + 4);
+    return returnImageToText(editorApi.editor, o, r.left + pageOverlay.toScreen(o.x) + 4, r.top + pageOverlay.toScreen(o.y) + 4);
   },
 });
 // 8.0: המרה ל־Markdown רגיל (plain-md.js): כל מה שמיוחד ל־Tali הופך לתוכן שאובסידיאן מציג
@@ -366,7 +366,8 @@ function freeImage({ ref, src, alt, rect, pos }) {
     return true;
   });
   pageOverlay.setEnabled(true);
-  pageOverlay.addImage({ ref, src, alt, x, y, width: rect.width, height: rect.height });
+  const L = pageOverlay.toLayer; // 8.4: מהמסך לקואורדינטות השכבה
+  pageOverlay.addImage({ ref, src, alt, x: L(x), y: L(y), width: L(rect.width), height: L(rect.height) });
   setStatus('התמונה זזה חופשית: גוררים אותה לכל מקום בדף. "החזרה לטקסט" מחזירה אותה. באובסידיאן היא לא תוצג על הדף.');
 }
 editorApi.setOverlayController(pageOverlay);
@@ -700,7 +701,8 @@ function viewAnchor(where) {
   const wrap = $('pageWrap').getBoundingClientRect();
   const cx = where ? where.x : (Math.max(page.left, wrap.left) + Math.min(page.right, wrap.right)) / 2;
   const cy = where ? where.y : (Math.max(page.top, wrap.top) + Math.min(page.bottom, wrap.bottom)) / 2;
-  return { x: cx - page.left, y: cy - page.top, pageWidth: page.width };
+  // 8.4: בקואורדינטות השכבה (שמוקטנת או מוגדלת לפי רוחב הדף)
+  return { x: pageOverlay.toLayer(cx - page.left), y: pageOverlay.toLayer(cy - page.top), pageWidth: pageOverlay.getPageWidth() };
 }
 
 async function importImages() {

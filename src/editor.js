@@ -42,6 +42,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
   let frontmatter = null;
   let overlayController = null;
   let overlayObjects = [];
+  let overlayPageWidth = 0;
   const imagesOf = (list) => [...(list || [])].filter((f) => f.type.startsWith('image/'));
 
   const editor = new Editor({
@@ -156,12 +157,14 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
   const richMarkdown = () => {
     const out = joinFrontmatter(frontmatter, editor.storage.markdown.getMarkdown());
     const body = endsWithNewline && out && !out.endsWith('\n') ? out + '\n' : out;
-    return joinOverlay(body, overlayController ? overlayController.getItems() : overlayObjects);
+    return joinOverlay(body, overlayController ? overlayController.getItems() : overlayObjects,
+      { pageWidth: overlayController?.getPageWidth?.() || overlayPageWidth });
   };
   const loadRich = (md) => {
     const partsWithOverlay = splitOverlay(md);
     overlayObjects = partsWithOverlay.objects;
-    overlayController?.setItems(overlayObjects);
+    overlayPageWidth = partsWithOverlay.pageWidth || 0; // 8.4: לפי איזה רוחב דף נשמרו המיקומים
+    overlayController?.setItems(overlayObjects, { pageWidth: overlayPageWidth });
     endsWithNewline = /\n$/.test(partsWithOverlay.markdown);
     const parts = splitFrontmatter(partsWithOverlay.markdown);
     frontmatter = parts.frontmatter;
@@ -178,7 +181,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
     editor,
     setOverlayController(controller) {
       overlayController = controller;
-      controller.setItems(overlayObjects);
+      controller.setItems(overlayObjects, { pageWidth: overlayPageWidth });
       controller.setEnabled(!raw);
     },
     refreshPreferences() {

@@ -89,20 +89,26 @@ export function splitOverlay(markdown) {
       return { markdown: source, objects: [] };
     }
     // Remove only the two delimiters that were added when saving; preserve all original newlines.
+    // 8.4: pageWidth = the page width the coordinates refer to (the layer scales with the page).
+    const pageWidth = cleanPageWidth(decoded.pageWidth);
     return {
       markdown: source.slice(0, match.index),
       objects: cleanOverlayObjects(decoded.objects),
+      ...(pageWidth ? { pageWidth } : {}),
     };
   } catch {
     return { markdown: source, objects: [] };
   }
 }
 
-export function joinOverlay(markdown, objects) {
+const cleanPageWidth = (v) => (finite(v) && v >= 200 && v <= 4000 ? Math.round(v) : 0);
+
+export function joinOverlay(markdown, objects, { pageWidth } = {}) {
   const base = String(markdown || '');
   const safe = cleanOverlayObjects(objects);
   if (!safe.length) return base;
-  const packed = encodeURIComponent(JSON.stringify({ version: 1, objects: safe }));
+  const width = cleanPageWidth(pageWidth);
+  const packed = encodeURIComponent(JSON.stringify({ version: 1, ...(width ? { pageWidth: width } : {}), objects: safe }));
   const eol = base.includes('\r\n') ? '\r\n' : '\n';
   return base + eol + eol + '<!-- TALI-OVERLAY:v1:' + packed + ' -->' + eol;
 }

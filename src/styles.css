@@ -2054,3 +2054,6 @@ body.page-drawing-session .block-handle { display: none !important; }
    הצבע של העיגול נשאר שלו גם בריחוף. */
 .tali-overlay-toolbar .tali-overlay-swatch,
 .tali-overlay-toolbar .tali-overlay-swatch:hover { background: var(--swatch); border-color: var(--page-bg); }
+
+/* 8.4: השכבה ברוחב קבוע (refWidth) ומוקטנת או מוגדלת לפי רוחב הדף (applyScale ב־page-overlay.js) */
+.tali-page-overlay { right: auto; bottom: auto; transform-origin: 0 0; }

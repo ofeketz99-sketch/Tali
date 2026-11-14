@@ -253,12 +253,41 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
   // הקובץ לא משתנה, והשרטוטים נשמרים בפיקסלים כמו קודם. בלי שרטוטים ובלי ציור: ה־CSS הרגיל (1050px).
   const BASE_PAGE_HEIGHT = 1050;
   let liveBottom = 0;
+
+  // ===== 8.4: קנה מידה לפי רוחב הדף =====
+  // הקואורדינטות נשמרות ביחס לרוחב דף קבוע (refWidth, נשמר בקובץ כ־pageWidth). כשהדף צר או רחב ממנו
+  // (חלון לעומת מסך מלא, לוח ההקשר פתוח, פיצול) כל השכבה מוקטנת או מוגדלת יחד (transform: scale),
+  // כך שהשרטוטים שומרים על פרופורציות ועל המקום שלהם ביחס לדף, ולא בורחים מהצד. עד 8.3 הם נשארו
+  // בפיקסלים קבועים, ובחלון צר יצאו מהדף.
+  let refWidth = 0;
+  let scale = 1;
+  const cssPageWidth = () => {
+    const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--page-width'));
+    return Number.isFinite(v) && v >= 200 ? Math.round(v) : 820;
+  };
+  function applyScale() {
+    if (!refWidth) refWidth = cssPageWidth();
+    const w = page.clientWidth;
+    const next = w > 0 ? w / refWidth : 1;
+    if (Math.abs(next - scale) > 0.0005 || !root.style.width) {
+      scale = next;
+      root.style.width = refWidth + 'px';
+      root.style.transform = Math.abs(scale - 1) < 0.0005 ? '' : `scale(${scale})`;
+    }
+    const h = Math.ceil(page.clientHeight / scale);
+    if (root.style.height !== h + 'px') root.style.height = h + 'px';
+  }
+  const PW = () => refWidth || cssPageWidth(); // רוחב הדף בקואורדינטות השכבה
+  const PH = () => page.offsetHeight / scale;   // גובה הדף בקואורדינטות השכבה
+  new ResizeObserver(() => { if (enabled) fitPage(); }).observe(page);
   function fitPage() {
-    let bottom = liveBottom;
+    applyScale();
+    // 8.4: הישויות בקואורדינטות השכבה; הגובה על המסך = כפול קנה המידה
+    let bottom = liveBottom * scale;
     for (const o of objects) {
       try {
         const b = o.kind === 'textbox' || o.kind === 'comment' || o.kind === 'image' ? { y: o.y || 0, h: o.height || 0 } : bboxOf(o);
-        bottom = Math.max(bottom, b.y + b.h);
+        bottom = Math.max(bottom, (b.y + b.h) * scale);
       } catch { /* ישות לא מוכרת */ }
     }
     // 8.2: ברגע שיש על הדף ישות כלשהי (או בזמן ציור), תמיד יש מתחת לנמוך מבין הטקסט והישויות
@@ -433,7 +462,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     for (const m of members) {
       m.x += dx; m.y += dy;
       if (m.kind === 'textbox') {
-        m.x = limit(m.x, 0, Math.max(0, page.clientWidth - m.width));
+        m.x = limit(m.x, 0, Math.max(0, PW() - m.width));
         m.y = Math.max(0, m.y);
       }
     }
@@ -468,7 +497,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
   }
   const point = (event) => {
     const bounds = page.getBoundingClientRect();
-    return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    return { x: (event.clientX - bounds.left) / scale, y: (event.clientY - bounds.top) / scale };
   };
 
   function quoteRect(quote) {
@@ -499,8 +528,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     const side = count % 2 ? 'end' : 'start';
     const object = {
       id: makeId(), kind: 'comment', quote: clean, text: '', side,
-      x: side === 'start' ? -width - 24 : page.clientWidth + 24,
-      y: Math.max(18, Math.round((rect ? rect.top - bounds.top : 70 + count * 42))),
+      x: side === 'start' ? -width - 24 : PW() + 24,
+      y: Math.max(18, Math.round((rect ? (rect.top - bounds.top) / scale : 70 + count * 42))),
       width, height, color, weight,
     };
     objects.push(object);
@@ -518,8 +547,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     const side = clientX < bounds.left + bounds.width / 2 ? 'start' : 'end';
     const object = {
       id: makeId(), kind: 'comment', quote: '', text: '', side,
-      x: side === 'start' ? -width - 24 : page.clientWidth + 24,
-      y: Math.max(0, Math.round(clientY - bounds.top - 14)),
+      x: side === 'start' ? -width - 24 : PW() + 24,
+      y: Math.max(0, Math.round((clientY - bounds.top) / scale - 14)),
       width, height, color, weight,
     };
     objects.push(object);
@@ -672,8 +701,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     const connectors = objects.filter((object) => object.kind === 'comment').map((object) => {
       const rect = quoteRect(object.quote);
       if (!rect) return null;
-      const anchorX = object.side === 'start' ? rect.left - bounds.left : rect.right - bounds.left;
-      const anchorY = rect.top - bounds.top + rect.height / 2;
+      const anchorX = (object.side === 'start' ? rect.left - bounds.left : rect.right - bounds.left) / scale;
+      const anchorY = (rect.top - bounds.top + rect.height / 2) / scale;
       const noteX = object.side === 'start' ? object.x + object.width : object.x;
       const noteY = object.y + 31;
       const path = svgEl('path', { d: `M${anchorX} ${anchorY} C${(anchorX + noteX) / 2} ${anchorY}, ${(anchorX + noteX) / 2} ${noteY}, ${noteX} ${noteY}` });
@@ -727,12 +756,12 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     const start = { x: event.clientX, y: event.clientY };
     const move = (e) => {
       if (e.pointerId !== event.pointerId) return;
-      let dx = e.clientX - start.x, dy = e.clientY - start.y;
+      let dx = (e.clientX - start.x) / scale, dy = (e.clientY - start.y) / scale;
       // הבחירה כולה זזה יחד: התחימה של תיבה אחת עוצרת את כולן, כדי שהמרחקים ביניהן לא ישתנו
       for (const p of origins) {
         if (p.item.kind === 'comment') dy = Math.max(dy, -p.y);
         if (p.item.kind === 'textbox' || p.item.kind === 'image') {
-          dx = limit(dx, -p.x, Math.max(-p.x, page.clientWidth - p.item.width - p.x));
+          dx = limit(dx, -p.x, Math.max(-p.x, PW() - p.item.width - p.x));
           dy = Math.max(dy, -p.y);
         }
       }
@@ -744,12 +773,12 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
         } else {
           const el = boxes.querySelector(`[data-id="${CSS.escape(p.item.id)}"]`);
           if (el) placeBox(p.item, el);
-          if (p.item.kind === 'comment') p.item.side = p.item.x + p.item.width / 2 < page.clientWidth / 2 ? 'start' : 'end';
+          if (p.item.kind === 'comment') p.item.side = p.item.x + p.item.width / 2 < PW() / 2 ? 'start' : 'end';
         }
       }
       if (members.some((m) => m.kind === 'comment')) drawShapes(); else drawHandles();
       const bottom = Math.max(...members.map((m) => boundsOf(m).y + boundsOf(m).h));
-      if (bottom + 300 > page.offsetHeight) { liveBottom = bottom; fitPage(); }
+      if (bottom + 300 > PH()) { liveBottom = bottom; fitPage(); }
     };
     const stop = (e) => {
       if (e.pointerId !== event.pointerId) return;
@@ -780,7 +809,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     let moved = false;
     const move = (e) => {
       if (e.pointerId !== event.pointerId) return;
-      const mx = e.clientX - start.x, my = e.clientY - start.y;
+      const mx = (e.clientX - start.x) / scale, my = (e.clientY - start.y) / scale;
       moved = moved || Math.abs(mx) + Math.abs(my) > 0;
       if (name === 'start' || name === 'end') {
         Object.assign(members[0], moveLineEnd(origs[0], name, mx, my, { shift: e.shiftKey }));
@@ -821,11 +850,11 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     const right = start.left + start.width, bottom = start.top + start.height;
     const move = (e) => {
       if (e.pointerId !== event.pointerId) return;
-      const dx = e.clientX - start.x, dy = e.clientY - start.y;
+      const dx = (e.clientX - start.x) / scale, dy = (e.clientY - start.y) / scale;
       const west = dir.includes('w'), east = dir.includes('e'), north = dir.includes('n'), south = dir.includes('s');
       // הגבול האופקי: תיבת טקסט ותמונה לא יוצאות מהדף
       const inPage = object.kind !== 'comment';
-      const maxW = inPage ? Math.min(maxW0, west ? right : page.clientWidth - start.left) : maxW0;
+      const maxW = inPage ? Math.min(maxW0, west ? right : PW() - start.left) : maxW0;
       let w = start.width + (east ? dx : west ? -dx : 0);
       let h = start.height + (south ? dy : north ? -dy : 0);
       if (object.kind === 'image') {
@@ -848,10 +877,10 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
       // צלע עליונה או תחתונה בתמונה: הרוחב (לפי היחס) משתנה סביב המרכז
       if (object.kind === 'image' && !(east || west)) object.x = Math.round(start.left + (start.width - w) / 2);
       object.y = north ? Math.max(0, bottom - h) : start.top;
-      if (inPage) object.x = Math.round(limit(object.x, 0, Math.max(0, page.clientWidth - object.width)));
+      if (inPage) object.x = Math.round(limit(object.x, 0, Math.max(0, PW() - object.width)));
       placeBox(object, element);
       if (object.kind === 'comment') drawShapes();
-      if (object.y + h + 300 > page.offsetHeight) { liveBottom = object.y + h; fitPage(); }
+      if (object.y + h + 300 > PH()) { liveBottom = object.y + h; fitPage(); }
     };
     const stop = (e) => {
       if (e.pointerId !== event.pointerId) return;
@@ -998,7 +1027,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
   function addImage(input) {
     const [object] = cleanOverlayObjects([{ ...input, kind: 'image', id: makeId() }]);
     if (!object) return null;
-    object.x = Math.round(limit(object.x, 0, Math.max(0, page.clientWidth - object.width)));
+    object.x = Math.round(limit(object.x, 0, Math.max(0, PW() - object.width)));
     object.y = Math.round(Math.max(0, object.y));
     objects.push(object);
     session = true; mode = 'select';
@@ -1121,7 +1150,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     }
     // ציור קרוב לתחתית: הדף מתארך כבר בזמן המשיכה (fitPage)
     const y = point(event).y;
-    if (y > liveBottom) { liveBottom = y; if (y + 300 > page.offsetHeight) fitPage(); }
+    if (y > liveBottom) { liveBottom = y; if (y + 300 > PH()) fitPage(); }
     scheduleUpdate(object);
   });
   function finishShape() {
@@ -1299,7 +1328,10 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
 
   return {
     getItems: () => cleanOverlayObjects(objects),
-    setItems: (items) => {
+    // 8.4: pageWidth = רוחב הדף שאליו הקואורדינטות שמורות. בלי (מסמך ישן או חדש): רוחב הדף מההגדרות.
+    setItems: (items, { pageWidth } = {}) => {
+      refWidth = Number.isFinite(pageWidth) && pageWidth >= 200 ? pageWidth : cssPageWidth();
+      root.style.width = '';
       objects = cleanOverlayObjects(items);
       setSelection([]); mode = null; session = false; drawing = null; sessionPen = null; marquee = null; render();
       resetHistory();
@@ -1312,6 +1344,10 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     },
     setMode: (next) => setMode(next),
     inSession: () => enabled && session,
+    getPageWidth: () => PW(),
+    // 8.4: המרה בין פיקסלים על הדף (מפינת #page, על המסך) לקואורדינטות השכבה
+    toLayer: (px) => px / scale,
+    toScreen: (v) => v * scale,
     pasteClip,
     // 8.3: תמונה מודבקת מוצגת מיד; כשהשמירה לקובץ מסתיימת, המקור מתעדכן לשם הסופי
     updateImage: (id, change) => {
