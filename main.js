@@ -17,6 +17,9 @@ const os = require('os');
 // שם האפליקציה: Tali. ההגדרות נשארות בתיקייה המקורית (my-notes), כדי ששינוי השם לא ימחק אותן.
 // בבדיקות מעבירים --user-data-dir, ואז לא נוגעים בתיקייה האמיתית.
 app.setName('Tali');
+// גרסת הפיתוח נקראת TALI-DEV (מ־7.5): משגר הפיתוח הוא TALI-DEV.exe (tools/make-exe.js), ולפי שם הקובץ
+// החלון ושורת הכותרת מציגים TALI-DEV. בלי שינוי במשגר, ובלי לגעת בהגדרות (userData נשאר my-notes).
+const APP_TITLE = /^tali-dev\.exe$/i.test(path.basename(process.execPath)) ? 'TALI-DEV' : 'Tali';
 if (!app.commandLine.hasSwitch('user-data-dir')) app.setPath('userData', path.join(app.getPath('appData'), 'my-notes'));
 if (process.platform === 'win32') app.setAppUserModelId('app.tali.notes'); // אייקון ושם נכונים בשורת המשימות
 
@@ -337,6 +340,8 @@ function registerIpc() {
 
   ipcMain.handle('patch-notes', getPatchNotes);
   ipcMain.handle('app-version', getAppVersion);
+  // סינכרוני: theme-boot.js קובע את שם החלון לפני הציור הראשון (Tali או TALI-DEV)
+  ipcMain.on('app-title', (e) => { e.returnValue = APP_TITLE; });
   // צבע כפתורי החלון (מזעור, הגדלה, סגירה) לפי הערכה: רקע ופס כמו #titlebar
   ipcMain.on('title-bar-colors', (e, { color, symbolColor } = {}) => {
     const win = BrowserWindow.fromWebContents(e.sender);
@@ -621,7 +626,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
-    title: 'Tali',
+    title: APP_TITLE,
     icon: path.join(__dirname, 'build', 'icon.ico'),
     backgroundColor: '#aac7f2', // the intro's background (src/splash.js)
     show: false, // shown on its first painted frame, which is already the intro: no white window

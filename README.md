@@ -11,11 +11,11 @@
 
 ## התקנה
 
-את הגרסה האחרונה מורידים מ־[Releases](https://github.com/ofeketz99-sketch/Tali/releases): `Tali-Setup-<גרסה>.exe` (מתקין) או `Tali-<גרסה>-portable.exe` (בלי התקנה). הקבצים לא חתומים, ולכן Windows יזהיר בהפעלה הראשונה ("מידע נוסף" ← "הפעל בכל זאת").
+את הגרסה האחרונה מורידים מ־[Releases](https://github.com/ofeketz99-sketch/Tali/releases): `Tali-Setup-<גרסה>.exe` (מתקין) או `Tali-<גרסה>-portable.exe` (בלי התקנה). הקבצים לא חתומים, ולכן Windows יזהיר בהפעלה הראשונה ("מידע נוסף" ← "הפעל בכל זאת"). במחשב שבו Smart App Control פעיל הם נחסמים לגמרי; שם משתמשים ב־TALI-DEV (למטה).
 
-## ערוץ פיתוח שמתעדכן בפתיחה
+## TALI-DEV: ערוץ פיתוח שמתעדכן בפתיחה
 
-זהו מסלול נפרד מהגרסה המותקנת. מתקינים אותו פעם אחת בכל מחשב, ואחר כך `Tali.exe` מעדכן את הקוד מענף `desktop-dev` בכל פתיחה:
+זהו מסלול נפרד מהגרסה המותקנת, ושמו **TALI-DEV**. מתקינים אותו פעם אחת בכל מחשב, ואחר כך `TALI-DEV.exe` מעדכן את הקוד מענף `desktop-dev` בכל פתיחה וסגירה, בלי להוריד EXE חדש אף פעם:
 
 ```powershell
 git clone --branch desktop-dev https://github.com/ofeketz99-sketch/Tali.git
@@ -24,7 +24,9 @@ npm install
 npm run make-exe
 ```
 
-מפעילים את `Tali.exe` מתוך התיקייה `Tali-exe` שנוצרה ליד המאגר. המשגר מבצע `fetch` ועדכון fast-forward בלבד, מסנכרן תלויות כשה־lockfile השתנה ובונה את הממשק. הוא לעולם לא דורס עבודה מקומית: כשיש קבצים שלא נשמרו ב־Git, ענף אחר או היסטוריה שהתפצלה, העדכון מדולג והעותק המקומי נפתח. שגיאות רשת גם אינן חוסמות את הגרסה שכבר קיימת. יומן העדכון נמצא ב־`%LOCALAPPDATA%\Tali\launcher-update.log`.
+מפעילים את קיצור הדרך **TALI-DEV** שנוצר בשולחן העבודה (הוא מפעיל את `TALI-DEV.exe` בתיקייה `TALI-DEV` ליד המאגר). המשגר מבצע `fetch` ועדכון fast-forward בלבד, מסנכרן תלויות כשה־lockfile השתנה ובונה את הממשק. הוא לעולם לא דורס עבודה מקומית: כשיש קבצים שלא נשמרו ב־Git, ענף אחר או היסטוריה שהתפצלה, העדכון מדולג והעותק המקומי נפתח. שגיאות רשת גם אינן חוסמות את הגרסה שכבר קיימת. יומן העדכון נמצא ב־`%LOCALAPPDATA%\Tali\launcher-update.log`.
+
+**Smart App Control של Windows:** מ־7.5 `TALI-DEV.exe` הוא עותק לא־משונה של Electron (רק השם שונה), ולכן Windows מאפשר להפעיל אותו גם כש־Smart App Control פעיל. `Tali.exe` הישן (עד 7.4) נחסם, כי הסמל נצרב לתוכו. ההסבר המלא: `AGENTS.md`, "Smart App Control".
 
 אפשר לכבות עדכון זמנית עם `TALI_AUTO_UPDATE=0`, לבחור ענף אחר עם `TALI_UPDATE_BRANCH`, או להצביע למאגר אחר עם `TALI_PROJECT`.
 
@@ -41,7 +43,7 @@ npm start
 | `npm start` | בנייה והפעלה |
 | `npm run dist` | בונה מתקין וקובץ נייד ל־Windows ב־`release/` (electron-builder). פרסום גרסה: `AGENTS.md` |
 | `npm run release:manifest` | יוצר `release/latest.json` עבור אתר הורדות, אחרי בניית שני קבצי ה־EXE |
-| `npm run make-exe` | בונה משגר פיתוח `Tali.exe` שמתעדכן מענף `desktop-dev` (Windows בלבד) ב־`Tali-exe` ליד המאגר |
+| `npm run make-exe` | בונה את TALI-DEV: `TALI-DEV.exe` שמתעדכן מענף `desktop-dev` (Windows בלבד) בתיקייה `TALI-DEV` ליד המאגר, וקיצור דרך בשולחן העבודה |
 | `npm run watch` | בנייה מתמשכת בזמן פיתוח (רענון חלון עם Ctrl+R) |
 | `npm test` | בדיקות יחידה |
 | `npm run check` | בדיקת תחביר, בנייה ובדיקות. להריץ לפני כל commit |

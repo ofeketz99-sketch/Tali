@@ -37,7 +37,7 @@
           </svg>
           <span>הורדה ל־Windows</span>
         </a>
-        <p class="download-meta">גרסה <bdi dir="ltr"><!-- VERSION:START -->7.4<!-- VERSION:END --></bdi></p>
+        <p class="download-meta">גרסה <bdi dir="ltr"><!-- VERSION:START -->7.5<!-- VERSION:END --></bdi></p>
       </div>
 
       <a class="scroll-cue" href="#notes">
@@ -49,6 +49,19 @@
     <section class="notes" id="notes" aria-labelledby="notes-title">
       <h2 id="notes-title">מה חדש</h2>
       <!-- NOTES:START -->
+      <article class="note">
+        <header>
+          <span class="ver">7.5</span>
+          <h3>TALI-DEV: גרסת הפיתוח נפתחת גם עם Smart App Control</h3>
+          <time datetime="2026-11-14">14.11.2026</time>
+        </header>
+        <ul>
+          <li><strong>הבעיה:</strong> Smart App Control של Windows 11 חסם את <code>Tali.exe</code> של הפיתוח, בלי אפשרות "הפעל בכל זאת".</li>
+          <li><strong>הפתרון, TALI-DEV:</strong> <code>npm run make-exe</code> בונה עכשיו את התיקייה <code>TALI-DEV</code> ליד המאגר, עם <code>TALI-DEV.exe</code>: עותק זהה בדיוק ל־<code>electron.exe</code> (רק השם שונה, בלי <code>rcedit</code>).</li>
+          <li><strong>השם TALI-DEV:</strong> כשהאפליקציה נפתחת מ־<code>TALI-DEV.exe</code>, החלון, שורת המשימות ושורת הכותרת מציגים "TALI-DEV" (<code>APP_TITLE</code> ב־<code>main.js</code>, לפי שם הקובץ).</li>
+          <li><strong>העדכון בפתיחה ובסגירה לא השתנה:</strong> אותו משגר (<code>launcher/</code>) בלי שום שינוי, ממשיך למשוך את <code>desktop-dev</code> מ־GitHub.</li>
+        </ul>
+      </article>
       <article class="note">
         <header>
           <span class="ver">7.4</span>
@@ -69,19 +82,6 @@
           <li><strong>ארכיון:</strong> בלחיצה ימנית על מסמך או תיקייה בעץ ← "העברה לארכיון" (וגם בלוח הפקודות, למסמך הפתוח).</li>
           <li><strong>מה הארכיון מסתיר:</strong> מסמכים בארכיון לא מופיעים במעבר המהיר (Ctrl+O) ובבחירת מסמך, במסמכים האחרונים, בחלון המשימות, במסך הבית ובקפיצה בין תיקיות (Ctrl+Shift+↑/↓).</li>
           <li><strong>שורת הכותרת של החלון (Windows):</strong> במקום השורה של Windows (כהה או לבנה לפי המערכת), שורה בצבע ראש הסרגל של הערכה (<code>#titlebar</code>, <code>--accent-tint</code>), עם הסמל והשם.</li>
-        </ul>
-      </article>
-      <article class="note">
-        <header>
-          <span class="ver">7.2</span>
-          <h3>משימה חדשה אחרי משימות שבוצעו, מעבר ל־Markdown באותו מקום, כותרות H2 חדשות</h3>
-          <time datetime="2026-11-14">14.11.2026</time>
-        </header>
-        <ul>
-          <li><strong>תיקון — Enter על משימה שבוצעה:</strong> השורה החדשה (לא מסומנת) עלתה לקבוצת המשימות הפתוחות, אבל הסמן נשאר למטה על משימה מסומנת, ומה שהוקלד נכנס לשם.</li>
-          <li><strong>מעבר ל־Markdown ובחזרה (Ctrl+E) באותו מקום:</strong> קודם הדף קפץ לסוף, כי תיבת הטקסט הייתה תיבת גלילה נפרדת והמיקוד שם את הסמן בסוף.</li>
-          <li><strong>כיוון בתצוגת Markdown:</strong> עד עכשיו תמיד משמאל לימין, והדף "התהפך".</li>
-          <li><strong>כותרת H2:</strong> במקום הפס הכחול שבצד, קו דק (1px, <code>#D6DDE1</code>, ובמצב כהה גוון שקוף שלו, <code>--h2-rule</code>) שמתחיל 12px אחרי סוף הטקסט ונמתח עד קצה אזור התוכן, באמצע גובה…</li>
         </ul>
       </article>
       <!-- NOTES:END -->
