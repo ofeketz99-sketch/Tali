@@ -242,7 +242,7 @@ export function openGraph({ index, current, onOpen, store }) {
   }
   let nodes = [], edges = [], byId = new Map();
   const view = { x: 0, y: 0, k: 1 };
-  let alpha = 1, frame = 0, hover = null, drag = null;
+  let alpha = 1, ticksLeft = 0, frame = 0, hover = null, drag = null;
 
   function build() {
     const all = new Map();
@@ -274,6 +274,9 @@ export function openGraph({ index, current, onOpen, store }) {
     for (const [a, b] of edges) { a.deg++; b.deg++; }
     applyGroups();
     alpha = 1;
+    // מריצים את הכוחות בקצב מואץ ולזמן מוגבל. אחרי ההתייצבות הפריסה קפואה:
+    // ריחוף נועד להדגיש קשרים, לא להזיז את המסקנה שהמשתמש מסתכל עליה.
+    ticksLeft = 180;
     kick();
   }
 
@@ -333,7 +336,7 @@ export function openGraph({ index, current, onOpen, store }) {
       const hi = near && (a === hover || b === hover);
       const out = match && !(match.has(a) && match.has(b));
       g.strokeStyle = hi ? colors.edgeHi : colors.edge;
-      g.globalAlpha = hi ? 0.9 : out ? 0.06 : near ? 0.25 : 0.7;
+      g.globalAlpha = hi ? 0.95 : out ? 0.06 : near ? 0.42 : 0.7;
       if (b.ghost) g.setLineDash([4 / view.k, 3 / view.k]); else g.setLineDash([]);
       g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
     }
@@ -344,7 +347,7 @@ export function openGraph({ index, current, onOpen, store }) {
     for (const n of nodes) {
       const r = radius(n);
       const dim = match && !match.has(n) && n !== hover;
-      g.globalAlpha = dim ? 0.1 : near && !near.has(n) ? 0.25 : 1;
+      g.globalAlpha = dim ? 0.1 : near && !near.has(n) ? 0.55 : 1;
       if (n.hub) triangle(g, n.x, n.y, r);
       else { g.beginPath(); g.arc(n.x, n.y, r, 0, Math.PI * 2); }
       if (n.ghost) { g.fillStyle = colors.bg; g.fill(); g.strokeStyle = colors.ghost; g.setLineDash([2.5 / view.k, 2 / view.k]); g.lineWidth = 1.4 / view.k; g.stroke(); g.setLineDash([]); }
@@ -360,26 +363,46 @@ export function openGraph({ index, current, onOpen, store }) {
 
   // מתאים את הזום כך שכל הגרף נראה, עד שהמשתמש מזיז או מזמזם בעצמו
   let userMoved = false;
-  function fit() {
+  function fit(snap = false) {
     if (userMoved || !nodes.length) return;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const n of nodes) { minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x); minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y); }
     const w = canvas.clientWidth - 120, h = canvas.clientHeight - 120;
     const k = Math.max(0.25, Math.min(2.4, w / Math.max(1, maxX - minX), h / Math.max(1, maxY - minY)));
-    view.k += (k - view.k) * 0.15;
-    view.x += (-(minX + maxX) / 2 * view.k - view.x) * 0.15;
-    view.y += (-(minY + maxY) / 2 * view.k - view.y) * 0.15;
+    const nextX = -(minX + maxX) / 2 * k;
+    const nextY = -(minY + maxY) / 2 * k;
+    if (snap) {
+      view.k = k;
+      view.x = nextX;
+      view.y = nextY;
+    } else {
+      view.k += (k - view.k) * 0.15;
+      view.x += (nextX - view.x) * 0.15;
+      view.y += (nextY - view.y) * 0.15;
+    }
   }
   function loop() {
     if (!dlg.isConnected) return;
-    if (alpha > 0.002 || drag) step();
+    // שלושה צעדים בכל פריים מסיימים את הסידור מהר, בלי להשאיר גרף שזז
+    // במשך שניות בזמן שהמשתמש כבר מנסה לקרוא אותו.
+    const count = Math.min(3, ticksLeft);
+    for (let i = 0; i < count && alpha > 0.002; i++) { step(); ticksLeft--; }
+    if (alpha <= 0.002) ticksLeft = 0;
     fit();
     draw();
-    frame = alpha > 0.002 || drag ? requestAnimationFrame(loop) : 0;
+    frame = ticksLeft > 0 ? requestAnimationFrame(loop) : 0;
   }
   function kick() { if (!frame) frame = requestAnimationFrame(loop); }
-  // שינוי כוח: מחממים את הסימולציה מחדש, ואם המשתמש לא הזיז, הזום ימשיך להתאים את עצמו
-  function reheat() { alpha = Math.max(alpha, 0.6); kick(); }
+  function freezeLayout({ keepView = false } = {}) {
+    ticksLeft = 0;
+    alpha = 0;
+    for (const n of nodes) n.vx = n.vy = 0;
+    if (!keepView && !userMoved) fit(true);
+    cancelAnimationFrame(frame);
+    frame = 0;
+  }
+  // שינוי כוח מריץ סידור קצר ומוגבל. מעבר חזרה אל הגרף יקפיא אותו שוב מיד.
+  function reheat() { alpha = Math.max(alpha, 0.6); ticksLeft = 120; kick(); }
 
   const toWorld = (e) => {
     const r = canvas.getBoundingClientRect();
@@ -392,28 +415,35 @@ export function openGraph({ index, current, onOpen, store }) {
     return best;
   };
   canvas.addEventListener('pointerdown', (e) => {
+    freezeLayout({ keepView: true });
     canvas.setPointerCapture(e.pointerId);
     const node = pick(e);
     drag = { node, sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false };
     userMoved = true;
-    if (node) alpha = Math.max(alpha, 0.3);
-    kick();
   });
   canvas.addEventListener('pointermove', (e) => {
     if (drag) {
       if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) drag.moved = true;
       if (drag.node) { const p = toWorld(e); drag.node.x = p.x; drag.node.y = p.y; }
       else { view.x = drag.vx + e.clientX - drag.sx; view.y = drag.vy + e.clientY - drag.sy; }
-      kick();
+      draw();
       return;
     }
     const h = pick(e);
-    if (h !== hover) { hover = h; canvas.style.cursor = h ? 'pointer' : 'grab'; draw(); }
+    if (h !== hover) {
+      if (h && ticksLeft) freezeLayout({ keepView: true });
+      hover = h;
+      canvas.style.cursor = h ? 'pointer' : 'grab';
+      draw();
+    }
+  });
+  canvas.addEventListener('pointerleave', () => {
+    if (!drag && hover) { hover = null; canvas.style.cursor = 'grab'; draw(); }
   });
   canvas.addEventListener('pointerup', () => {
     const d = drag; drag = null;
     if (d?.node && !d.moved) { dlg.close(); onOpen(d.node.ghost ? { create: d.node.target } : { path: d.node.id }); }
-    kick();
+    else draw();
   });
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();

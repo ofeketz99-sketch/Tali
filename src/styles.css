@@ -1774,11 +1774,13 @@ body[data-sidebar-mode="compact"] #sidebarResize { display: none; }
 #tabBar[hidden] { display: none; }
 .tab-strip { flex: 1; min-width: 0; display: flex; align-items: flex-end; gap: 3px; overflow-x: auto; scrollbar-width: none; }
 .tab-strip::-webkit-scrollbar { display: none; }
-.tab { position: relative; display: flex; align-items: center; gap: 6px; flex: 0 1 190px; min-width: 92px; height: 30px; padding: 0 10px 0 6px; border: 1px solid transparent; border-bottom: none; border-radius: 9px 9px 0 0; color: var(--muted); font-size: 12.5px; cursor: pointer; user-select: none; transition: background .14s var(--ease), color .14s var(--ease), box-shadow .14s var(--ease); }
+.tab { position: relative; display: flex; align-items: center; gap: 6px; flex: 0 1 190px; min-width: 92px; height: 30px; padding: 0 10px 0 6px; border: 1px solid transparent; border-bottom: none; border-radius: 9px 9px 0 0; color: var(--muted); font-size: 12.5px; cursor: pointer; user-select: none; transition: background .18s var(--ease), color .18s var(--ease), border-color .18s var(--ease), box-shadow .2s var(--ease); }
 .tab.folder-tinted:not(.active) { background: color-mix(in srgb, var(--folder-tint) var(--folder-alpha), transparent); }
+.tab:not(.active):not(.tab-add) { border-color: color-mix(in srgb, var(--accent) 18%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: 0 -2px 8px color-mix(in srgb, var(--accent) 5%, transparent); }
 .tab svg { flex: none; color: var(--faint); }
 .tab .tab-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab:hover { background: color-mix(in srgb, var(--panel-bg) 82%, transparent); color: var(--text); }
+.tab:not(.active):not(.tab-add):hover { border-color: color-mix(in srgb, var(--accent) 28%, transparent); box-shadow: 0 -3px 10px color-mix(in srgb, var(--accent) 8%, transparent); }
 .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .tab.active { background: var(--page-bg); color: var(--text); border-color: var(--accent-line); margin-bottom: -1px; height: 32px; font-weight: 700; box-shadow: inset 0 3px 0 var(--accent), 0 -3px 10px color-mix(in srgb, var(--accent) 12%, transparent); }
 .tab.active::before { content: ""; position: absolute; inset-inline: 12px; top: 0; height: 3px; border-radius: 0 0 3px 3px; background: var(--accent); }
@@ -1787,9 +1789,10 @@ body[data-sidebar-mode="compact"] #sidebarResize { display: none; }
 .tab.side:not(.active)::after { content: ""; position: absolute; inset-inline: 10px; bottom: 2px; height: 2px; border-radius: 2px; background: var(--accent-line); }
 .tab.dragging { opacity: .45; }
 .tab.drop { box-shadow: inset 2px 0 0 var(--accent), inset -2px 0 0 var(--accent); }
-.tab-add { flex: 0 0 auto; min-width: 34px; width: auto; padding-inline: 9px; border-color: color-mix(in srgb, var(--accent-line) 65%, transparent); background: color-mix(in srgb, var(--panel-bg) 74%, transparent); color: var(--accent-strong); }
-.tab-add span { max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0; transition: max-width .2s var(--ease), opacity .15s var(--ease); }
-.tab-add:hover span, .tab-add:focus-visible span { max-width: 90px; opacity: 1; }
+.tab-add { flex: 0 0 auto; min-width: 34px; width: auto; gap: 0; overflow: hidden; padding-inline: 9px; border-color: color-mix(in srgb, var(--accent-line) 65%, transparent); background: color-mix(in srgb, var(--panel-bg) 74%, transparent); color: var(--accent-strong); transition: gap .3s cubic-bezier(.22, 1, .36, 1), background .2s var(--ease), border-color .2s var(--ease), box-shadow .24s var(--ease); }
+.tab-add span { display: block; max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0; transform: translateX(5px); transition: max-width .34s cubic-bezier(.22, 1, .36, 1), opacity .2s ease .04s, transform .3s cubic-bezier(.22, 1, .36, 1); }
+.tab-add:hover, .tab-add:focus-visible { gap: 6px; box-shadow: 0 -3px 11px color-mix(in srgb, var(--accent) 10%, transparent); }
+.tab-add:hover span, .tab-add:focus-visible span { max-width: 90px; opacity: 1; transform: none; }
 .tab-close { flex: none; display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--faint); opacity: 0; cursor: pointer; }
 .tab:hover .tab-close, .tab.active .tab-close { opacity: 1; }
 .tab-close:hover { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); transform: none; }
