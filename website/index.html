@@ -37,7 +37,7 @@
           </svg>
           <span>הורדה ל־Windows</span>
         </a>
-        <p class="download-meta">גרסה <bdi dir="ltr"><!-- VERSION:START -->8.7<!-- VERSION:END --></bdi></p>
+        <p class="download-meta">גרסה <bdi dir="ltr"><!-- VERSION:START -->8.8<!-- VERSION:END --></bdi></p>
       </div>
 
       <a class="scroll-cue" href="#notes">
@@ -49,6 +49,19 @@
     <section class="notes" id="notes" aria-labelledby="notes-title">
       <h2 id="notes-title">מה חדש</h2>
       <!-- NOTES:START -->
+      <article class="note">
+        <header>
+          <span class="ver">8.8</span>
+          <h3>קישורים בלוח אחד, השלמת [[ שחזרה, סימנים חכמים וידית יציבה ברשימות</h3>
+          <time datetime="2026-11-15">15.11.2026</time>
+        </header>
+        <ul>
+          <li><strong>קישורים החוצה ופנימה באותו לוח:</strong> בלוח ההקשר יש עכשיו לשונית אחת, "קישורים": למעלה "החוצה" (מהטקסט ומהמאפיינים, עם "קישור למסמכים…"), קו הפרדה, ומתחתיו "פנימה".</li>
+          <li><strong>תיקון: ההשלמה האוטומטית של [[ לא הופיעה.</strong> החלונית הוצאה מהדף בכל פעם שהעורך הוגדר מחדש (כבר בטעינה), ולא הוחזרה.</li>
+          <li><strong>סימנים חכמים בהקלדה:</strong> <code>-&gt;</code> ו־<code>&lt;-</code> הופכים לחצים, <code>=&gt;</code> ל־⇒, <code>!=</code> ל־≠, <code>&gt;=</code>/<code>&lt;=</code> ל־≥/≤, <code>+-</code> ל־±.</li>
+          <li><strong>תיקון: ידית ⋮⋮ קפצה ברשימות.</strong> מעל עמודת המספרים (או התבליטים) הידית קפצה לרשימה כולה, ומעל הטקסט חזרה לפריט וכיסתה את "1.".</li>
+        </ul>
+      </article>
       <article class="note">
         <header>
           <span class="ver">8.7</span>
@@ -73,19 +86,6 @@
           <li><strong>קישורים חוזרים בלי קריאה מחדש של כל הכספת:</strong> הניתוח נשמר באינדקס ומשמש גם את לוח הקישורים.</li>
           <li><strong>פחות עבודה מיותרת בדיסק:</strong> קובצי Markdown וקבצים מצורפים נאספים באותה סריקה.</li>
           <li><strong>עץ וקבצים מצורפים יחד:</strong> בניית עץ המסמכים מחזירה גם את רשימת הקבצים המצורפים, במקום מעבר נוסף על כל התיקיות בפתיחה וברענון.</li>
-        </ul>
-      </article>
-      <article class="note">
-        <header>
-          <span class="ver">8.5</span>
-          <h3>כרטיסיות נעוצות, מסמכים נעוצים במסך הבית, וסמל בהפעלה</h3>
-          <time datetime="2026-11-14">14.11.2026</time>
-        </header>
-        <ul>
-          <li><strong>נעיצת כרטיסייה:</strong> לחיצה ימנית על כרטיסייה ← "נעיצת הכרטיסייה".</li>
-          <li><strong>מסמכים נעוצים במסך הבית:</strong> לחיצה ימנית על מסמך (בעץ או בכרטיסייה) ← "נעיצה למסך הבית".</li>
-          <li><strong>סמל בהפעלה:</strong> מרגע שמפעילים את Tali ועד שהחלון מופיע, הסמל מוצג במרכז המסך (נכנס ברכות ואז נשאר סטטי), כדי שיהיה ברור שההפעלה עבדה.</li>
-          <li><strong>צריך:</strong> להעתיק את <code>launcher/</code> אל <code>resourcesapp</code> של TALI-DEV כשהוא סגור (עד אז TALI-DEV מציג את הסמל רק אחרי העדכון).</li>
         </ul>
       </article>
       <!-- NOTES:END -->
