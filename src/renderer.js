@@ -25,7 +25,7 @@ import { createTabs } from './tabs.js';
 import { createHome } from './home.js';
 import { createMeta } from './vault-meta.js';
 import { openIconPicker } from './icon-picker.js';
-import { openFolderBackgroundPicker } from './folder-background.js';
+import { openBackgroundPicker } from './folder-background.js';
 import { renderNoteHtml } from './note-render.js';
 import { ARCHIVE_DIR, isArchived, isArchiveRoot, archiveDirFor, restoreDirFor, withoutArchived } from './archive.js';
 
@@ -238,8 +238,6 @@ function showEmpty() {
   state.dirty = false;
   pageOverlay.setEnabled(false);
   $('page').hidden = true;
-  $('page').style.removeProperty('--folder-page-bg');
-  $('pageWrap').style.removeProperty('--folder-page-bg');
   setHome(true);
   docPanel?.layout();
   toggleFocusMode(false);
@@ -1097,16 +1095,19 @@ function pickIcon(node) {
     onPick: (v) => { meta.setIcon(node.path, v); drawTree(); tabs.refresh?.(); },
   });
 }
-function pickFolderBackground(node) {
-  openFolderBackgroundPicker({
-    title: `רקע לתיקייה ״${node.name}״`,
+function pickBackground(node) {
+  const document = node.type === 'file';
+  const name = node.name.replace(/\.md$/i, '');
+  openBackgroundPicker({
+    title: `צבע ל${document ? 'מסמך' : 'תיקייה'} ״${name}״`,
+    name,
+    kind: document ? 'document' : 'folder',
     current: meta.ownBackground(node.path),
     onPick: (value) => {
       meta.setBackground(node.path, value);
       drawTree();
       tabs.refresh();
-      applyDocumentBackground(state.currentPath);
-      setStatus(value ? `הרקע של ״${node.name}״ עודכן` : `הרקע של ״${node.name}״ הוסר`);
+      setStatus(value ? `הצבע של ״${name}״ עודכן` : `הצבע של ״${name}״ הוסר`);
     },
   });
 }
@@ -1193,7 +1194,6 @@ async function openNote(p, { history = true, newTab = false } = {}) {
   pageOverlay.setEnabled(!editorApi.isRaw());
   setHome(false);
   $('page').hidden = false;
-  applyDocumentBackground(p);
   restorePosition(p);
   setSaveState('saved');
   // כניסה רכה של הדף בכל פתיחת הערה
@@ -1212,20 +1212,6 @@ async function openNote(p, { history = true, newTab = false } = {}) {
   refreshBacklinks();
   refreshLinksPanel();
   updateNavButtons();
-}
-
-function applyDocumentBackground(p) {
-  const value = p && meta.backgroundOf(p);
-  const page = $('page');
-  const wrap = $('pageWrap');
-  if (!value) {
-    page.style.removeProperty('--folder-page-bg');
-    wrap.style.removeProperty('--folder-page-bg');
-    return;
-  }
-  const mixed = `color-mix(in srgb, var(--graph-${value.color}) ${value.opacity}%, var(--page-bg))`;
-  page.style.setProperty('--folder-page-bg', mixed);
-  wrap.style.setProperty('--folder-page-bg', mixed);
 }
 
 // ===== קישורים =====
@@ -1698,6 +1684,7 @@ function fileItems(node) {
     'sep',
     { label: 'שינוי שם', icon: 'edit', keys: 'F2', run: () => renameNode(node) },
     { label: 'שכפול', icon: 'copy', run: () => duplicateNode(node) },
+    { label: meta.ownBackground(node.path) ? 'שינוי צבע המסמך…' : 'צבע למסמך…', icon: 'palette', run: () => pickBackground(node) },
     { label: 'קישור לפתקים אחרים…', icon: 'link', run: () => pickLinksFor(node.path) },
     { label: 'דגל', icon: 'flag', sub: [
       ...FLAG_LIST.map((fl) => ({ label: fl.name, dot: fl.id, active: () => flag === fl.id, run: () => setNoteFlag(node.path, fl.id) })),
@@ -1719,7 +1706,7 @@ function showContextMenu(node, x, y, before = []) {
     { label: 'מסמך חדש מתבנית', icon: 'template', run: () => { state.selectedDir = node.path; newNoteFromTemplate(); } },
     'sep',
     { label: 'שינוי שם', icon: 'edit', keys: 'F2', run: () => renameNode(node) },
-    { label: meta.ownBackground(node.path) ? 'שינוי רקע התיקייה…' : 'רקע לתיקייה…', icon: 'palette', run: () => pickFolderBackground(node) },
+    { label: meta.ownBackground(node.path) ? 'שינוי צבע התיקייה…' : 'צבע לתיקייה…', icon: 'palette', run: () => pickBackground(node) },
     ...archiveItem(node),
   );
   // לשניהם: סמל, והזזה בתוך התיקייה (סדר ידני)

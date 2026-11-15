@@ -1,5 +1,5 @@
-// רקע תיקייה: בנק של שמונה צבעים שמגיע ממשתני הערכה (צבעי הגרף), ולכן נשאר קריא
-// וקוהרנטי גם ביום וגם בלילה. המסמכים יורשים את הרקע דרך vault-meta.js.
+// צבע ארגוני לתיקייה או למסמך: בנק של שמונה צבעים שמגיע ממשתני הערכה (צבעי הגרף),
+// ולכן נשאר קריא וקוהרנטי גם ביום וגם בלילה. הצבע מוצג רק בבורר המסמכים וברמז בכרטיסייה.
 import { icon } from './icons.js';
 
 const COLORS = [
@@ -7,13 +7,19 @@ const COLORS = [
   [5, 'סגול'], [6, 'זהב'], [7, 'טורקיז'], [8, 'אדום'],
 ];
 
-export function openFolderBackgroundPicker({ title, current, onPick }) {
+export function openBackgroundPicker({ title, name, kind = 'folder', current, onPick }) {
+  const isDocument = kind === 'document';
   const dlg = document.createElement('dialog');
   dlg.className = 'vault-dialog folder-background-picker';
   dlg.dir = 'rtl';
-  dlg.innerHTML = `<div class="vd-head"><span class="vd-icon">${icon('palette', 18)}</span><h2></h2><button type="button" class="icon-btn" aria-label="סגירה">${icon('close', 18)}</button></div><div class="vd-body"><p class="vd-intro">הצבע חל על התיקייה, על תתי־התיקיות ועל המסמכים שבה. תיקייה פנימית יכולה לקבל צבע משלה.</p><div class="fb-colors" role="radiogroup" aria-label="צבע רקע"></div><label class="fb-opacity"><span>שקיפות הרקע</span><input type="range" min="0" max="60" step="1"><output></output></label><div class="fb-preview"><span>${icon('folder', 16)}</span><strong></strong><small>מסמך בתוך התיקייה</small></div><div class="fb-actions"><button type="button" class="fb-remove">ללא רקע</button><span></span><button type="button" class="primary fb-save">שמירה</button></div></div>`;
+  const intro = isDocument
+    ? 'הצבע חל על שורת המסמך בבורר ומוסיף רמז קטן בכרטיסייה. הוא אינו משנה את דף הכתיבה וגובר על צבע התיקייה.'
+    : 'הצבע חל בבורר על התיקייה, על תתי־התיקיות ועל המסמכים שבה. תיקייה פנימית או מסמך בודד יכולים לקבל צבע משלהם.';
+  dlg.innerHTML = `<div class="vd-head"><span class="vd-icon">${icon('palette', 18)}</span><h2></h2><button type="button" class="icon-btn" aria-label="סגירה">${icon('close', 18)}</button></div><div class="vd-body"><p class="vd-intro"></p><div class="fb-colors" role="radiogroup" aria-label="צבע ארגוני"></div><label class="fb-opacity"><span>עוצמת הצבע</span><input type="range" min="0" max="60" step="1"><output></output></label><div class="fb-preview"><span>${icon(isDocument ? 'file' : 'folder', 16)}</span><strong></strong><small></small></div><div class="fb-actions"><button type="button" class="fb-remove">ללא צבע</button><span></span><button type="button" class="primary fb-save">שמירה</button></div></div>`;
   dlg.querySelector('h2').textContent = title;
-  dlg.querySelector('.fb-preview strong').textContent = title.replace(/^רקע ל/, '').replace(/[״"]/g, '');
+  dlg.querySelector('.vd-intro').textContent = intro;
+  dlg.querySelector('.fb-preview strong').textContent = name;
+  dlg.querySelector('.fb-preview small').textContent = isDocument ? 'מסמך בודד' : 'מסמך בתוך התיקייה';
   document.body.append(dlg);
   dlg.addEventListener('close', () => dlg.remove());
   dlg.querySelector('.vd-head .icon-btn').addEventListener('click', () => dlg.close());

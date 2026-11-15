@@ -205,13 +205,13 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { border-colo
 #pageWrap { flex: 1; overflow: auto; padding: 28px 16px 60px; scroll-behavior: smooth; }
 #page {
   position: relative; max-width: var(--page-width); min-height: 1050px; margin: 0 auto;
-  background: var(--folder-page-bg, var(--page-bg)); padding: 64px 72px;
+  background: var(--page-bg); padding: 64px 72px;
   box-shadow: var(--shadow); border-radius: 6px; border-top: 4px solid var(--accent);
   transition: max-width .24s var(--ease);
 }
 #page.enter { animation: page-in .26s var(--ease); }
 /* הגדרה "מראה דף" כבויה: בלי דף מודפס, הטקסט ישירות על הרקע */
-:root[data-page="flat"] #pageWrap { background: var(--folder-page-bg, var(--page-bg)); }
+:root[data-page="flat"] #pageWrap { background: var(--page-bg); }
 :root[data-page="flat"] #page { box-shadow: none; min-height: 0; padding: 24px 48px; border-top: none; }
 /* מסך פתיחה: רק הכפתור (הערה חדשה, או בחירת תיקייה בהפעלה הראשונה), במרכז */
 .empty { display: grid; place-items: center; min-height: 60vh; animation: page-in .32s var(--ease); }
@@ -1770,12 +1770,12 @@ body[data-sidebar-mode="compact"] #sidebarResize { display: none; }
 #tabBar { display: flex; align-items: flex-end; gap: 6px; padding: 7px 10px 0; background: color-mix(in srgb, var(--accent-tint) 45%, var(--sidebar-bg)); border-bottom: 1px solid var(--accent-line); min-height: 38px; box-sizing: border-box; }
 /* הכרטיסיות מעל סרגל העיצוב: הכרטיסייה הפעילה מתחברת לסרגל (באותו צבע), כמו בדפדפן */
 #tabBar + #toolbar { border-top: none; }
-#tabBar .tab.active { background: var(--folder-page-bg, var(--page-bg)); }
+#tabBar .tab.active { background: var(--page-bg); }
 #tabBar[hidden] { display: none; }
 .tab-strip { flex: 1; min-width: 0; display: flex; align-items: flex-end; gap: 3px; overflow-x: auto; scrollbar-width: none; }
 .tab-strip::-webkit-scrollbar { display: none; }
 .tab { position: relative; display: flex; align-items: center; gap: 6px; flex: 0 1 190px; min-width: 92px; height: 30px; padding: 0 10px 0 6px; border: 1px solid transparent; border-bottom: none; border-radius: 9px 9px 0 0; color: var(--muted); font-size: 12.5px; cursor: pointer; user-select: none; transition: background .18s var(--ease), color .18s var(--ease), border-color .18s var(--ease), box-shadow .2s var(--ease); }
-.tab.folder-tinted:not(.active) { background: color-mix(in srgb, var(--folder-tint) var(--folder-alpha), transparent); }
+.tab-color-hint { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--folder-tint); opacity: .68; box-shadow: 0 0 0 1px color-mix(in srgb, var(--folder-tint) 24%, transparent); }
 .tab:not(.active):not(.tab-add) { border-color: color-mix(in srgb, var(--accent) 18%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: 0 -2px 8px color-mix(in srgb, var(--accent) 5%, transparent); }
 .tab svg { flex: none; color: var(--faint); }
 .tab .tab-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1810,7 +1810,7 @@ body[data-sidebar-mode="compact"] #sidebarResize { display: none; }
 body.pane-resizing { cursor: col-resize; user-select: none; }
 /* התצוגה בחלונית שאינה פעילה: נראית כמו הדף, לחיצה מעבירה אליה את העורך */
 .pane-preview { flex: 1; min-height: 0; overflow: auto; padding: 62px 16px 60px; cursor: text; }
-.pv-page { position: relative; max-width: var(--page-width); margin: 0 auto; background: var(--folder-page-bg, var(--page-bg)); padding: 48px 56px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--border) 70%, transparent); opacity: 1; }
+.pv-page { position: relative; max-width: var(--page-width); margin: 0 auto; background: var(--page-bg); padding: 48px 56px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--border) 70%, transparent); opacity: 1; }
 .pv-head { position: absolute; bottom: calc(100% + 10px); inset-inline: 6px; display: flex; align-items: center; gap: 8px; }
 .pv-title { margin: 0; flex: 1; min-width: 0; font: 600 19px/1.35 var(--font-heading, var(--font-ui)); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pv-body.ProseMirror { outline: none; }
@@ -1895,7 +1895,7 @@ body[data-sidebar-mode="compact"] .tree-head { display: none; }
 @keyframes folder-orbit { 50% { inset-inline-start: 2px; width: 60px; } }
 @media (prefers-reduced-motion: reduce) { .folder-loading-mark i { animation-duration: 3.2s; } }
 
-/* ----- רקע תיקייה: בנק צבעים לפי הערכה + שליטה בשקיפות ----- */
+/* ----- צבע ארגוני לתיקייה או למסמך: בנק לפי הערכה + שליטה בעוצמה ----- */
 .folder-background-picker { width: min(520px, calc(100vw - 36px)); }
 .fb-colors { display: flex; flex-wrap: wrap; gap: 9px; margin: 10px 0 18px; }
 .fb-color { width: 34px; height: 34px; padding: 0; border-radius: 50%; background: var(--c); border: 2px solid var(--floating-bg); box-shadow: 0 0 0 1px var(--border); }

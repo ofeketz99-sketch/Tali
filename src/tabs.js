@@ -78,10 +78,8 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
       if (background) {
         t.classList.add('folder-tinted');
         t.style.setProperty('--folder-tint', `var(--graph-${background.color})`);
-        t.style.setProperty('--folder-alpha', `${background.opacity}%`);
-        t.style.setProperty('--folder-page-bg', `color-mix(in srgb, var(--graph-${background.color}) ${background.opacity}%, var(--page-bg))`);
       }
-      t.innerHTML = `${pin ? `<span class="tab-pin" aria-label="נעוצה">${icon('pin', 12)}</span>` : ''}${fileIcon?.(p) || icon('file', 14)}<span class="tab-name"></span>${flag ? `<span class="flag-dot tab-flag" data-flag="${flag}"></span>` : ''}${pin ? '' : `<button type="button" class="tab-close" aria-label="סגירת הכרטיסייה">${icon('close', 13)}</button>`}`;
+      t.innerHTML = `${pin ? `<span class="tab-pin" aria-label="נעוצה">${icon('pin', 12)}</span>` : ''}${background ? '<span class="tab-color-hint" aria-hidden="true"></span>' : ''}${fileIcon?.(p) || icon('file', 14)}<span class="tab-name"></span>${flag ? `<span class="flag-dot tab-flag" data-flag="${flag}"></span>` : ''}${pin ? '' : `<button type="button" class="tab-close" aria-label="סגירת הכרטיסייה">${icon('close', 13)}</button>`}`;
       t.querySelector('.tab-name').textContent = noteName(p);
       // לחיצה אמצעית לא סוגרת כרטיסייה נעוצה (כמו בדפדפן); סוגרים מהתפריט או ב־Ctrl+W
       t.addEventListener('mousedown', (e) => { if (e.button === 1) { e.preventDefault(); if (!pin) close(p); } });
@@ -234,10 +232,6 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
       el.append(pv);
     }
     pv.querySelector('.pv-title').textContent = noteName(panes[i]);
-    const background = backgroundOf?.(panes[i]);
-    const page = pv.querySelector('.pv-page');
-    if (background) page.style.setProperty('--folder-page-bg', `color-mix(in srgb, var(--graph-${background.color}) ${background.opacity}%, var(--page-bg))`);
-    else page.style.removeProperty('--folder-page-bg');
     await renderPreview(pv.querySelector('.pv-body'), panes[i]);
   }
 

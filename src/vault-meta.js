@@ -2,7 +2,8 @@
 //   icons: סמל Lucide (וצבע) לכל תיקייה או מסמך, לפי נתיב יחסי עם "/" (מסמכים עם ".md")
 //   order: סדר ידני בתוך תיקייה: { "<תיקייה יחסית, '' לראשית>": ["שם", "שם.md", ...] }
 //   pins: (8.5) מסמכים שננעצו למסך הבית, לפי הסדר: ["תיקייה/שם.md", ...]
-//   backgrounds: (9.0) רקע לכל תיקייה: { color: 1–8, opacity: 0–60 }. מסמכים יורשים מהתיקייה הקרובה.
+//   backgrounds: (9.0–9.2) צבע ארגוני לתיקייה או למסמך: { color: 1–8, opacity: 0–60 }.
+//                מסמכים יורשים מהתיקייה הקרובה, וצבע ישיר למסמך גובר על הירושה.
 // שינוי שם, העברה ומחיקה מעדכנים את המפתחות (remap / drop), כדי שהסמל והסדר יעברו עם הפריט.
 export function createMeta({ api, getRoot }) {
   let data = { icons: {}, order: {}, pins: [], backgrounds: {} };
@@ -41,24 +42,22 @@ export function createMeta({ api, getRoot }) {
     save();
   }
 
-  // ----- רקע תיקייה, עובר גם למסמכים ולתתי־תיקיות -----
+  // ----- צבע ארגוני בבורר המסמכים: תיקייה מורישה; מסמך יכול לדרוס -----
+  function cleanBackground(value) {
+    if (!value || Number(value.color) < 1 || Number(value.color) > 8) return null;
+    return { color: Number(value.color), opacity: Math.max(0, Math.min(60, Number(value.opacity) || 0)) };
+  }
   function backgroundOf(path) {
     let r = rel(path);
     if (!r) return null;
-    if (/\.md$/i.test(r)) r = parentRel(r);
     while (r) {
-      const value = data.backgrounds[r];
-      if (value && Number(value.color) >= 1 && Number(value.color) <= 8) {
-        return { color: Number(value.color), opacity: Math.max(0, Math.min(60, Number(value.opacity) || 0)) };
-      }
+      const value = cleanBackground(data.backgrounds[r]);
+      if (value) return value;
       r = parentRel(r);
     }
     return null;
   }
-  function ownBackground(abs) {
-    const value = data.backgrounds[rel(abs)];
-    return value ? { color: Number(value.color), opacity: Math.max(0, Math.min(60, Number(value.opacity) || 0)) } : null;
-  }
+  const ownBackground = (abs) => cleanBackground(data.backgrounds[rel(abs)]);
   function setBackground(abs, value) {
     const r = rel(abs);
     if (!r) return;

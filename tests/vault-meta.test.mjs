@@ -35,6 +35,24 @@ test('a nested folder overrides its parent background', async () => {
   assert.deepEqual(meta.backgroundOf(join('Projects', 'Beta', 'plan.md')), { color: 3, opacity: 24 });
 });
 
+test('a document can override its folder colour or have one of its own', async () => {
+  const { meta } = metaWith({
+    Projects: { color: 3, opacity: 24 },
+    'Projects/Alpha/plan.md': { color: 7, opacity: 12 },
+    'Loose.md': { color: 4, opacity: 30 },
+  });
+  await meta.load();
+  assert.deepEqual(meta.backgroundOf(join('Projects', 'Alpha', 'plan.md')), { color: 7, opacity: 12 });
+  assert.deepEqual(meta.ownBackground(join('Projects', 'Alpha', 'plan.md')), { color: 7, opacity: 12 });
+  assert.deepEqual(meta.backgroundOf(join('Projects', 'Alpha', 'other.md')), { color: 3, opacity: 24 });
+  assert.deepEqual(meta.backgroundOf(join('Loose.md')), { color: 4, opacity: 30 });
+  meta.remap(join('Projects', 'Alpha', 'plan.md'), join('Projects', 'Alpha', 'renamed.md'));
+  assert.equal(meta.ownBackground(join('Projects', 'Alpha', 'plan.md')), null);
+  assert.deepEqual(meta.ownBackground(join('Projects', 'Alpha', 'renamed.md')), { color: 7, opacity: 12 });
+  meta.drop(join('Projects', 'Alpha', 'renamed.md'));
+  assert.equal(meta.ownBackground(join('Projects', 'Alpha', 'renamed.md')), null);
+});
+
 test('folder backgrounds follow rename and disappear on delete', async () => {
   const { meta } = metaWith({ Projects: { color: 2, opacity: 18 } });
   await meta.load();
