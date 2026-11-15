@@ -2,9 +2,10 @@
 //   icons: סמל Lucide (וצבע) לכל תיקייה או מסמך, לפי נתיב יחסי עם "/" (מסמכים עם ".md")
 //   order: סדר ידני בתוך תיקייה: { "<תיקייה יחסית, '' לראשית>": ["שם", "שם.md", ...] }
 //   pins: (8.5) מסמכים שננעצו למסך הבית, לפי הסדר: ["תיקייה/שם.md", ...]
+//   backgrounds: (9.0) רקע לכל תיקייה: { color: 1–8, opacity: 0–60 }. מסמכים יורשים מהתיקייה הקרובה.
 // שינוי שם, העברה ומחיקה מעדכנים את המפתחות (remap / drop), כדי שהסמל והסדר יעברו עם הפריט.
 export function createMeta({ api, getRoot }) {
-  let data = { icons: {}, order: {}, pins: [] };
+  let data = { icons: {}, order: {}, pins: [], backgrounds: {} };
   let timer = null;
 
   const rel = (abs) => {
@@ -18,7 +19,13 @@ export function createMeta({ api, getRoot }) {
 
   async function load() {
     const d = await api.metaRead().catch(() => ({}));
-    data = { ...d, icons: d.icons || {}, order: d.order || {}, pins: Array.isArray(d.pins) ? d.pins.filter((x) => typeof x === 'string') : [] };
+    data = {
+      ...d,
+      icons: d.icons || {},
+      order: d.order || {},
+      pins: Array.isArray(d.pins) ? d.pins.filter((x) => typeof x === 'string') : [],
+      backgrounds: d.backgrounds && typeof d.backgrounds === 'object' ? d.backgrounds : {},
+    };
   }
   function save() {
     clearTimeout(timer);
@@ -31,6 +38,33 @@ export function createMeta({ api, getRoot }) {
     const r = rel(abs);
     if (value?.name) data.icons[r] = value.color ? { name: value.name, color: value.color } : { name: value.name };
     else delete data.icons[r];
+    save();
+  }
+
+  // ----- רקע תיקייה, עובר גם למסמכים ולתתי־תיקיות -----
+  function backgroundOf(path) {
+    let r = rel(path);
+    if (!r) return null;
+    if (/\.md$/i.test(r)) r = parentRel(r);
+    while (r) {
+      const value = data.backgrounds[r];
+      if (value && Number(value.color) >= 1 && Number(value.color) <= 8) {
+        return { color: Number(value.color), opacity: Math.max(0, Math.min(60, Number(value.opacity) || 0)) };
+      }
+      r = parentRel(r);
+    }
+    return null;
+  }
+  function ownBackground(abs) {
+    const value = data.backgrounds[rel(abs)];
+    return value ? { color: Number(value.color), opacity: Math.max(0, Math.min(60, Number(value.opacity) || 0)) } : null;
+  }
+  function setBackground(abs, value) {
+    const r = rel(abs);
+    if (!r) return;
+    if (value && Number(value.color) >= 1 && Number(value.color) <= 8) {
+      data.backgrounds[r] = { color: Number(value.color), opacity: Math.max(0, Math.min(60, Number(value.opacity) || 0)) };
+    } else delete data.backgrounds[r];
     save();
   }
 
@@ -86,6 +120,9 @@ export function createMeta({ api, getRoot }) {
     const icons = {};
     for (const [k, v] of Object.entries(data.icons)) icons[under(k, from) ? to + k.slice(from.length) : k] = v;
     data.icons = icons;
+    const backgrounds = {};
+    for (const [k, v] of Object.entries(data.backgrounds)) backgrounds[under(k, from) ? to + k.slice(from.length) : k] = v;
+    data.backgrounds = backgrounds;
     const order = {};
     for (const [k, v] of Object.entries(data.order)) order[k && under(k, from) ? to + k.slice(from.length) : k] = v;
     // השם ברשימה של התיקייה: אותה תיקייה (שינוי שם) מחליף במקום; תיקייה אחרת (העברה) יוצא מהישנה
@@ -99,6 +136,7 @@ export function createMeta({ api, getRoot }) {
     const r = rel(abs);
     if (!r) return;
     for (const k of Object.keys(data.icons)) if (under(k, r)) delete data.icons[k];
+    for (const k of Object.keys(data.backgrounds)) if (under(k, r)) delete data.backgrounds[k];
     for (const k of Object.keys(data.order)) if (k && under(k, r)) delete data.order[k];
     const p = parentRel(r);
     if (data.order[p]) data.order[p] = data.order[p].filter((n) => n !== baseName(r));
@@ -106,5 +144,5 @@ export function createMeta({ api, getRoot }) {
     save();
   }
 
-  return { load, iconOf, setIcon, sortTree, placeIn, remap, drop, rel, isPinned, pins, setPinned, movePin };
+  return { load, iconOf, setIcon, backgroundOf, ownBackground, setBackground, sortTree, placeIn, remap, drop, rel, isPinned, pins, setPinned, movePin };
 }

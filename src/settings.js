@@ -189,8 +189,50 @@ function buildDialog() {
   const fontSelect = select('fontDoc', fonts.map((f) => [f, f, f]));
   const headingSelect = select('fontHeading', [['same', 'כמו הטקסט'], ...fonts.map((f) => [f, f, f])]);
 
-  const folderInput = el('input', { type: 'text', placeholder: 'attachments', on: { change: () => setPref('attachFolder', folderInput.value.trim() || DEFAULTS.attachFolder) } });
-  bind(() => { folderInput.value = prefs.attachFolder; folderInput.disabled = prefs.attachMode !== 'folder'; });
+  const folderInput = el('input', { type: 'text', placeholder: 'attachments', 'aria-label': 'תיקיית קבצים מצורפים', on: {
+    change: () => { setPref('attachFolder', folderInput.value.trim() || DEFAULTS.attachFolder); refresh(); },
+  } });
+  const attachFolderStatus = el('small', { class: 'set-folder-status', 'aria-live': 'polite' });
+  const attachFolderPick = el('button', { type: 'button' }, 'בחירה…');
+  const attachFolderOpen = el('button', { type: 'button' }, 'פתיחה');
+  attachFolderPick.addEventListener('click', async () => {
+    attachFolderPick.disabled = true;
+    attachFolderStatus.textContent = '';
+    attachFolderStatus.classList.remove('error');
+    try {
+      const picked = await window.api.pickAttachmentFolder();
+      if (picked == null) return;
+      setPref('attachFolder', picked || '.');
+      attachFolderStatus.textContent = 'המיקום החדש נשמר. קבצים חדשים יישמרו כאן.';
+      refresh();
+    } catch (err) {
+      attachFolderStatus.textContent = err.message || 'לא ניתן לבחור את התיקייה.';
+      attachFolderStatus.classList.add('error');
+    } finally { attachFolderPick.disabled = prefs.attachMode !== 'folder'; }
+  });
+  attachFolderOpen.addEventListener('click', async () => {
+    attachFolderOpen.disabled = true;
+    attachFolderStatus.textContent = '';
+    attachFolderStatus.classList.remove('error');
+    try {
+      const dir = await window.api.prepareAttachmentFolder(prefs.attachFolder);
+      await window.api.openPath(dir);
+    } catch (err) {
+      attachFolderStatus.textContent = err.message || 'לא ניתן לפתוח את התיקייה.';
+      attachFolderStatus.classList.add('error');
+    } finally { attachFolderOpen.disabled = prefs.attachMode !== 'folder'; }
+  });
+  const attachFolderControl = el('div', { class: 'set-folder-control' },
+    el('div', { class: 'set-folder-line' }, folderInput, attachFolderPick, attachFolderOpen), attachFolderStatus);
+  bind(() => {
+    const enabled = prefs.attachMode === 'folder';
+    folderInput.value = prefs.attachFolder;
+    folderInput.disabled = !enabled;
+    attachFolderPick.disabled = !enabled;
+    attachFolderOpen.disabled = !enabled;
+    if (!enabled) attachFolderStatus.textContent = '';
+    attachFolderStatus.classList.remove('error');
+  });
   const noteFolderInput = el('input', { type: 'text', readonly: '', 'aria-label': 'תיקיית מסמכים חדשים' });
   const noteFolderStatus = el('small', { class: 'set-folder-status', 'aria-live': 'polite' });
   const noteFolderPick = el('button', { type: 'button' }, 'בחירה…');
@@ -249,7 +291,7 @@ function buildDialog() {
     ], { onChange: refresh })),
     row('תיקיית מסמכים חדשים', 'נשמרת ביחס לתיקיית העבודה ונוצרת אוטומטית אם חסרה', noteFolderControl),
     row('תמונות מיובאות נשמרות', null, select('attachMode', [['folder', 'בתיקייה קבועה'], ['beside', 'ליד המסמך']], { onChange: refresh })),
-    row('שם התיקייה לתמונות', 'בתוך התיקייה הראשית', folderInput),
+    row('תיקיית הקבצים המצורפים', 'אפשר להקליד נתיב בתוך הכספת, לבחור תיקייה קיימת או לפתוח אותה בסייר. היא נוצרת אוטומטית אם חסרה', attachFolderControl),
   );
 
   const shortcutNotice = el('p', { class: 'set-note' }, 'לחיצה על קיצור מאפשרת להקליד קיצור חדש. Backspace מבטל קיצור; הכפתור הקטן מחזיר לברירת המחדל.');

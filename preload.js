@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('api', {
   pickFolder: call('pick-folder'),
   pickNewNoteFolder: call('pick-new-note-folder'),
   prepareNewNoteFolder: call('prepare-new-note-folder'),
+  pickAttachmentFolder: call('pick-attachment-folder'),
+  prepareAttachmentFolder: call('prepare-attachment-folder'),
   tree: call('tree'),
   read: call('read'),
   write: call('write'),

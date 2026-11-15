@@ -134,6 +134,17 @@ async function prepareNewNoteFolder(relative = 'מסמכים חדשים') {
   return dir;
 }
 
+async function prepareAttachmentFolder(relative = 'attachments') {
+  const dir = resolveNewNoteFolderPath(root, relative);
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.access(dir, fs.constants.R_OK | fs.constants.W_OK);
+  } catch (err) {
+    throw new Error(`לא ניתן להשתמש בתיקיית הקבצים המצורפים: ${err.message}`);
+  }
+  return dir;
+}
+
 async function readTree(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
   const parts = await Promise.all(entries.map(async (e) => {
@@ -383,6 +394,22 @@ function registerIpc() {
     return relativeNewNoteFolderPath(root, selected);
   });
   ipcMain.handle('prepare-new-note-folder', async (_e, relative) => prepareNewNoteFolder(relative));
+  ipcMain.handle('pick-attachment-folder', async (e) => {
+    if (!root) throw new Error('קודם בוחרים תיקיית מסמכים');
+    const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+      title: 'בחירת תיקיית קבצים מצורפים',
+      defaultPath: root,
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (r.canceled || !r.filePaths[0]) return null;
+    let selected;
+    try { selected = safe(r.filePaths[0]); }
+    catch { throw new Error('יש לבחור תיקייה מתוך תיקיית המסמכים של Tali'); }
+    try { await fs.access(selected, fs.constants.R_OK | fs.constants.W_OK); }
+    catch (err) { throw new Error(`לא ניתן להשתמש בתיקייה שנבחרה: ${err.message}`); }
+    return relativeNewNoteFolderPath(root, selected);
+  });
+  ipcMain.handle('prepare-attachment-folder', async (_e, relative) => prepareAttachmentFolder(relative));
 
   ipcMain.handle('tree', async () => ({ root, ...await readTree(root) }));
 
@@ -528,7 +555,7 @@ function registerIpc() {
   });
 
   // נתונים של Tali על הכספת, בקובץ נסתר בראש הכספת (.tali.json), כדי שיעברו איתה בסנכרון:
-  // icons: { "<נתיב יחסי עם /, מסמכים עם .md>": { name: "BookOpen", color?: "red" } }, order: { "<תיקייה יחסית>": [שמות] }
+  // icons: סמלים; order: סדר ידני; pins: נעיצות; backgrounds: רקעי תיקיות עם צבע ושקיפות.
   ipcMain.handle('meta-read', async () => {
     if (!root) return {};
     try { return JSON.parse(await fs.readFile(path.join(root, '.tali.json'), 'utf8')) || {}; } catch { return {}; }

@@ -8,7 +8,7 @@
 // renderer.js קורא ל־opened() מתוך openNote, ול־remap/drop בשינוי שם, העברה ומחיקה.
 import { icon } from './icons.js';
 
-export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave, showEmpty, renderPreview, noteName, onContext, onHome, fileIcon, flagOf }) {
+export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave, showEmpty, renderPreview, noteName, onContext, onHome, onNewNote, fileIcon, flagOf, backgroundOf }) {
   const bar = $('tabBar');
   const panesEl = $('panes');
   const pane0 = $('pane0');
@@ -50,7 +50,8 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
 
   // ----- סרגל הכרטיסיות -----
   function render() {
-    bar.hidden = !list.length;
+    // גם במסך הבית נשאר סרגל קטן: הפלוס נראה ומתנהג כמו כרטיסייה חדשה בדפדפן.
+    bar.hidden = !getRoot();
     bar.innerHTML = '';
     // מסך הבית: כפתור בתחילת הסרגל, מודגש כשאין מסמך פתוח
     const homeBtn = document.createElement('button');
@@ -73,6 +74,13 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
       t.setAttribute('aria-selected', String(isActive));
       t.dataset.tip = p.slice(getRoot().length + 1).replace(/\.md$/i, '').split(/[\\/]/).join(' › ');
       const flag = flagOf?.(p);
+      const background = backgroundOf?.(p);
+      if (background) {
+        t.classList.add('folder-tinted');
+        t.style.setProperty('--folder-tint', `var(--graph-${background.color})`);
+        t.style.setProperty('--folder-alpha', `${background.opacity}%`);
+        t.style.setProperty('--folder-page-bg', `color-mix(in srgb, var(--graph-${background.color}) ${background.opacity}%, var(--page-bg))`);
+      }
       t.innerHTML = `${pin ? `<span class="tab-pin" aria-label="נעוצה">${icon('pin', 12)}</span>` : ''}${fileIcon?.(p) || icon('file', 14)}<span class="tab-name"></span>${flag ? `<span class="flag-dot tab-flag" data-flag="${flag}"></span>` : ''}${pin ? '' : `<button type="button" class="tab-close" aria-label="סגירת הכרטיסייה">${icon('close', 13)}</button>`}`;
       t.querySelector('.tab-name').textContent = noteName(p);
       // לחיצה אמצעית לא סוגרת כרטיסייה נעוצה (כמו בדפדפן); סוגרים מהתפריט או ב־Ctrl+W
@@ -100,6 +108,14 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
       });
       strip.append(t);
     });
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'tab tab-add';
+    add.dataset.tip = 'מסמך חדש (Ctrl+N)';
+    add.setAttribute('aria-label', 'מסמך חדש');
+    add.innerHTML = `${icon('plus', 15)}<span>מסמך חדש</span>`;
+    add.addEventListener('click', () => onNewNote?.());
+    strip.append(add);
     const splitBtn = document.createElement('button');
     splitBtn.type = 'button';
     splitBtn.className = 'icon-btn tab-split' + (panes.length > 1 ? ' on' : '');
@@ -218,6 +234,10 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
       el.append(pv);
     }
     pv.querySelector('.pv-title').textContent = noteName(panes[i]);
+    const background = backgroundOf?.(panes[i]);
+    const page = pv.querySelector('.pv-page');
+    if (background) page.style.setProperty('--folder-page-bg', `color-mix(in srgb, var(--graph-${background.color}) ${background.opacity}%, var(--page-bg))`);
+    else page.style.removeProperty('--folder-page-bg');
     await renderPreview(pv.querySelector('.pv-body'), panes[i]);
   }
 

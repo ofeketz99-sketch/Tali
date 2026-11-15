@@ -25,6 +25,7 @@ import { createTabs } from './tabs.js';
 import { createHome } from './home.js';
 import { createMeta } from './vault-meta.js';
 import { openIconPicker } from './icon-picker.js';
+import { openFolderBackgroundPicker } from './folder-background.js';
 import { renderNoteHtml } from './note-render.js';
 import { ARCHIVE_DIR, isArchived, isArchiveRoot, archiveDirFor, restoreDirFor, withoutArchived } from './archive.js';
 
@@ -226,8 +227,10 @@ const tabs = createTabs({
   },
   onContext: (p, x, y) => showTabMenu(p, x, y),
   onHome: () => goHome(),
+  onNewNote: () => newNote(),
   fileIcon: (p) => fileIconHtml(p),
   flagOf: (p) => state.flags.get(p) || null, // 8.2: דגל גם בכרטיסייה
+  backgroundOf: (p) => meta.backgroundOf(p),
 });
 // אין מסמך פתוח: מסך הבית (או, לפני שנבחרה תיקייה, כפתור הבחירה)
 function showEmpty() {
@@ -235,6 +238,8 @@ function showEmpty() {
   state.dirty = false;
   pageOverlay.setEnabled(false);
   $('page').hidden = true;
+  $('page').style.removeProperty('--folder-page-bg');
+  $('pageWrap').style.removeProperty('--folder-page-bg');
   setHome(true);
   docPanel?.layout();
   toggleFocusMode(false);
@@ -1092,6 +1097,19 @@ function pickIcon(node) {
     onPick: (v) => { meta.setIcon(node.path, v); drawTree(); tabs.refresh?.(); },
   });
 }
+function pickFolderBackground(node) {
+  openFolderBackgroundPicker({
+    title: `רקע לתיקייה ״${node.name}״`,
+    current: meta.ownBackground(node.path),
+    onPick: (value) => {
+      meta.setBackground(node.path, value);
+      drawTree();
+      tabs.refresh();
+      applyDocumentBackground(state.currentPath);
+      setStatus(value ? `הרקע של ״${node.name}״ עודכן` : `הרקע של ״${node.name}״ הוסר`);
+    },
+  });
+}
 // סמל של מסמך לכרטיסייה (או סמל הקובץ הרגיל)
 const fileIconHtml = (p, size = 14) => {
   const c = meta.iconOf(p);
@@ -1107,6 +1125,7 @@ function drawTree() {
   const focusedPath = document.activeElement?.closest?.('#tree .node')?.dataset.path;
   renderTree($('tree'), archiveLast(meta.sortTree(state.tree)), {
     iconOf: (p) => meta.iconOf(p),
+    backgroundOf: (p) => meta.backgroundOf(p),
     onReorder: reorderNode,
     onStep: stepItem,
     activePath: state.currentPath,
@@ -1174,6 +1193,7 @@ async function openNote(p, { history = true, newTab = false } = {}) {
   pageOverlay.setEnabled(!editorApi.isRaw());
   setHome(false);
   $('page').hidden = false;
+  applyDocumentBackground(p);
   restorePosition(p);
   setSaveState('saved');
   // כניסה רכה של הדף בכל פתיחת הערה
@@ -1192,6 +1212,20 @@ async function openNote(p, { history = true, newTab = false } = {}) {
   refreshBacklinks();
   refreshLinksPanel();
   updateNavButtons();
+}
+
+function applyDocumentBackground(p) {
+  const value = p && meta.backgroundOf(p);
+  const page = $('page');
+  const wrap = $('pageWrap');
+  if (!value) {
+    page.style.removeProperty('--folder-page-bg');
+    wrap.style.removeProperty('--folder-page-bg');
+    return;
+  }
+  const mixed = `color-mix(in srgb, var(--graph-${value.color}) ${value.opacity}%, var(--page-bg))`;
+  page.style.setProperty('--folder-page-bg', mixed);
+  wrap.style.setProperty('--folder-page-bg', mixed);
 }
 
 // ===== קישורים =====
@@ -1297,7 +1331,14 @@ async function enterRoot(r) {
   state.forward = [];
   updateNavButtons();
   state.recent = store.get('recent:' + r.root, []);
-  state.collapsed = new Set(store.get('collapsed:' + r.root, []));
+  const savedCollapsed = store.get('collapsed:' + r.root, null);
+  state.collapsed = new Set(savedCollapsed || []);
+  // ברירת המחדל בכספת חדשה היא ארכיון סגור. אחרי שהמשתמש פתח/סגר אותו,
+  // הרשימה השמורה נשארת הסמכות ולא נכפה עליו מצב בכל הפעלה.
+  if (savedCollapsed == null) {
+    const archive = r.tree.find((node) => node.type === 'dir' && isArchiveRoot(node.name));
+    if (archive) state.collapsed.add(archive.path);
+  }
   await meta.load(); // סמלים וסדר ידני (.tali.json)
   $('page').hidden = true;
   setHome(true); docPanel?.layout(); toggleFocusMode(false);
@@ -1678,6 +1719,7 @@ function showContextMenu(node, x, y, before = []) {
     { label: 'מסמך חדש מתבנית', icon: 'template', run: () => { state.selectedDir = node.path; newNoteFromTemplate(); } },
     'sep',
     { label: 'שינוי שם', icon: 'edit', keys: 'F2', run: () => renameNode(node) },
+    { label: meta.ownBackground(node.path) ? 'שינוי רקע התיקייה…' : 'רקע לתיקייה…', icon: 'palette', run: () => pickFolderBackground(node) },
     ...archiveItem(node),
   );
   // לשניהם: סמל, והזזה בתוך התיקייה (סדר ידני)
@@ -2044,7 +2086,7 @@ function drawSearch(q) {
       activePath: state.currentPath, collapsed: new Set(), highlight: q,
       onOpen: async (p, o) => { $('search').value = ''; await openNote(p, o); },
       onSelectDir: () => {}, onToggleDir: () => {}, onContext: showContextMenu, onDelete: deleteNode,
-      root: state.root, flagOf: (p) => state.flags.get(p) || null, iconOf: (p) => meta.iconOf(p),
+      root: state.root, flagOf: (p) => state.flags.get(p) || null, iconOf: (p) => meta.iconOf(p), backgroundOf: (p) => meta.backgroundOf(p),
     });
   }
   const seq = ++searchSeq;

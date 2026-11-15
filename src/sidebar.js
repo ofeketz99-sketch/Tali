@@ -13,7 +13,7 @@ function hasNotes(n) {
   return notesCache.get(n);
 }
 // highlight: מחרוזת לסימון בתוך השמות (סינון העץ לפי שם)
-export function renderTree(container, tree, { activePath, collapsed, opening, onOpen, onToggleDir, onContext, onSelectDir, onDelete, onMove, root, flagOf, highlight, iconOf, onReorder, onStep }) {
+export function renderTree(container, tree, { activePath, collapsed, opening, onOpen, onToggleDir, onContext, onSelectDir, onDelete, onMove, root, flagOf, highlight, iconOf, backgroundOf, onReorder, onStep }) {
   container.innerHTML = '';
   container.appendChild(buildLevel(tree));
   // פתיחה: התיקייה שנפתחה עכשיו גדלה מגובה 0 לגובה המלא (והפריטים נכנסים אחד אחרי השני, ב־CSS)
@@ -57,6 +57,12 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
       row.style.setProperty('--i', i);
       row.tabIndex = 0;
       row.dataset.path = n.path;
+      const background = backgroundOf?.(n.path);
+      if (background) {
+        row.classList.add('folder-tinted');
+        row.style.setProperty('--folder-tint', `var(--graph-${background.color})`);
+        row.style.setProperty('--folder-alpha', `${background.opacity}%`);
+      }
       row.addEventListener('keydown', (event) => {
         if (event.target !== row) return;
         // Alt+↑/↓ על שורה ממוקדת: הזזה למעלה/למטה בתוך התיקייה (סדר ידני)
