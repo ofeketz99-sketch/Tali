@@ -1,6 +1,6 @@
 <!doctype html>
-<!-- 8.5: הסמל במרכז המסך מרגע ההפעלה ועד שהחלון של Tali מופיע (main.js, showLaunchSplash).
-     חלון שקוף בלי מסגרת: רואים רק את הסמל. כניסה רכה אחת, ואחר כך סטטי (לבקשת המשתמש: בלי קפיצה). -->
+<!-- 8.9: הסמל במרכז המסך מרגע ההפעלה ועד שהחלון של Tali מופיע.
+     חלון שקוף בלי מסגרת: רואים רק את הסמל, גלוי כבר בציור הראשון. -->
 <html lang="he">
 <head>
 <meta charset="utf-8">
@@ -9,10 +9,7 @@
 <style>
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; }
   body { display: grid; place-items: center; }
-  /* כניסה אחת רכה (שקיפות ועלייה קלה בגודל, בלי קפיצה מעבר ליעד), ואחר כך הסמל סטטי עד שהחלון מופיע */
-  img { width: 128px; height: 128px; animation: in .7s cubic-bezier(.16, 1, .3, 1) both; }
-  @keyframes in { from { opacity: 0; transform: scale(.92); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }
-  @media (prefers-reduced-motion: reduce) { img { animation: none; } }
+  img { width: 128px; height: 128px; }
 </style>
 </head>
 <body><img src="logo.png" alt=""></body>

@@ -1,7 +1,7 @@
 /* Brand colours are defined alongside the application palette in styles.css. */
 .tali-splash { position: fixed; inset: 0; z-index: 10000; overflow: hidden; background: var(--splash-bg); isolation: isolate; direction: ltr; cursor: default; }
-/* The emblem: centred, sized to the window; splash.js fades and scales it in. */
-.tali-splash__emblem { position: absolute; left: 50%; top: 50%; width: clamp(120px, 26vmin, 260px); height: auto; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; user-select: none; will-change: opacity, transform; }
+/* The emblem is visible in the first painted frame; splash.js only fades the ready app in. */
+.tali-splash__emblem { position: absolute; left: 50%; top: 50%; width: clamp(120px, 26vmin, 260px); height: auto; transform: translate(-50%, -50%); opacity: 1; pointer-events: none; user-select: none; will-change: opacity, transform; }
 /* No visible playback UI: the skip button only appears for keyboard users. Escape and a click also skip. */
 .tali-splash__skip { position: absolute; bottom: max(26px, env(safe-area-inset-bottom)); right: max(26px, env(safe-area-inset-right)); min-height: 44px; padding: 8px 18px; border: 1px solid var(--splash-edge); border-radius: 24px; background: var(--splash-paper); color: var(--splash-ink); direction: rtl; font-size: 14px; opacity: 0; }
 /* Sleep mode (renderer.js, enterSleep): the same blue and emblem, breathing slowly until a click or key. */
