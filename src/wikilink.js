@@ -240,7 +240,12 @@ function suggestPlugin(ext) {
 
   return new Plugin({
     key: suggestKey,
-    view: () => ({
+    // 8.8: ProseMirror הורס ובונה מחדש את תצוגות התוספים בכל הגדרה מחדש של העורך (setOptions,
+    // החלת הגדרות). destroy מוציא את החלונית מהדף, ולכן מחזירים אותה כאן. עד 8.7 היא לא חזרה,
+    // וההשלמה של [[ פשוט לא הופיעה אחרי הטעינה הראשונה.
+    view: () => {
+      if (!box.isConnected) document.body.appendChild(box);
+      return {
       update(view) {
         const m = findMatch(view);
         if (!m || m.from === dismissedAt) {
@@ -253,8 +258,9 @@ function suggestPlugin(ext) {
         items = rank(m.query);
         draw(view);
       },
-      destroy() { box.remove(); },
-    }),
+      destroy() { close(); box.remove(); },
+      };
+    },
     props: {
       handleKeyDown(view, e) {
         if (!active || !items.length) return false;

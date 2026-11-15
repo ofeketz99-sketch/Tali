@@ -5,18 +5,56 @@ import { Plugin, NodeSelection } from '@tiptap/pm/state';
 import { icon } from './icons.js';
 
 const ITEM_TYPES = ['taskItem', 'listItem'];
+const LIST_TYPES = ['bulletList', 'orderedList', 'taskList'];
+
+// הילד של `parent` (בסוגים `types`) שהשורה בגובה y עוברת בו
+function childAtY(view, parent, types, y) {
+  let hit = null;
+  parent.node.forEach((child, offset) => {
+    if (hit || !types.includes(child.type.name)) return;
+    const pos = parent.pos + 1 + offset;
+    const dom = view.nodeDOM(pos);
+    if (!(dom instanceof HTMLElement)) return;
+    const r = dom.getBoundingClientRect();
+    if (y >= r.top && y < r.bottom) hit = { pos, node: child };
+  });
+  return hit;
+}
+
+// 8.8: מעל עמודת המספרים/התבליטים הנקודה נופלת על הרשימה כולה ולא על הפריט, והידית קפצה.
+// יורדים לפריט שבגובה העכבר (וממנו לרשימה מקוננת שבאותו גובה), כך שהגוש זהה לכל רוחב השורה.
+function itemAtY(view, list, y) {
+  let found = list;
+  let current = list;
+  for (let guard = 0; guard < 12 && current; guard++) {
+    const item = childAtY(view, current, ITEM_TYPES, y);
+    if (!item) break;
+    found = item;
+    current = childAtY(view, item, LIST_TYPES, y);
+  }
+  return found;
+}
 
 // הגוש שמתחת לנקודה: פריט הרשימה הפנימי ביותר, ואם אין, הגוש העליון במסמך
 function blockAt(view, x, y) {
   const found = view.posAtCoords({ left: x, top: y });
   if (!found) return null;
-  const $pos = view.state.doc.resolve(found.inside >= 0 ? found.inside : found.pos);
+  const at = found.inside >= 0 ? found.inside : found.pos;
+  const $pos = view.state.doc.resolve(at);
+  // רשימה בראש המסמך: הפריט נקבע לפי הגובה בלבד, בכל מקום ברוחב השורה (8.8)
+  const top = $pos.depth >= 1 ? { pos: $pos.before(1), node: $pos.node(1) } : (() => {
+    const node = view.state.doc.nodeAt(at);
+    return node && !node.isText ? { pos: at, node } : null;
+  })();
+  if (top && LIST_TYPES.includes(top.node.type.name)) return itemAtY(view, top, y);
   for (let d = $pos.depth; d > 0; d--) {
-    if (ITEM_TYPES.includes($pos.node(d).type.name)) return { pos: $pos.before(d), node: $pos.node(d) };
+    if (ITEM_TYPES.includes($pos.node(d).type.name)) {
+      const item = { pos: $pos.before(d), node: $pos.node(d) };
+      const nested = childAtY(view, item, LIST_TYPES, y);
+      return nested ? itemAtY(view, nested, y) : item;
+    }
   }
-  if ($pos.depth >= 1) return { pos: $pos.before(1), node: $pos.node(1) };
-  const node = view.state.doc.nodeAt(found.inside >= 0 ? found.inside : found.pos);
-  return node && !node.isText ? { pos: found.inside >= 0 ? found.inside : found.pos, node } : null;
+  return top;
 }
 
 export const BlockHandle = Extension.create({
@@ -40,11 +78,25 @@ export const BlockHandle = Extension.create({
           const rect = dom.getBoundingClientRect();
           const pageRect = view.dom.getBoundingClientRect();
           const rtl = getComputedStyle(dom).direction !== 'ltr';
-          // בשוליים, בצד שבו מתחילה השורה. בפריט רשימה: ליד תיבת הסימון או התבליט
-          const left = rtl ? Math.min(rect.right + 6, pageRect.right + 18) : Math.max(rect.left - 24, pageRect.left - 36);
-          const line = parseFloat(getComputedStyle(dom).lineHeight) || 24;
+          // בשוליים, בצד שבו מתחילה השורה. בפריט רשימה: מחוץ לעמודת המספר/התבליט (קצה הרשימה),
+          // כדי שהידית לא תכסה את "1." ולא תקפוץ בין הטקסט לעמודת המספרים (8.8)
+          const isItem = ITEM_TYPES.includes(block.node.type.name);
+          const edge = isItem && dom.parentElement ? dom.parentElement.getBoundingClientRect() : rect;
+          const left = rtl ? Math.min(edge.right + 6, pageRect.right + 18) : Math.max(edge.left - 24, pageRect.left - 36);
+          // גובה: באמצע השורה הראשונה של הטקסט עצמו
+          let mid = null;
+          if (!block.node.isAtom && !block.node.isLeaf) {
+            try {
+              const c = view.coordsAtPos(Math.min(block.pos + (isItem ? 2 : 1), view.state.doc.content.size));
+              if (c.bottom > c.top && c.top >= rect.top - 2 && c.bottom <= rect.bottom + 2) mid = (c.top + c.bottom) / 2;
+            } catch { /* גוש בלי טקסט */ }
+          }
+          if (mid == null) {
+            const line = parseFloat(getComputedStyle(dom).lineHeight) || 24;
+            mid = rect.top + Math.min(rect.height, line) / 2;
+          }
           handle.style.left = left + 'px';
-          handle.style.top = rect.top + Math.min(rect.height, line) / 2 - 9 + 'px';
+          handle.style.top = mid - 9 + 'px';
           handle.classList.add('show');
           current = block;
         };

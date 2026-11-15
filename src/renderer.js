@@ -203,6 +203,7 @@ const editorApi = createEditor({
   },
   onImageFiles: saveDroppedImages,
   shouldSortCompleted: () => getPrefs().completedTasksAtBottom,
+  smartSymbols: () => getPrefs().smartSymbols !== false,
 });
 onPrefsChange(() => editorApi.refreshPreferences());
 // 8.2: סדר והסתרה של קבוצות בסרגל הכלים (הגדרות ← סרגל הכלים)
@@ -2259,8 +2260,7 @@ const COMMANDS = [
   { title: 'המרה ל־Markdown רגיל (בלי תוספות של Tali, בשביל אובסידיאן)', run: () => convertNoteToPlainMd(), needs: 'note' },
   { title: 'מצב שינה (רק הסמל)', keys: 'Ctrl+Alt+L', run: () => enterSleep() },
   { title: 'משימות שבוצעו בסוף הרשימה: הפעלה או כיבוי', run: () => toggleCompletedAtBottom() },
-  { title: 'לוח ההקשר: קישורים החוצה', run: () => docPanel.open('links'), needs: 'note' },
-  { title: 'לוח ההקשר: קישורים פנימה', run: () => docPanel.open('back'), needs: 'note' },
+  { title: 'לוח ההקשר: קישורים (החוצה ופנימה)', run: () => docPanel.open('links'), needs: 'note' },
   { title: 'לוח ההקשר: ראשי פרקים', run: () => docPanel.open('outline'), needs: 'note' },
   { title: 'לוח ההקשר: תיבות סימון במסמך', run: () => docPanel.open('checks'), needs: 'note' },
   { title: 'לוח ההקשר: משימות להמשך במסמך', run: () => docPanel.open('followups'), needs: 'note' },

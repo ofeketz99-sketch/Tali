@@ -25,6 +25,7 @@ import { CompletedDivider, sortCompletedTaskLists } from './task-layout.js';
 import { ListBackspace } from './list-keys.js';
 import { fitRaw, richAnchor, showRichAnchorInRaw, rawAnchor, rawAnchorToBlock, showBlockInRich } from './view-anchor.js';
 import { BlockHandle } from './block-handle.js';
+import { SmartSymbols } from './smart-symbols.js';
 import { TaliBoxKeys } from './text-box.js';
 import { attachPropsEditor } from './props-editor.js';
 import {
@@ -36,7 +37,7 @@ import {
 // links: { getNotes, resolve, onOpen, localSrc } — ראו wikilink.js ו־embed.js
 // propsElement: textarea של המאפיינים (frontmatter)
 // onImageFiles: (files) => void — תמונות שהודבקו או נגררו לעורך
-export function createEditor({ element, rawElement, propsElement, onChange, links, onImageFiles, shouldSortCompleted = () => false }) {
+export function createEditor({ element, rawElement, propsElement, onChange, links, onImageFiles, shouldSortCompleted = () => false, smartSymbols = () => true }) {
   let raw = false;
   let loading = false;
   let frontmatter = null;
@@ -92,6 +93,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       ListBackspace,
       TaliBoxKeys,
       BlockHandle,
+      SmartSymbols.configure({ isOn: () => smartSymbols() }), // 8.8: -> לחץ וכו'
       FaithfulLink,
       LocalImage.configure({ localSrc: links.localSrc, onFree: links.onFreeImage || null }),
       Embed.configure({ resolve: links.resolve, onOpen: links.onOpen, onEditDrawing: links.onEditDrawing, read: links.read, onFree: links.onFreeImage || null }),

@@ -29,6 +29,7 @@ export const DEFAULTS = {
   attachFolder: 'attachments',
   hotkeys: {},             // command id -> shortcut; empty string disables a shortcut
   completedTasksAtBottom: false,
+  smartSymbols: true, // 8.8: -> לחץ, != ל־≠ וכו' בזמן ההקלדה
   // 8.0: הקו שמפריד בין משימות פתוחות לשבוצעו (task-layout.js, CompletedDivider)
   doneDividerStyle: 'solid',  // solid | dashed | dotted | double | none
   doneDividerColor: 'muted',  // accent | muted | text (muted = הקו העדין שהיה עד 8.0)
@@ -233,6 +234,7 @@ function buildDialog() {
     el('div', { class: 'preview' },
       el('div', { style: 'font-family:var(--font-heading);font-weight:700;font-size:1.3em;margin-bottom:4px' }, 'כותרת לדוגמה'),
       'כך ייראה הטקסט במסמכים. The quick brown fox jumps over the lazy dog.'),
+    row('סימנים חכמים', 'בזמן ההקלדה: ‎-> ‎<- ‎=> ‎!= ‎>= ‎<= ‎+-‎ הופכים לחץ ולסימן המתאים. Backspace מיד אחרי מחזיר', check('smartSymbols')),
     row('משימות שבוצעו בסוף הרשימה', 'בעת סימון תיבת משימה היא עוברת, עם תנועה וקו מפריד, לסוף הרשימה שלה', check('completedTasksAtBottom')),
     row('קו מפריד: סגנון', 'לקו --- במסמך ולקו שבין משימות פתוחות למשימות שבוצעו', seg('doneDividerStyle', [['solid', 'רציף'], ['dashed', 'מקווקו'], ['dotted', 'נקודות'], ['double', 'כפול'], ['none', 'בלי קו']])),
     row('קו מפריד: צבע', null, seg('doneDividerColor', [['accent', 'צבע הערכה'], ['muted', 'עדין'], ['text', 'אפור כהה']])),

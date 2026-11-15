@@ -1,5 +1,5 @@
 // לוח ההקשר: פס אייקונים צר בצד השמאלי של הדף, ולוח שנפתח ממנו עם מידע על המסמך הפתוח.
-// לשוניות: קישורים החוצה (מהטקסט ומהמאפיינים), קישורים פנימה, ראשי פרקים, תיבות סימון, משימות להמשך, מידע.
+// לשוניות: קישורים (החוצה, מהטקסט ומהמאפיינים, ומתחת לקו: פנימה), ראשי פרקים, תיבות סימון, משימות להמשך, מידע.
 // תיבות סימון ומשימות להמשך הן שני ריכוזים נפרדים: משימה להמשך היא תיבת סימון בסעיף "משימות להמשך"
 // של המסמך (FOLLOW_UP ב־vault-data.js), וכל השאר הן תיבות סימון רגילות.
 // סגור: רק הפס. פתוח: עמודה לצד הדף. בחלון צר הלוח נפתח מעל הדף. בחלון רחב (dc-roomy) הלוח נפתח לבד
@@ -10,8 +10,8 @@ import { FLAG_LIST } from './flags.js';
 import { getFrontmatterLinks } from '../links.js';
 
 const TABS = [
-  { id: 'links', icon: 'link', title: 'קישורים החוצה', tip: 'קישורים החוצה: למסמכים אחרים' },
-  { id: 'back', icon: 'backlinks', title: 'קישורים פנימה', tip: 'קישורים פנימה: מסמכים שמקשרים לכאן' },
+  // 8.8: קישורים החוצה ופנימה באותו לוח, עם קו הפרדה (עד 8.7: שתי לשוניות, 'links' ו־'back')
+  { id: 'links', icon: 'link', title: 'קישורים', tip: 'קישורים: החוצה ופנימה' },
   { id: 'outline', icon: 'outline', title: 'ראשי פרקים', tip: 'ראשי פרקים' },
   { id: 'checks', icon: 'tasks', title: 'תיבות סימון', tip: 'תיבות סימון במסמך' },
   { id: 'followups', icon: 'taskSection', title: 'משימות להמשך', tip: 'משימות להמשך' },
@@ -44,7 +44,7 @@ export function countWords(text) {
 export function createContextPanel({ root, wrap, icon, store, api, propsHost = null }) {
   const propsArea = propsHost?.querySelector('textarea');
   if (propsHost) { propsHost.remove(); propsHost.hidden = false; }
-  const valid = (t) => (t === 'tasks' ? 'checks' : TABS.some((x) => x.id === t) ? t : null); // 'tasks' עד 3.8
+  const valid = (t) => (t === 'tasks' ? 'checks' : t === 'back' ? 'links' : TABS.some((x) => x.id === t) ? t : null); // 'tasks' עד 3.8, 'back' עד 8.7
   let chosen = valid(store.get('tali:ctx-tab', null)); // מה שהמשתמש פתח
   if (chosen === null && store.get('linksPanelOpen', false)) chosen = 'links'; // מצב הלוח הישן (עד 3.4)
   let lastTab = valid(store.get('tali:ctx-last-tab', null)) || chosen || 'outline';
@@ -180,8 +180,7 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
     s.classList.toggle('muted', !!muted);
   }
   function updateBadges(md) {
-    badge('links', linkTargets(md).length);
-    badge('back', backList.length);
+    badge('links', linkTargets(md).length + backList.length);
     const ts = tasks();
     badge('checks', ts.filter((t) => !t.followUp && !t.done).length, true);
     badge('followups', ts.filter((t) => t.followUp && !t.done).length);
@@ -207,8 +206,17 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
     return r;
   }
 
+  // כותרת קטנה לחלק בתוך הלוח (החוצה / פנימה), עם מונה
+  function section(iconName, text, n, divider) {
+    const h = el('div', 'dc-section' + (divider ? ' divider' : ''));
+    h.innerHTML = icon(iconName, 14);
+    h.append(el('span', null, text), el('span', 'dc-section-n', String(n)));
+    body.append(h);
+  }
+
   function renderLinks(md) {
     const list = linkTargets(md);
+    section('link', 'החוצה', list.length, false);
     if (!list.length) empty('אין במסמך קישורים למסמכים אחרים. כותבים [[ כדי לקשר.');
     list.forEach((l, i) => {
       const name = baseName(l.target);
@@ -236,6 +244,7 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
   }
 
   function renderBack() {
+    section('backlinks', 'פנימה', backList.length, true);
     if (!backList.length) { empty('אין מסמכים שמקשרים לכאן.'); return; }
     backList.forEach((b, i) => body.append(row({
       iconName: 'file', i, name: b.count > 1 ? `${b.name} (${b.count})` : b.name, sub: b.snippet, cls: 'back',
@@ -418,8 +427,7 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
     const typing = document.activeElement?.classList.contains('dc-new-task') ? document.activeElement.value : null;
     body.innerHTML = '';
     const md = api.getMarkdown();
-    if (tab === 'links') renderLinks(md);
-    else if (tab === 'back') renderBack();
+    if (tab === 'links') { renderLinks(md); renderBack(); }
     else if (tab === 'outline') renderOutline();
     else if (tab === 'checks') renderTasks(false);
     else if (tab === 'followups') renderTasks(true);
@@ -453,8 +461,8 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
     const list = await api.backlinks(p).catch(() => []);
     if (token !== backToken || p !== api.getPath()) return;
     backList = list;
-    badge('back', backList.length);
-    if (tab === 'back' || tab === 'info') renderBody(true);
+    badge('links', linkTargets(api.getMarkdown()).length + backList.length);
+    if (tab === 'links' || tab === 'info') renderBody(true);
   }
 
   // לחיצה מחוץ ללוח: כשהוא מעל הדף (חלון צר) כל לחיצה בחוץ סוגרת. כשהוא לצד הדף, רק לחיצה על הרקע הריק.
