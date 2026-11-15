@@ -40,6 +40,19 @@ export function findInlineMath(text) {
   return out;
 }
 
+// מקור הנוסחה חייב להישאר יחידת LTR גם בתוך פסקה עברית. בלי מעטפת כזו
+// אלגוריתם ה־bidi מסדר מחדש $, חזקות וסימנים בזמן העריכה, אף שהטקסט השמור תקין.
+export function mathSourceAttrs(editing, display = false) {
+  return {
+    class: ['math-src', editing && 'math-src-editing', display && 'math-src-display'].filter(Boolean).join(' '),
+    dir: 'ltr',
+    spellcheck: 'false',
+    autocapitalize: 'off',
+    translate: 'no',
+    'data-math-source': editing ? 'editing' : 'hidden',
+  };
+}
+
 const key = new PluginKey('taliMath');
 function build(doc, selection) {
   const decos = [];
@@ -49,10 +62,15 @@ function build(doc, selection) {
     if (node.marks.some((m) => m.type.spec.code)) return;
     for (const m of findInlineMath(node.text)) {
       const from = pos + m.from, to = pos + m.to;
-      if (selection.from <= to && selection.to >= from) continue; // הסמן בתוך הנוסחה: מציגים את המקור
+      const editing = selection.from <= to && selection.to >= from;
+      // גם כשהמקור גלוי עוטפים אותו ב־span מבודד. כך סדר התווים והסמן נשארים LTR.
+      if (editing) {
+        decos.push(Decoration.inline(from, to, mathSourceAttrs(true, m.display)));
+        continue;
+      }
       const html = renderMath(m.tex, m.display);
       if (!html) continue;
-      decos.push(Decoration.inline(from, to, { class: 'math-src' }));
+      decos.push(Decoration.inline(from, to, mathSourceAttrs(false, m.display)));
       decos.push(Decoration.widget(from, () => {
         const span = document.createElement('span');
         span.className = 'math-inline' + (m.display ? ' math-display-inline' : '');
