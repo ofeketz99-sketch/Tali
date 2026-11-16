@@ -25,7 +25,7 @@
 
 ## הרצה
 
-הפרויקט ב־`D:\Projects\Tali\Tali - App`, עם Git. התלויות ב־`node_modules` שבתוכו, כמו בכל פרויקט רגיל.
+הפרויקט ב־`D:\Projects\Tali\Tali-Dev`, עם Git (מ־16.11.2026; העותק הישן `Tali - App` הוסר). TALI-DEV מוצא אותו לפי `project.txt`. התלויות ב־`node_modules` שבתוכו, כמו בכל פרויקט רגיל.
 (עד 11.11.2026 הוא היה ב־Google Drive, ושם npm לא הצליח לכתוב `node_modules`. לכן עבר לכונן D. עד 12.11.2026 הנתיב היה `D:\PROJECTS\Tali`; המשגר מנסה קודם את הנתיב החדש ואז את הישן.)
 
 - **הרצה רגילה לפיתוח (מ־7.5: TALI-DEV):** קיצור הדרך **"TALI-DEV"** בשולחן העבודה, שמפעיל את `TALI-DEV.exe` בתיקייה `TALI-DEV` ליד תיקיית הפרויקט (מחוץ ל־Git). עד 7.4 זה היה `Tali.exe` בתיקייה `Tali-exe` (במחשב השני: `D:\Projects\Tali\Tali\Tali.exe`), שאותו Smart App Control חוסם; ראו "Smart App Control" למטה. החלון ושורת הכותרת מציגים "TALI-DEV" (`APP_TITLE` ב־`main.js`, לפי שם הקובץ `TALI-DEV.exe`), כדי שלא יתבלבל עם Tali המותקן. ההגדרות משותפות (`%APPDATA%\my-notes`).
