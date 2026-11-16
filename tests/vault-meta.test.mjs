@@ -5,11 +5,11 @@ import { createMeta } from '../src/vault-meta.js';
 const root = 'C:\\Vault';
 const join = (...parts) => [root, ...parts].join('\\');
 
-function metaWith(backgrounds = {}) {
+function metaWith(backgrounds = {}, extra = {}) {
   const writes = [];
   const meta = createMeta({
     api: {
-      metaRead: async () => ({ backgrounds }),
+      metaRead: async () => ({ backgrounds, ...extra }),
       metaWrite: async (value) => { writes.push(value); },
     },
     getRoot: () => root,
@@ -61,4 +61,19 @@ test('folder backgrounds follow rename and disappear on delete', async () => {
   assert.deepEqual(meta.backgroundOf(join('Work', 'plan.md')), { color: 2, opacity: 18 });
   meta.drop(join('Work'));
   assert.equal(meta.backgroundOf(join('Work', 'plan.md')), null);
+});
+
+test('graph positions follow rename and disappear on delete', async () => {
+  const { meta } = metaWith({}, { graphLayout: { version: 1, nodes: {
+    'Projects/plan.md': { x: 12.34, y: -8.76 },
+    'Projects/other.md': { x: 40, y: 20 },
+  } } });
+  await meta.load();
+  assert.deepEqual(meta.graphPositions().get(join('Projects', 'plan.md')), { x: 12.3, y: -8.8 });
+  meta.remap(join('Projects'), join('Work'));
+  assert.equal(meta.graphPositions().has(join('Projects', 'plan.md')), false);
+  assert.deepEqual(meta.graphPositions().get(join('Work', 'plan.md')), { x: 12.3, y: -8.8 });
+  meta.drop(join('Work', 'plan.md'));
+  assert.equal(meta.graphPositions().has(join('Work', 'plan.md')), false);
+  assert.equal(meta.graphPositions().has(join('Work', 'other.md')), true);
 });

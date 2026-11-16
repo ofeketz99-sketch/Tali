@@ -1,6 +1,7 @@
 // תצוגות על כל הכספת, מתוך האינדקס של main.js (vault-index):
 // גרף קישורים, הערות רפאים, תגיות ומשימות. כל אחת היא חלון (dialog) שנבנה בפתיחה ונמחק בסגירה.
 import { icon } from './icons.js';
+import { detectCommunities, seededOffset } from './graph-model.js';
 
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -57,7 +58,7 @@ const FORCE_SLIDERS = [
 // החלק המלא של הסליידר (מימין, כי החלון מימין לשמאל)
 const fillRange = (input) => input.style.setProperty('--p', `${((input.value - input.min) / (input.max - input.min)) * 100}%`);
 
-export function openGraph({ index, current, onOpen, store }) {
+export function openGraph({ index, current, root, onOpen, store, meta }) {
   const { dlg, body, tools } = makeDialog('גרף הקישורים', 'graph-dialog', 'graph');
   let local = store.get('tali:graph-local', false) && !!current;
   let ghosts = store.get('tali:graph-ghosts', false);
@@ -65,8 +66,12 @@ export function openGraph({ index, current, onOpen, store }) {
   canvas.className = 'graph-canvas';
   const hint = document.createElement('div');
   hint.className = 'graph-hint';
-  hint.textContent = 'גלגלת: זום · גרירה: הזזה · לחיצה על נקודה: פתיחה';
-  body.append(canvas, hint);
+  hint.textContent = 'גלגלת: זום · גרירה: הזזה · Shift+גרירת נקודה: הזזת אשכול · לחיצה: פתיחה';
+  const loading = document.createElement('div');
+  loading.className = 'graph-loading';
+  loading.textContent = 'מסדר את המפה…';
+  loading.hidden = true;
+  body.append(canvas, hint, loading);
   if (current) tools.append(toggle('רק סביב המסמך הפתוח', local, (v) => { local = v; store.set('tali:graph-local', v); build(); }));
   tools.append(toggle('מסמכי רפאים', ghosts, (v) => { ghosts = v; store.set('tali:graph-ghosts', v); build(); }));
 
@@ -108,7 +113,7 @@ export function openGraph({ index, current, onOpen, store }) {
       fillRange(input);
       forces[s.key] = Number(input.value);
       store.set('tali:graph-forces', forces);
-      if (s.key === 'size') draw(); else reheat();
+      if (s.key === 'size') draw();
     });
     sliders.set(s.key, input);
     row.append(name, input);
@@ -122,7 +127,7 @@ export function openGraph({ index, current, onOpen, store }) {
     Object.assign(forces, GRAPH_FORCES);
     for (const [k, input] of sliders) { input.value = forces[k]; fillRange(input); }
     store.set('tali:graph-forces', forces);
-    reheat();
+    draw();
   });
   // צבע לפי תיקייה: בלי / אוטומטי / רמה 1–3. "אוטומטי" בוחר את הרמה הראשונה שבה הכספת מתחלקת באמת
   // (לפחות 3 קבוצות, והגדולה פחות מ־60%), כי אצל המשתמש כמעט הכול בתוך "ישן".
@@ -147,7 +152,33 @@ export function openGraph({ index, current, onOpen, store }) {
     });
     seg.append(b);
   }
-  panelBody.append(colorRow, reset);
+  let labelMode = store.get('tali:graph-labels', 'auto');
+  if (!['auto', 'none', 'all'].includes(labelMode)) labelMode = 'auto';
+  const labelRow = document.createElement('div');
+  labelRow.className = 'gf-row';
+  labelRow.innerHTML = '<span>כיתובים</span><div class="vd-seg gf-seg"></div>';
+  const labelSeg = labelRow.querySelector('.gf-seg');
+  for (const [value, label] of [['auto', 'חכם'], ['none', 'בלי'], ['all', 'הכול']]) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = label; b.classList.toggle('on', value === labelMode);
+    b.addEventListener('click', () => {
+      labelMode = value;
+      store.set('tali:graph-labels', value);
+      labelSeg.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+      draw();
+    });
+    labelSeg.append(b);
+  }
+  const actions = document.createElement('div');
+  actions.className = 'gf-actions';
+  const fitBtn = document.createElement('button');
+  fitBtn.type = 'button'; fitBtn.textContent = 'התאמה למסך';
+  fitBtn.addEventListener('click', () => { fit(true); userMoved = true; saveView(); draw(); });
+  const layoutBtn = document.createElement('button');
+  layoutBtn.type = 'button'; layoutBtn.textContent = 'סידור מחדש';
+  layoutBtn.addEventListener('click', () => reLayout());
+  actions.append(fitBtn, layoutBtn);
+  panelBody.append(colorRow, labelRow, actions, reset);
   panel.append(panelBtn, panelBody);
 
   const legend = document.createElement('div');
@@ -238,11 +269,19 @@ export function openGraph({ index, current, onOpen, store }) {
     view.x = -(minX + maxX) / 2 * view.k;
     view.y = -(minY + maxY) / 2 * view.k;
     userMoved = true;
+    saveView();
     draw();
   }
   let nodes = [], edges = [], byId = new Map();
-  const view = { x: 0, y: 0, k: 1 };
+  const savedView = store.get('tali:graph-view:' + root, null);
+  const validView = savedView && [savedView.x, savedView.y, savedView.k].every(Number.isFinite);
+  const view = validView ? { x: savedView.x, y: savedView.y, k: Math.max(0.2, Math.min(4, savedView.k)) } : { x: 0, y: 0, k: 1 };
+  let userMoved = !!validView;
   let alpha = 1, ticksLeft = 0, frame = 0, hover = null, drag = null;
+
+  const saveView = () => store.set('tali:graph-view:' + root, view);
+  const savePositions = (list = nodes) => meta.setGraphPositions(new Map(list.filter((n) => !n.ghost).map((n) => [n.id, { x: n.x, y: n.y }])));
+  const setLoading = (on) => { loading.hidden = !on; canvas.classList.toggle('is-arranging', on); };
 
   function build() {
     const all = new Map();
@@ -264,20 +303,41 @@ export function openGraph({ index, current, onOpen, store }) {
       }
     }
     const prev = byId;
+    const persisted = meta.graphPositions();
     nodes = [...all.values()].filter((n) => !keep || keep.has(n.id)).map((n, i) => {
       const old = prev.get(n.id);
+      const savedPoint = !n.ghost && persisted.get(n.id);
+      const point = old || savedPoint;
       const a = i * 2.39996, r = 30 * Math.sqrt(i + 1);
-      return { ...n, x: old?.x ?? Math.cos(a) * r, y: old?.y ?? Math.sin(a) * r, vx: 0, vy: 0, deg: 0 };
+      return {
+        ...n, x: point?.x ?? Math.cos(a) * r, y: point?.y ?? Math.sin(a) * r,
+        vx: 0, vy: 0, deg: 0, fixed: !!point && !n.ghost, positioned: !!point,
+      };
     });
     byId = new Map(nodes.map((n) => [n.id, n]));
     edges = edgeList.filter(([a, b]) => byId.has(a) && byId.has(b) && a !== b).map(([a, b]) => [byId.get(a), byId.get(b)]);
     for (const [a, b] of edges) { a.deg++; b.deg++; }
+    // מסמך חדש נולד ליד שכניו במפה הקיימת; רק אם אין שכנים הוא מקבל מקום דטרמיניסטי.
+    for (const n of nodes.filter((x) => !x.positioned)) {
+      const linked = edges.flatMap(([a, b]) => (a === n && b.positioned ? [b] : b === n && a.positioned ? [a] : []));
+      if (linked.length) {
+        const offset = seededOffset(n.id);
+        n.x = linked.reduce((sum, x) => sum + x.x, 0) / linked.length + offset.x;
+        n.y = linked.reduce((sum, x) => sum + x.y, 0) / linked.length + offset.y;
+      }
+    }
+    const real = nodes.filter((n) => !n.ghost);
+    const communities = detectCommunities(real.map((n) => n.id), edges.filter(([a, b]) => !a.ghost && !b.ghost).map(([a, b]) => [a.id, b.id]));
+    for (const n of nodes) n.cluster = communities.get(n.id) || n.id;
     applyGroups();
-    alpha = 1;
-    // מריצים את הכוחות בקצב מואץ ולזמן מוגבל. אחרי ההתייצבות הפריסה קפואה:
-    // ריחוף נועד להדגיש קשרים, לא להזיז את המסקנה שהמשתמש מסתכל עליה.
-    ticksLeft = 180;
-    kick();
+    const needsLayout = nodes.some((n) => !n.positioned);
+    if (!needsLayout) {
+      alpha = 0; ticksLeft = 0; setLoading(false);
+      if (!userMoved) fit(true);
+      draw();
+    } else {
+      alpha = 1; ticksLeft = 180; setLoading(true); kick();
+    }
   }
 
   function step() {
@@ -289,7 +349,7 @@ export function openGraph({ index, current, onOpen, store }) {
         const b = nodes[j];
         let dx = a.x - b.x, dy = a.y - b.y;
         let d2 = dx * dx + dy * dy;
-        if (d2 < 0.01) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = 0.5; }
+        if (d2 < 0.01) { const o = seededOffset(a.id + '|' + b.id, 1); dx = o.x; dy = o.y; d2 = 1; }
         if (d2 > far) continue;
         const f = k / d2;
         const d = Math.sqrt(d2);
@@ -303,7 +363,7 @@ export function openGraph({ index, current, onOpen, store }) {
     }
     for (const n of nodes) {
       n.vx -= n.x * gravity; n.vy -= n.y * gravity;
-      if (n === drag?.node) { n.vx = n.vy = 0; continue; }
+      if (n.fixed || drag?.nodes?.includes(n)) { n.vx = n.vy = 0; continue; }
       n.x += Math.max(-30, Math.min(30, n.vx * alpha)); n.y += Math.max(-30, Math.min(30, n.vy * alpha));
       n.vx *= 0.55; n.vy *= 0.55;
     }
@@ -341,9 +401,6 @@ export function openGraph({ index, current, onOpen, store }) {
       g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
     }
     g.setLineDash([]);
-    const showAll = nodes.length < 70 || view.k > 1.15;
-    g.font = `${12 / view.k}px Rubik, sans-serif`;
-    g.textAlign = 'center';
     for (const n of nodes) {
       const r = radius(n);
       const dim = match && !match.has(n) && n !== hover;
@@ -353,44 +410,78 @@ export function openGraph({ index, current, onOpen, store }) {
       if (n.ghost) { g.fillStyle = colors.bg; g.fill(); g.strokeStyle = colors.ghost; g.setLineDash([2.5 / view.k, 2 / view.k]); g.lineWidth = 1.4 / view.k; g.stroke(); g.setLineDash([]); }
       else { g.fillStyle = n.id === current ? colors.current : n.color || colors.node; g.fill(); }
       if (n.id === current) { g.strokeStyle = colors.current; g.lineWidth = 2 / view.k; if (n.hub) triangle(g, n.x, n.y, r + 4 / view.k); else { g.beginPath(); g.arc(n.x, n.y, r + 3.5 / view.k, 0, Math.PI * 2); } g.stroke(); }
-      if ((showAll && !dim) || n === hover || n.id === current || (near && near.has(n)) || (match && query && match.has(n) && match.size < 60)) {
-        g.fillStyle = n.ghost ? colors.ghost : colors.text;
-        g.fillText(n.label, n.x, n.y + r + 13 / view.k);
+      if (drag?.nodes?.includes(n)) {
+        g.strokeStyle = colors.edgeHi; g.lineWidth = 2 / view.k;
+        g.beginPath(); g.arc(n.x, n.y, r + 5 / view.k, 0, Math.PI * 2); g.stroke();
       }
+    }
+    g.globalAlpha = 1;
+
+    // כיתובים מצוירים בקואורדינטות מסך: גודל קבוע, סדר עדיפויות ובדיקת חפיפה.
+    // במבט־על מוצגים רק מוקדים; ריחוף, המסמך הנוכחי ותוצאות חיפוש תמיד קודמים.
+    const hubCount = Math.max(4, Math.min(14, Math.round((w * h) / 80000)));
+    const hubs = new Set([...nodes].filter((n) => !n.ghost && n.deg > 1).sort((a, b) => b.deg - a.deg || a.label.localeCompare(b.label, 'he')).slice(0, hubCount));
+    const candidates = [];
+    for (const n of nodes) {
+      const isMatch = !!(match && query && match.has(n));
+      const forced = n === hover || n.id === current || isMatch || !!(near && near.has(n));
+      const automatic = forced || hubs.has(n) || view.k > 2.1 || (view.k > 1.45 && n.deg > 0);
+      if (!forced && (labelMode === 'none' || (labelMode === 'auto' && !automatic))) continue;
+      const priority = n === hover ? 0 : n.id === current ? 1 : isMatch ? 2 : near?.has(n) ? 3 : hubs.has(n) ? 4 : 5;
+      candidates.push({ n, priority });
+    }
+    candidates.sort((a, b) => a.priority - b.priority || b.n.deg - a.n.deg || a.n.label.localeCompare(b.n.label, 'he'));
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.font = '12px Rubik, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'alphabetic';
+    const placed = [];
+    const screenNodes = nodes.map((n) => ({ x: w / 2 + view.x + n.x * view.k, y: h / 2 + view.y + n.y * view.k, r: radius(n) * view.k + 3 }));
+    for (const { n } of candidates) {
+      const x = w / 2 + view.x + n.x * view.k;
+      const y = h / 2 + view.y + n.y * view.k + radius(n) * view.k + 15;
+      const width = Math.ceil(g.measureText(n.label).width) + 8;
+      const rect = { l: x - width / 2, r: x + width / 2, t: y - 13, b: y + 3 };
+      if (rect.r < 4 || rect.l > w - 4 || rect.b < 4 || rect.t > h - 4) continue;
+      const overlapsLabel = placed.some((p) => !(rect.r + 3 < p.l || rect.l - 3 > p.r || rect.b + 2 < p.t || rect.t - 2 > p.b));
+      const overlapsNode = screenNodes.some((p) => p.y < rect.b && p.y > rect.t && p.x + p.r > rect.l && p.x - p.r < rect.r);
+      if (labelMode !== 'all' && (overlapsLabel || overlapsNode)) continue;
+      placed.push(rect);
+      g.globalAlpha = 0.88; g.fillStyle = colors.bg; g.fillRect(rect.l, rect.t, width, 16);
+      g.globalAlpha = 1; g.fillStyle = n.ghost ? colors.ghost : colors.text; g.fillText(n.label, x, y);
     }
     g.globalAlpha = 1;
   }
 
-  // מתאים את הזום כך שכל הגרף נראה, עד שהמשתמש מזיז או מזמזם בעצמו
-  let userMoved = false;
-  function fit(snap = false) {
-    if (userMoved || !nodes.length) return;
+  // התאמה חד־פעמית בלבד. בזמן סידור לא רודפים אחרי גבולות משתנים של הגרף.
+  function fit(force = false) {
+    if ((!force && userMoved) || !nodes.length) return;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const n of nodes) { minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x); minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y); }
     const w = canvas.clientWidth - 120, h = canvas.clientHeight - 120;
     const k = Math.max(0.25, Math.min(2.4, w / Math.max(1, maxX - minX), h / Math.max(1, maxY - minY)));
     const nextX = -(minX + maxX) / 2 * k;
     const nextY = -(minY + maxY) / 2 * k;
-    if (snap) {
-      view.k = k;
-      view.x = nextX;
-      view.y = nextY;
-    } else {
-      view.k += (k - view.k) * 0.15;
-      view.x += (nextX - view.x) * 0.15;
-      view.y += (nextY - view.y) * 0.15;
-    }
+    view.k = k;
+    view.x = nextX;
+    view.y = nextY;
+  }
+  function finishLayout() {
+    ticksLeft = 0; alpha = 0;
+    for (const n of nodes) { n.vx = 0; n.vy = 0; n.fixed = !n.ghost; n.positioned = true; }
+    if (!userMoved) { fit(true); saveView(); }
+    savePositions();
+    setLoading(false);
+    draw();
   }
   function loop() {
     if (!dlg.isConnected) return;
-    // שלושה צעדים בכל פריים מסיימים את הסידור מהר, בלי להשאיר גרף שזז
-    // במשך שניות בזמן שהמשתמש כבר מנסה לקרוא אותו.
-    const count = Math.min(3, ticksLeft);
+    // הסידור נעשה מאחורי מצב טעינה; המפה נחשפת רק אחרי שהמצלמה והמיקומים קפאו.
+    const count = Math.min(4, ticksLeft);
     for (let i = 0; i < count && alpha > 0.002; i++) { step(); ticksLeft--; }
     if (alpha <= 0.002) ticksLeft = 0;
-    fit();
-    draw();
-    frame = ticksLeft > 0 ? requestAnimationFrame(loop) : 0;
+    if (ticksLeft > 0) frame = requestAnimationFrame(loop);
+    else { frame = 0; finishLayout(); }
   }
   function kick() { if (!frame) frame = requestAnimationFrame(loop); }
   function freezeLayout({ keepView = false } = {}) {
@@ -401,8 +492,12 @@ export function openGraph({ index, current, onOpen, store }) {
     cancelAnimationFrame(frame);
     frame = 0;
   }
-  // שינוי כוח מריץ סידור קצר ומוגבל. מעבר חזרה אל הגרף יקפיא אותו שוב מיד.
-  function reheat() { alpha = Math.max(alpha, 0.6); ticksLeft = 120; kick(); }
+  function reLayout() {
+    meta.resetGraphPositions();
+    for (const n of nodes) { n.fixed = false; n.positioned = false; n.vx = 0; n.vy = 0; }
+    userMoved = false;
+    alpha = 1; ticksLeft = 180; setLoading(true); kick();
+  }
 
   const toWorld = (e) => {
     const r = canvas.getBoundingClientRect();
@@ -418,13 +513,20 @@ export function openGraph({ index, current, onOpen, store }) {
     freezeLayout({ keepView: true });
     canvas.setPointerCapture(e.pointerId);
     const node = pick(e);
-    drag = { node, sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false };
+    const picked = node ? (e.shiftKey ? nodes.filter((n) => n.cluster === node.cluster) : [node]) : [];
+    drag = {
+      node, nodes: picked, origins: new Map(picked.map((n) => [n, { x: n.x, y: n.y }])),
+      world: toWorld(e), sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false,
+    };
     userMoved = true;
   });
   canvas.addEventListener('pointermove', (e) => {
     if (drag) {
       if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) drag.moved = true;
-      if (drag.node) { const p = toWorld(e); drag.node.x = p.x; drag.node.y = p.y; }
+      if (drag.node) {
+        const p = toWorld(e), dx = p.x - drag.world.x, dy = p.y - drag.world.y;
+        for (const n of drag.nodes) { const start = drag.origins.get(n); n.x = start.x + dx; n.y = start.y + dy; }
+      }
       else { view.x = drag.vx + e.clientX - drag.sx; view.y = drag.vy + e.clientY - drag.sy; }
       draw();
       return;
@@ -443,7 +545,11 @@ export function openGraph({ index, current, onOpen, store }) {
   canvas.addEventListener('pointerup', () => {
     const d = drag; drag = null;
     if (d?.node && !d.moved) { dlg.close(); onOpen(d.node.ghost ? { create: d.node.target } : { path: d.node.id }); }
-    else draw();
+    else {
+      if (d?.node) { for (const n of d.nodes) n.fixed = true; savePositions(d.nodes); }
+      else saveView();
+      draw();
+    }
   });
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -452,10 +558,11 @@ export function openGraph({ index, current, onOpen, store }) {
     const mx = e.clientX - r.left - r.width / 2, my = e.clientY - r.top - r.height / 2;
     const k = Math.max(0.2, Math.min(4, view.k * Math.exp(-e.deltaY * 0.0015)));
     view.x = mx - (mx - view.x) * (k / view.k); view.y = my - (my - view.y) * (k / view.k); view.k = k;
+    saveView();
     draw();
   }, { passive: false });
   new ResizeObserver(() => draw()).observe(canvas);
-  dlg.addEventListener('close', () => { cancelAnimationFrame(frame); frame = 0; });
+  dlg.addEventListener('close', () => { cancelAnimationFrame(frame); frame = 0; savePositions(); saveView(); });
   build();
 }
 

@@ -1477,7 +1477,7 @@ const quickIndex = async () => withoutArchived(await vaultIndex());
 async function showGraph() {
   if (!state.root) return;
   openGraph({
-    index: await vaultIndex(), current: state.currentPath, store,
+    index: await vaultIndex(), current: state.currentPath, root: state.root, store, meta,
     onOpen: (t) => (t.path ? openNote(t.path) : openLink(t.create)),
   });
 }

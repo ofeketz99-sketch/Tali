@@ -4,9 +4,10 @@
 //   pins: (8.5) מסמכים שננעצו למסך הבית, לפי הסדר: ["תיקייה/שם.md", ...]
 //   backgrounds: (9.0–9.2) צבע ארגוני לתיקייה או למסמך: { color: 1–8, opacity: 0–60 }.
 //                מסמכים יורשים מהתיקייה הקרובה, וצבע ישיר למסמך גובר על הירושה.
+//   graphLayout: (9.4) מיקומים קבועים בגרף הקישורים, לפי נתיב יחסי.
 // שינוי שם, העברה ומחיקה מעדכנים את המפתחות (remap / drop), כדי שהסמל והסדר יעברו עם הפריט.
 export function createMeta({ api, getRoot }) {
-  let data = { icons: {}, order: {}, pins: [], backgrounds: {} };
+  let data = { icons: {}, order: {}, pins: [], backgrounds: {}, graphLayout: { version: 1, nodes: {} } };
   let timer = null;
 
   const rel = (abs) => {
@@ -26,6 +27,10 @@ export function createMeta({ api, getRoot }) {
       order: d.order || {},
       pins: Array.isArray(d.pins) ? d.pins.filter((x) => typeof x === 'string') : [],
       backgrounds: d.backgrounds && typeof d.backgrounds === 'object' ? d.backgrounds : {},
+      graphLayout: {
+        version: 1,
+        nodes: d.graphLayout?.nodes && typeof d.graphLayout.nodes === 'object' ? d.graphLayout.nodes : {},
+      },
     };
   }
   function save() {
@@ -112,6 +117,32 @@ export function createMeta({ api, getRoot }) {
     save();
   }
 
+  // ----- 9.4: מפת הקישורים -----
+  const cleanPoint = (point) => {
+    const x = Number(point?.x), y = Number(point?.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+  };
+  function graphPositions() {
+    const out = new Map();
+    for (const [r, value] of Object.entries(data.graphLayout.nodes)) {
+      const point = cleanPoint(value);
+      if (point) out.set(abs(r), point);
+    }
+    return out;
+  }
+  function setGraphPositions(points) {
+    for (const [path, value] of points) {
+      const r = rel(path), point = cleanPoint(value);
+      if (r && point) data.graphLayout.nodes[r] = point;
+    }
+    save();
+  }
+  function resetGraphPositions() {
+    data.graphLayout = { version: 1, nodes: {} };
+    save();
+  }
+
   // ----- שינוי שם / העברה / מחיקה -----
   function remap(fromAbs, toAbs) {
     const from = rel(fromAbs), to = rel(toAbs);
@@ -129,6 +160,9 @@ export function createMeta({ api, getRoot }) {
     if (order[pf]) order[pf] = pf === pt ? order[pf].map((n) => (n === bf ? bt : n)) : order[pf].filter((n) => n !== bf);
     data.order = order;
     data.pins = data.pins.map((k) => (under(k, from) ? to + k.slice(from.length) : k));
+    const graphNodes = {};
+    for (const [k, v] of Object.entries(data.graphLayout.nodes)) graphNodes[under(k, from) ? to + k.slice(from.length) : k] = v;
+    data.graphLayout.nodes = graphNodes;
     save();
   }
   function drop(abs) {
@@ -137,11 +171,16 @@ export function createMeta({ api, getRoot }) {
     for (const k of Object.keys(data.icons)) if (under(k, r)) delete data.icons[k];
     for (const k of Object.keys(data.backgrounds)) if (under(k, r)) delete data.backgrounds[k];
     for (const k of Object.keys(data.order)) if (k && under(k, r)) delete data.order[k];
+    for (const k of Object.keys(data.graphLayout.nodes)) if (under(k, r)) delete data.graphLayout.nodes[k];
     const p = parentRel(r);
     if (data.order[p]) data.order[p] = data.order[p].filter((n) => n !== baseName(r));
     data.pins = data.pins.filter((k) => !under(k, r));
     save();
   }
 
-  return { load, iconOf, setIcon, backgroundOf, ownBackground, setBackground, sortTree, placeIn, remap, drop, rel, isPinned, pins, setPinned, movePin };
+  return {
+    load, iconOf, setIcon, backgroundOf, ownBackground, setBackground, sortTree, placeIn,
+    graphPositions, setGraphPositions, resetGraphPositions,
+    remap, drop, rel, isPinned, pins, setPinned, movePin,
+  };
 }
