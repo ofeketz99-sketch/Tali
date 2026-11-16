@@ -1,14 +1,17 @@
 // שמירה נאמנה של Markdown בסגנון אובסידיאן.
 // העורך הופך את הקובץ למסמך ואז כותב אותו מחדש. הקובץ הזה דואג שמה שלא נערך ייכתב חזרה כמו שהיה:
 // ירידות שורה, תחביר שהעורך לא מכיר (הערות שוליים, נוסחאות, callouts, HTML), ובלי תווי בריחה מיותרים.
-import { Extension, Node } from '@tiptap/core';
+import { Extension, Node, getHTMLFromFragment } from '@tiptap/core';
 import Text from '@tiptap/extension-text';
 import HardBreak from '@tiptap/extension-hard-break';
 import HorizontalRule from '@tiptap/extension-horizontal-rule';
 import Heading from '@tiptap/extension-heading';
+import Paragraph from '@tiptap/extension-paragraph';
 import Link from '@tiptap/extension-link';
+import { Fragment } from '@tiptap/pm/model';
 import { Plugin } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { defaultMarkdownSerializer } from 'prosemirror-markdown';
 import { renderMath } from './math.js';
 
 // תגיות HTML שהעורך יודע לייצג (ומייצר בעצמו בשמירה של צבע, יישור וקו תחתון).
@@ -233,6 +236,28 @@ export const FaithfulHorizontalRule = HorizontalRule.extend({
   },
 });
 
+// ל־Markdown אין תחביר ליישור. כשיש יישור מפורש שומרים את הגוש כ־HTML מלא;
+// כך style="text-align:…" והעיצוב שבתוך השורה נטענים שוב אחרי סגירה ופתיחה.
+function serializeAlignedBlock(state, node) {
+  if (!node.attrs.textAlign) return false;
+  state.write(getHTMLFromFragment(Fragment.from(node), node.type.schema));
+  state.closeBlock(node);
+  return true;
+}
+
+export const FaithfulParagraph = Paragraph.extend({
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state, node, parent, index) {
+          if (!serializeAlignedBlock(state, node)) defaultMarkdownSerializer.nodes.paragraph(state, node, parent, index);
+        },
+        parse: {},
+      },
+    };
+  },
+});
+
 // ===== כותרת: אם נכתבה עם קו תחתון (=== או ---) נשמרת כך =====
 export const FaithfulHeading = Heading.extend({
   addAttributes() {
@@ -245,6 +270,7 @@ export const FaithfulHeading = Heading.extend({
     return {
       markdown: {
         serialize(state, node) {
+          if (serializeAlignedBlock(state, node)) return;
           const u = node.attrs.setext;
           const fits = u && ((node.attrs.level === 1 && u[0] === '=') || (node.attrs.level === 2 && u[0] === '-'));
           if (fits) {

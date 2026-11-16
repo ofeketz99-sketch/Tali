@@ -6,6 +6,7 @@
 import { Extension } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
 import { canJoin } from '@tiptap/pm/transform';
+import { shouldResetCenteredOnBackspace } from './editor-behavior.js';
 
 const ITEM_TYPES = ['taskItem', 'listItem'];
 const LIST_TYPES = ['taskList', 'bulletList', 'orderedList'];
@@ -117,6 +118,14 @@ export const ListBackspace = Extension.create({
         if (!selection.empty) return false;
         const $from = selection.$from;
         if ($from.parentOffset !== 0 || !$from.parent.isTextblock) return false;
+        // כמו Word: Enter אחרי שורה ממורכזת יוצר שורה ריקה ממורכזת; Backspace ראשון
+        // מחזיר אותה ליישור ימין, ורק Backspace נוסף מחבר אותה לשורה הקודמת.
+        if (shouldResetCenteredOnBackspace({
+          empty: !$from.parent.content.size,
+          offset: $from.parentOffset,
+          type: $from.parent.type.name,
+          textAlign: $from.parent.attrs.textAlign,
+        })) return editor.commands.setTextAlign('right');
         return liftExtraParagraph(editor, $from) || joinIntoListAbove(editor, $from);
       },
       'Alt-ArrowUp': ({ editor }) => moveBlock(editor, -1),

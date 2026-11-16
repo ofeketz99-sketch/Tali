@@ -1,7 +1,7 @@
 // העורך העשיר (TipTap). שומר ומטעין Markdown, ויודע לעבור לתצוגה גולמית.
 // כל מה שקשור לשמירה נאמנה של תחביר אובסידיאן נמצא ב־obsidian-md.js.
 import { Editor } from '@tiptap/core';
-import { EditorState } from '@tiptap/pm/state';
+import { EditorState, TextSelection } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import TextStyle from '@tiptap/extension-text-style';
@@ -27,9 +27,10 @@ import { fitRaw, richAnchor, showRichAnchorInRaw, rawAnchor, rawAnchorToBlock, s
 import { BlockHandle } from './block-handle.js';
 import { SmartSymbols } from './smart-symbols.js';
 import { TaliBoxKeys } from './text-box.js';
+import { isFormulaOnlyText } from './editor-behavior.js';
 import { attachPropsEditor } from './props-editor.js';
 import {
-  ObsidianMarkdown, FaithfulText, FaithfulHardBreak, FaithfulHorizontalRule, FaithfulHeading, FaithfulLink,
+  ObsidianMarkdown, FaithfulText, FaithfulHardBreak, FaithfulHorizontalRule, FaithfulParagraph, FaithfulHeading, FaithfulLink,
   RawHtmlBlock, RawHtmlInline,
   splitFrontmatter, joinFrontmatter,
 } from './obsidian-md.js';
@@ -65,11 +66,12 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       },
     },
     extensions: [
-      StarterKit.configure({ text: false, hardBreak: false, horizontalRule: false, heading: false,
+      StarterKit.configure({ text: false, hardBreak: false, horizontalRule: false, paragraph: false, heading: false,
         bulletList: false, orderedList: false }),
       FaithfulText,
       FaithfulHardBreak,
       FaithfulHorizontalRule,
+      FaithfulParagraph,
       FaithfulHeading,
       HeadingDirection,
       ObsidianMarkdown,
@@ -214,6 +216,25 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       if (raw) fitRaw(rawElement, scroller);
       loading = false;
       overlayController?.setEnabled(!raw);
+    },
+    // גוש נוסחה אטומי אינו מספק מקום שאפשר להקליד אחריו. בפתיחת מסמך מוסיפים שורת כתיבה
+    // זמנית (בלי לסמן את הקובץ כשונה) ומחזירים את מיקום הסמן בתוכה.
+    ensureTypingLineAfterFormula() {
+      if (raw) return null;
+      const last = editor.state.doc.lastChild;
+      const formula = last?.type.name === 'rawHtmlBlock' && last.attrs.kind === 'math'
+        || last?.isTextblock && isFormulaOnlyText(last.textContent);
+      if (!formula) return null;
+      const at = editor.state.doc.content.size;
+      const paragraph = editor.schema.nodes.paragraph?.create();
+      if (!paragraph) return null;
+      loading = true;
+      try {
+        const tr = editor.state.tr.insert(at, paragraph).setMeta('addToHistory', false);
+        tr.setSelection(TextSelection.create(tr.doc, at + 1));
+        editor.view.dispatch(tr);
+      } finally { loading = false; }
+      return at + 1;
     },
     // מסמן מחדש קישורים להערות שלא קיימות (אחרי יצירה, מחיקה או שינוי שם)
     refreshLinks() {

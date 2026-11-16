@@ -353,6 +353,10 @@ function registerIpc() {
     win.setFullScreen(!win.isFullScreen());
     return win.isFullScreen();
   });
+  ipcMain.handle('window-state', (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    return { maximized: !!win?.isMaximized(), fullScreen: !!win?.isFullScreen() };
+  });
   ipcMain.on('title-bar-colors', (e, { color, symbolColor } = {}) => {
     const win = BrowserWindow.fromWebContents(e.sender);
     const hex = (c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
@@ -698,6 +702,13 @@ function createWindow() {
     },
   });
   win.setMenuBarVisibility(false);
+  const sendWindowState = () => {
+    if (!win.isDestroyed()) win.webContents.send('window-state', {
+      maximized: win.isMaximized(), fullScreen: win.isFullScreen(),
+    });
+  };
+  for (const event of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen']) win.on(event, sendWindowState);
+  win.webContents.on('did-finish-load', sendWindowState);
   // Ctrl+W: בתפריט המובנה (המוסתר) של Electron זה סוגר את החלון. אצלנו: סגירת הכרטיסייה
   win.webContents.on('before-input-event', (e, input) => {
     if (input.type === 'keyDown' && (input.control || input.meta) && !input.shift && !input.alt && input.code === 'KeyW') {

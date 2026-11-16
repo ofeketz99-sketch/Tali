@@ -250,10 +250,15 @@ export function buildToolbar(container, editorApi, actions = {}) {
   // 8.2: הסדר וההסתרה לפי ההגדרות (applyLayout). קבוצה שהמשתמש הסתיר לא נכנסת גם לתפריט "עוד".
   // 8.3: קבוצות הרשות (אם הוצגו) עוברות ל"עוד" ראשונות
   const fitOrder = [gExport, gDrawExtra, gQuick, gCode, gHead, g6, g4, g5, g1];
+  // בחלון רגיל גם כלי השרטוט הישירים עוברים לתפריט (הם עדיין קיימים בתוך "הוספה").
+  // אם החלון נעשה צר במיוחד, גם קבוצות הליבה עוברות ל"עוד" במקום להיחתך.
+  const compactOrder = [...fitOrder, gDraw];
+  const overflowOrder = [...compactOrder, g3, g2, g7];
   let layout = { order: Object.keys(groups), hidden: [...OPTIONAL_IDS] };
   const userHidden = (g) => layout.hidden.includes(g.dataset.group);
-  let collapsible = fitOrder;
+  let collapsible = overflowOrder;
   let hiddenGroups = [];
+  let compactWindow = false;
   const putBack = () => {
     for (const id of layout.order) if (groups[id]) container.append(groups[id]);
     container.append(gMore);
@@ -261,7 +266,12 @@ export function buildToolbar(container, editorApi, actions = {}) {
   };
   function applyLayout(next) {
     layout = { order: next?.order?.length ? next.order : Object.keys(groups), hidden: next?.hidden || [] };
-    collapsible = fitOrder.filter((g) => !userHidden(g));
+    collapsible = overflowOrder.filter((g) => !userHidden(g));
+    fit();
+  }
+  function setCompact(on) {
+    compactWindow = !!on;
+    container.dataset.compact = compactWindow ? '1' : '0';
     fit();
   }
   function fit() {
@@ -269,9 +279,17 @@ export function buildToolbar(container, editorApi, actions = {}) {
     hiddenGroups = [];
     putBack();
     gMore.hidden = true;
+    if (compactWindow) {
+      for (const g of compactOrder.filter((x) => !userHidden(x))) {
+        g.hidden = true;
+        hiddenGroups.push(g);
+        gMore.hidden = false;
+      }
+    }
     const over = () => container.scrollWidth > container.clientWidth + 1;
     for (const g of collapsible) {
       if (!over()) break;
+      if (hiddenGroups.includes(g)) continue;
       g.hidden = true;
       hiddenGroups.push(g);
       gMore.hidden = false;
@@ -350,5 +368,5 @@ export function buildToolbar(container, editorApi, actions = {}) {
   editor.on('selectionUpdate', refresh);
   refresh();
   requestAnimationFrame(fit);
-  return { hideBubble: () => { bubble.hidden = true; }, fit, edit: ed, closeMenu, applyLayout };
+  return { hideBubble: () => { bubble.hidden = true; }, fit, edit: ed, closeMenu, applyLayout, setCompact };
 }

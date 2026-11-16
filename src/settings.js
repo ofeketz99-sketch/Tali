@@ -22,6 +22,8 @@ export const DEFAULTS = {
   lineHeight: 1.75,
   pageWidth: 'normal',     // narrow | normal | wide | full
   pageLook: true,          // דף "מודפס" עם צל, או טקסט ישר על הרקע
+  docTitleSize: 26,        // כותרת המסמך שמעל הדף; יכולה להיות גדולה גם מ־H1
+  docTitleStyle: 'clean',  // clean | strong | underline | label
   showBacklinks: true,
   newNoteLocation: 'selected', // selected (התיקייה שנבחרה בעץ) | folder (תיקיית מסמכים חדשים) | root
   newNoteFolder: 'מסמכים חדשים', // נתיב יחסי לתיקיית העבודה; נוצר בעת הצורך
@@ -88,6 +90,8 @@ export function applyPrefs({ animate = false } = {}) {
   root.style.setProperty('--doc-size', prefs.fontSize + 'px');
   root.style.setProperty('--doc-line', String(prefs.lineHeight));
   root.style.setProperty('--page-width', WIDTHS[prefs.pageWidth] || WIDTHS.normal);
+  root.style.setProperty('--doc-title-size', Math.max(20, Math.min(64, Number(prefs.docTitleSize) || 26)) + 'px');
+  root.dataset.docTitleStyle = ['clean', 'strong', 'underline', 'label'].includes(prefs.docTitleStyle) ? prefs.docTitleStyle : 'clean';
   if (prefs.pageLook) delete root.dataset.page; else root.dataset.page = 'flat';
   root.dataset.textdir = prefs.textDir;
   if (prefs.justify) root.dataset.justify = 'on'; else delete root.dataset.justify;
@@ -273,6 +277,9 @@ function buildDialog() {
     row('מרווח שורות', null, range('lineHeight', 1.3, 2.2, 0.05, (v) => Number(v).toFixed(2))),
     row('רוחב הדף', null, seg('pageWidth', [['narrow', 'צר'], ['normal', 'רגיל'], ['wide', 'רחב'], ['full', 'מלא']])),
     row('מראה דף', 'דף עם צל, כמו במסמך Word', check('pageLook')),
+    row('גודל כותרת המסמך', 'השם שמופיע מעל הדף; אפשר להגדיל גם מעבר לכותרת H1', range('docTitleSize', 20, 64, 1, (v) => v + 'px')),
+    row('סגנון כותרת המסמך', null, seg('docTitleStyle', [['clean', 'נקי'], ['strong', 'מודגש'], ['underline', 'קו צבע'], ['label', 'תווית']])),
+    el('div', { class: 'preview doc-title-preview' }, 'כותרת המסמך לדוגמה'),
     el('div', { class: 'preview' },
       el('div', { style: 'font-family:var(--font-heading);font-weight:700;font-size:1.3em;margin-bottom:4px' }, 'כותרת לדוגמה'),
       'כך ייראה הטקסט במסמכים. The quick brown fox jumps over the lazy dog.'),

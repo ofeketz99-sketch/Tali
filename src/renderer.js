@@ -13,6 +13,7 @@ import { fileUrl, bumpImage, returnImageToText } from './embed.js';
 import { imageFilesFrom, lonelyImageSrc, fileFromDataUrl } from './paste-images.js';
 import { convertToPlainMarkdown } from './plain-md.js';
 import { normalizeToolbarLayout } from './toolbar-layout.js';
+import { usesCompactToolbar } from './editor-behavior.js';
 import { openPaint } from './paint.js';
 import { createPageOverlay } from './page-overlay.js';
 import { icon, lucide } from './icons.js';
@@ -409,6 +410,9 @@ const toolbarApi = buildToolbar($('toolbar'), editorApi, {
   onExport: (format) => exportNote(format),
 });
 applyToolbarLayout();
+const applyWindowState = (windowState) => toolbarApi.setCompact(usesCompactToolbar(windowState));
+window.api.onWindowState(applyWindowState);
+window.api.windowState().then(applyWindowState).catch(() => toolbarApi.setCompact(false));
 
 // ===== תפריט הלחיצה הימנית על הדף ובשדות טקסט (context-menu.js). הפעולות: אותן של הסרגל (edit-actions.js) =====
 setupContextMenus({
@@ -509,10 +513,15 @@ function rememberPosition() {
   while (docPositions.size > 300) docPositions.delete(docPositions.keys().next().value);
   store.set(positionsKey(), [...docPositions]);
 }
-function restorePosition(p) {
+function restorePosition(p, preferredCursor = null) {
   const wrap = $('pageWrap');
   const saved = docPositions.get(p);
   const jump = (top) => { wrap.style.scrollBehavior = 'auto'; wrap.scrollTop = top; wrap.style.scrollBehavior = ''; };
+  if (preferredCursor != null && !editorApi.isRaw()) {
+    editorApi.editor.commands.setTextSelection(preferredCursor);
+    requestAnimationFrame(() => jump(wrap.scrollHeight));
+    return;
+  }
   if (!saved) { jump(0); return; }
   if (saved.c != null && !editorApi.isRaw()) {
     const size = editorApi.editor.state.doc.content.size;
@@ -1191,10 +1200,11 @@ async function openNote(p, { history = true, newTab = false } = {}) {
   openedAt[p] = Date.now();
   store.set('openedAt:' + state.root, Object.fromEntries(Object.entries(openedAt).sort((a, b) => b[1] - a[1]).slice(0, 300)));
   editorApi.setMarkdown(md);
+  const formulaCursor = editorApi.ensureTypingLineAfterFormula();
   pageOverlay.setEnabled(!editorApi.isRaw());
   setHome(false);
   $('page').hidden = false;
-  restorePosition(p);
+  restorePosition(p, formulaCursor);
   setSaveState('saved');
   // כניסה רכה של הדף בכל פתיחת הערה
   const pg = $('page');

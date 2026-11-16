@@ -1698,14 +1698,24 @@ body[data-sidebar-mode="compact"] #flagged { display: none; }
 }
 
 /* ----- שם המסמך מעל הדף (#docTitle, בתוך #page כדי שיוסתר יחד איתו) ----- */
-#pageWrap { padding-top: 62px; }
-body[data-focus] #pageWrap { padding-top: 78px; }
+#pageWrap { padding-top: calc(var(--doc-title-size, 26px) + 43px); }
+body[data-focus] #pageWrap { padding-top: calc(var(--doc-title-size, 26px) + 59px); }
 #docTitle {
   position: absolute; bottom: calc(100% + 10px); inset-inline-start: 6px; max-width: 58%;
   padding: 2px 8px; margin: 0; border: 0; border-radius: 8px; background: none; box-shadow: none;
-  font: 600 19px/1.35 var(--font-heading, var(--font-ui)); color: var(--text); letter-spacing: -.2px;
+  font: 600 var(--doc-title-size, 26px)/1.25 var(--font-heading, var(--font-ui)); color: var(--text); letter-spacing: -.2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: start; cursor: text;
   transition: background .16s var(--ease), color .16s var(--ease);
+}
+:root[data-doc-title-style="strong"] #docTitle,
+:root[data-doc-title-style="strong"] .doc-title-preview { font-weight: 800; letter-spacing: -.45px; }
+:root[data-doc-title-style="underline"] #docTitle,
+:root[data-doc-title-style="underline"] .doc-title-preview { font-weight: 750; border-bottom: 3px solid var(--accent); border-radius: 0; }
+:root[data-doc-title-style="label"] #docTitle,
+:root[data-doc-title-style="label"] .doc-title-preview { font-weight: 700; color: var(--accent-strong); background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 10px; }
+.doc-title-preview {
+  width: max-content; max-width: 100%; padding: 5px 9px; margin-block: 3px 12px;
+  font: 600 var(--doc-title-size, 26px)/1.25 var(--font-heading, var(--font-ui)); color: var(--text);
 }
 #docTitle:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent-strong); transform: none; }
 #docTitle:empty { display: none; }
