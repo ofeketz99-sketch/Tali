@@ -19,6 +19,29 @@ const SIZES = [[2, 'דק'], [5, 'בינוני'], [12, 'עבה']];
 
 let dlg = null;
 
+// 9.7: שאלת אישור בעיצוב של האפליקציה (ובכיוון שלה) במקום confirm() של המערכת.
+// נפתחת מעל חלון הציור; Escape או לחיצה בחוץ = ביטול (דרך המאזין המשותף ב־renderer.js).
+function confirmInApp(text, okText) {
+  const box = document.createElement('dialog');
+  box.className = 'paint-confirm';
+  const form = document.createElement('form');
+  form.method = 'dialog';
+  const label = document.createElement('label');
+  label.textContent = text;
+  const menu = document.createElement('menu');
+  const cancel = Object.assign(document.createElement('button'), { value: 'cancel', textContent: 'ביטול' });
+  const ok = Object.assign(document.createElement('button'), { value: 'ok', textContent: okText, className: 'primary' });
+  menu.append(cancel, ok);
+  form.append(label, menu);
+  box.append(form);
+  document.body.append(box);
+  return new Promise((resolve) => {
+    box.addEventListener('close', () => { resolve(box.returnValue === 'ok'); box.remove(); }, { once: true });
+    box.showModal();
+    ok.focus();
+  });
+}
+
 export function openPaint({ image = null, quick = false, onSave }) {
   if (!dlg) dlg = build();
   dlg.start(image, onSave, quick);
@@ -251,15 +274,17 @@ function build() {
     if (e.key === 'Escape' && cancelPending()) { e.preventDefault(); e.stopPropagation(); return; }
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); }
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') { e.preventDefault(); doRedo(); }
-    if (e.key === 'Delete' && e.target === over && confirm('לנקות את כל הציור? ניתן לבטל בעזרת Ctrl+Z.')) {
+    if (e.key === 'Delete' && e.target === over) {
       e.preventDefault();
-      pushUndo(); mctx.clearRect(0, 0, W, H);
+      confirmInApp('לנקות את כל הציור? ניתן לבטל בעזרת Ctrl+Z.', 'ניקוי').then((ok) => {
+        if (ok) { pushUndo(); mctx.clearRect(0, 0, W, H); }
+      });
     }
   });
   // Escape: לא לאבד ציור בטעות
   d.addEventListener('cancel', (e) => { e.preventDefault(); if (!cancelPending()) tryClose(); });
-  function tryClose() {
-    if (dirty && !confirm('לסגור בלי לשמור את הציור?')) return;
+  async function tryClose() {
+    if (dirty && !(await confirmInApp('לסגור בלי לשמור את הציור?', 'סגירה בלי שמירה'))) return;
     d.close();
   }
 

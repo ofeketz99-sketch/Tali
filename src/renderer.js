@@ -104,7 +104,8 @@ document.addEventListener('animationend', (e) => { if (e.animationName === 'jell
 
 // ===== מחוון שמירה בשורת המצב: נקודה שמהבהבת כשיש שינויים, ונהיית ✓ כשנשמר =====
 // מצב השמירה בשורת המצב: נקודה וטקסט קצר
-const SAVE_TEXT = { dirty: 'שומר…', saved: 'נשמר', error: 'לא נשמר' };
+// 9.7: בזמן הקלדה (dirty) רק הנקודה מסמנת שינוי; "שומר…" מופיע רק כשכתיבה לדיסק מתארכת
+const SAVE_TEXT = { saving: 'שומר…', saved: 'נשמר', error: 'לא נשמר' };
 function setSaveState(s) {
   const d = document.getElementById('saveDot');
   if (d) d.dataset.state = s || '';
@@ -943,18 +944,31 @@ async function saveNow() {
   const p = state.currentPath;
   const content = editorApi.getMarkdown();
   state.dirty = false;
+  const slow = setTimeout(() => { if (!state.dirty) setSaveState('saving'); }, 300);
+  const hadError = $('saveText')?.dataset.state === 'error';
   try {
     state.mtime = await window.api.write(p, content, state.mtime);
     state.diskText = content;
     if (!state.dirty) setSaveState('saved');
+    // אחרי שמירה שהצליחה: הודעת השגיאה מפנה מקום לנתיב, וההודעה בפינה נסגרת
+    if (hadError && state.currentPath === p) { setStatus(prettyPath(p)); if ($('toast')) $('toast').hidden = true; }
     refreshLinksPanel(); // ייתכן שהמאפיינים (links:) נערכו ידנית
     noteFlagChanged(p, getFlag(content));
   } catch (err) {
     if (/CONFLICT/.test(err.message)) return saveDespiteOutsideChange(p, content);
-    state.dirty = true;
-    setSaveState('error');
-    setStatus('שגיאת שמירה: ' + err.message);
+    saveFailed(err);
+  } finally {
+    clearTimeout(slow);
   }
+}
+
+// 9.7: שמירה שנכשלה (כונן מנותק, קובץ נעול) מוצגת בהודעה עם ניסיון חוזר, ולא רק בשורת המצב
+function saveFailed(err) {
+  state.dirty = true;
+  setSaveState('error');
+  const reason = String(err?.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+  setStatus('שגיאת שמירה: ' + reason);
+  showToast('המסמך לא נשמר: ' + reason, 'ניסיון חוזר', () => { state.dirty = true; flushSave(); });
 }
 
 // זמן השינוי של הקובץ זז מאז שנקרא. בודקים אם התוכן באמת השתנה:
@@ -974,9 +988,7 @@ async function saveDespiteOutsideChange(p, content) {
     state.diskText = content;
     if (!state.dirty) setSaveState('saved');
   } catch (err) {
-    state.dirty = true;
-    setSaveState('error');
-    setStatus('שגיאת שמירה: ' + err.message);
+    saveFailed(err);
   }
 }
 

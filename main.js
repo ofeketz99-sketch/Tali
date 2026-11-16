@@ -14,6 +14,7 @@ const { resolveLink, replaceLinks } = require('./links');
 const { withCreated } = require('./vault-data');
 const { resolveNewNoteFolderPath, relativeNewNoteFolderPath } = require('./new-note-folder');
 const { createVaultIndex } = require('./vault-index');
+const { writeWithBackup, recoverInterruptedSave } = require('./safe-write');
 const os = require('os');
 
 // שם האפליקציה: Tali. ההגדרות נשארות בתיקייה המקורית (my-notes), כדי ששינוי השם לא ימחק אותן.
@@ -113,9 +114,12 @@ async function saveSettings(s) {
   await fs.writeFile(settingsFile(), JSON.stringify(s));
 }
 
+// ב־Windows שמות קבצים אינם תלויי רישיות: "d:\notes" ו־"D:\Notes" הם אותה תיקייה (9.7)
+const pathKey = (p) => (process.platform === 'win32' ? p.toLowerCase() : p);
 function safe(p) {
   const full = path.resolve(p);
-  if (!root || !(full === root || full.startsWith(root + path.sep))) {
+  const inside = root && (pathKey(full) === pathKey(root) || pathKey(full).startsWith(pathKey(root + path.sep)));
+  if (!inside) {
     throw new Error('הנתיב נמצא מחוץ לתיקיית העבודה');
   }
   return full;
@@ -417,7 +421,12 @@ function registerIpc() {
 
   ipcMain.handle('tree', async () => ({ root, ...await readTree(root) }));
 
-  ipcMain.handle('read', async (_e, p) => fs.readFile(safe(p), 'utf8'));
+  ipcMain.handle('read', async (_e, p) => {
+    const file = safe(p);
+    // שמירה קודמת נקטעה (קריסה, ניתוק כונן): משחזרים מהעותק שנשמר לפניה
+    if (await recoverInterruptedSave(file).catch(() => false)) vaultIndex.invalidate(file);
+    return fs.readFile(file, 'utf8');
+  });
 
   ipcMain.handle('mtime', async (_e, p) => mtimeOf(safe(p)));
   // זמן היצירה והשינוי של הקובץ (לשורת המידע מעל הדף, כשאין תאריך בתוך ההערה)
@@ -431,7 +440,7 @@ function registerIpc() {
       const now = await mtimeOf(file).catch(() => null);
       if (now != null && Math.abs(now - expectedMtime) > 1) throw new Error('CONFLICT');
     }
-    await fs.writeFile(file, content, 'utf8');
+    await writeWithBackup(file, content);
     const mtime = await mtimeOf(file);
     vaultIndex.invalidate(file);
     return mtime;
@@ -699,6 +708,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // 9.7: הממשק רץ בארגז חול של Chromium. preload.js משתמש רק ב־contextBridge וב־ipcRenderer
+      sandbox: true,
     },
   });
   win.setMenuBarVisibility(false);
