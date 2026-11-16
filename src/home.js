@@ -64,9 +64,19 @@ export function createHome({ el, store, api }) {
     draw(cache.index, cache.board, cache.info);
   }
 
+  // 9.8: הכרטיסים נארזים כמו לבנים (masonry): כל כרטיס תופס בגובה רק את מה שהתוכן שלו צריך,
+  // והכרטיס הבא בעמודה נצמד מתחתיו, בלי רווח שנוצר מכרטיס גבוה בעמודה השכנה.
+  // הרשת בנויה משורות של פיקסל אחד, וכל כרטיס מקבל span לפי הגובה הטבעי שלו (ResizeObserver עוקב אחרי שינויי תוכן).
+  // הסדר נשאר שורה אחרי שורה, כמו ב"התאמה".
+  const GAP = 16;
+  const packer = new ResizeObserver((entries) => {
+    for (const { target } of entries) target.style.gridRowEnd = `span ${Math.ceil(target.offsetHeight + GAP)}`;
+  });
+
   // index == null: הכספת עוד נטענת
   function draw(index, board, info) {
     const { order, hidden } = layout();
+    packer.disconnect();
     el.innerHTML = '';
     el.classList.toggle('editing', editing);
 
@@ -123,7 +133,11 @@ export function createHome({ el, store, api }) {
       p.textContent = 'כל הכרטיסים מוסתרים. "התאמה" מחזירה אותם.';
       grid.append(p);
     }
-    shown.forEach((k, i) => grid.append(card(k, i, shown.length, hidden.includes(k), index, board, info)));
+    shown.forEach((k, i) => {
+      const c = card(k, i, shown.length, hidden.includes(k), index, board, info);
+      grid.append(c);
+      packer.observe(c);
+    });
   }
 
   function card(key, i, count, isHidden, index, board, info) {
