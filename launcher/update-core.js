@@ -22,6 +22,15 @@ function lockIsFresh(stat, now, maxAge) {
   return Boolean(stat) && now - stat.mtimeMs < maxAge;
 }
 
+// Windows יכול לחסום לרגע קובץ חדש בתוך .git/objects (אנטי־וירוס, אינדוקס או תהליך Git אחר).
+// מנסים שוב רק כשזו שגיאת כתיבה למאגר האובייקטים, ולא על שגיאות הרשאה ל־GitHub או שגיאות רשת.
+function isRetryableGitObjectWriteError(error) {
+  const text = String((error && (error.stderr || error.message)) || error || '');
+  const writeDenied = /permission denied|access is denied|\bEACCES\b|\bEPERM\b/i.test(text);
+  const objectStore = /(?:^|[\s\\/])\.git[\\/]objects(?:[\\/]|\b)|failed to write object|unpack-objects failed/i.test(text);
+  return writeDenied && objectStore;
+}
+
 // גיבוב של package-lock.json רק לפי מה שמשפיע על החבילות המותקנות: בלי שדה ה־version של האפליקציה
 // (בראש הקובץ וב־packages[""]), שמשתנה בכל Release. כך העלאת גרסה לא מריצה npm ci.
 // קובץ שאינו JSON תקין: גיבוב של הבייטים כמו שהם (עדיף npm ci מיותר מאשר לדלג על שינוי אמיתי).
@@ -41,4 +50,10 @@ function lockfileDependencyHash(content) {
   return require('crypto').createHash('sha256').update(normalized).digest('hex');
 }
 
-module.exports = { normalizeUpdateBranch, planUpdate, lockIsFresh, lockfileDependencyHash };
+module.exports = {
+  normalizeUpdateBranch,
+  planUpdate,
+  lockIsFresh,
+  lockfileDependencyHash,
+  isRetryableGitObjectWriteError,
+};

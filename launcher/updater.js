@@ -8,7 +8,13 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { normalizeUpdateBranch, planUpdate, lockIsFresh, lockfileDependencyHash } = require('./update-core');
+const {
+  normalizeUpdateBranch,
+  planUpdate,
+  lockIsFresh,
+  lockfileDependencyHash,
+  isRetryableGitObjectWriteError,
+} = require('./update-core');
 
 const readText = (file) => {
   try { return fs.readFileSync(file, 'utf8').trim(); } catch { return ''; }
@@ -62,6 +68,20 @@ function findGit() {
   return '';
 }
 
+function fetchUpdateBranch(git) {
+  const options = { timeout: 20000, env: { GIT_TERMINAL_PROMPT: '0' } };
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return command(git, ['fetch', '--quiet', 'origin', UPDATE_BRANCH], options);
+    } catch (err) {
+      if (attempt === 3 || !isRetryableGitObjectWriteError(err)) throw err;
+      const delay = attempt * 2000;
+      log(`כתיבת אובייקטים של Git נחסמה זמנית; ניסיון ${attempt + 1}/3 בעוד ${delay / 1000} שניות.`);
+      sleep(delay);
+    }
+  }
+}
+
 function updateProject() {
   if (process.env.TALI_AUTO_UPDATE === '0') {
     log('העדכון האוטומטי כבוי דרך TALI_AUTO_UPDATE=0.');
@@ -95,10 +115,7 @@ function updateProject() {
   }
 
   try {
-    command(git, ['fetch', '--quiet', 'origin', UPDATE_BRANCH], {
-      timeout: 20000,
-      env: { GIT_TERMINAL_PROMPT: '0' },
-    });
+    fetchUpdateBranch(git);
     const local = command(git, ['rev-parse', 'HEAD'], { timeout: 10000 });
     const remote = command(git, ['rev-parse', `origin/${UPDATE_BRANCH}`], { timeout: 10000 });
     if (local === remote) {

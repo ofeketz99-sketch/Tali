@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { normalizeUpdateBranch, planUpdate, lockIsFresh } = require('../launcher/update-core.js');
+const {
+  normalizeUpdateBranch,
+  planUpdate,
+  lockIsFresh,
+  isRetryableGitObjectWriteError,
+} = require('../launcher/update-core.js');
 
 test('normalizes the development update branch safely', () => {
   assert.equal(normalizeUpdateBranch(' desktop-dev '), 'desktop-dev');
@@ -28,6 +33,15 @@ test('an update lock only blocks while it is recent', () => {
   assert.equal(lockIsFresh(null, now, 600000), false);
   assert.equal(lockIsFresh({ mtimeMs: now - 5000 }, now, 600000), true);
   assert.equal(lockIsFresh({ mtimeMs: now - 700000 }, now, 600000), false); // a crashed updater does not block forever
+});
+
+test('retries only transient writes to the Git object store', () => {
+  assert.equal(isRetryableGitObjectWriteError({
+    stderr: 'error: unable to write file .git/objects/0f/09151c: Permission denied',
+  }), true);
+  assert.equal(isRetryableGitObjectWriteError(new Error('EPERM: operation not permitted, open D:\\repo\\.git\\objects\\aa\\bb')), true);
+  assert.equal(isRetryableGitObjectWriteError(new Error('Permission denied (publickey).')), false);
+  assert.equal(isRetryableGitObjectWriteError(new Error('Could not resolve host: github.com')), false);
 });
 
 test('the lockfile hash ignores the app version but not dependency changes', () => {
