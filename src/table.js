@@ -30,6 +30,8 @@ function isPlain(table) {
       if (a.colspan > 1 || a.rowspan > 1 || a.backgroundColor || (a.colwidth && a.colwidth.some(Boolean))) ok = false;
       if ((cell.type.name === 'tableHeader') !== (r === 0)) ok = false;
       if (cell.childCount > 1 || (cell.firstChild && cell.firstChild.type.name !== 'paragraph')) ok = false;
+      // 10.2: יישור שנבחר בתא (ימין, שמאל...) אין לו תחביר Markdown, ולכן הטבלה נשמרת כ־HTML כדי שלא יאבד
+      if (cell.firstChild?.attrs?.textAlign) ok = false;
     });
   });
   return ok;
@@ -154,8 +156,9 @@ export function attachTableBar(editor, scroller) {
   btn(lbl('colBefore'), 'הוספת עמודה מימין', () => chain().addColumnBefore().run());
   btn(lbl('colAfter'), 'הוספת עמודה משמאל', () => chain().addColumnAfter().run());
   sep();
-  const deleteRowBtn = btn(lbl('deleteRow', 'שורה'), 'מחיקת השורה הנוכחית', () => chain().deleteRow().run());
-  const deleteColBtn = btn(lbl('deleteCol', 'עמודה'), 'מחיקת העמודה הנוכחית', () => chain().deleteColumn().run());
+  // 10.2: כיתוב מפורש ואדום בריחוף, כמו מחיקת הטבלה. עד 10.1 היה כתוב רק "שורה"/"עמודה", ולא היה ברור שזו מחיקה
+  const deleteRowBtn = btn(lbl('deleteRow', 'מחיקת שורה'), 'מחיקת השורה שהסמן בה', () => chain().deleteRow().run(), 'danger');
+  const deleteColBtn = btn(lbl('deleteCol', 'מחיקת עמודה'), 'מחיקת העמודה שהסמן בה', () => chain().deleteColumn().run(), 'danger');
   sep();
   btn(lbl('copy', 'העתקת טבלה'), 'העתקת הטבלה השלמה, כולל תוכן ועיצוב, ללוח', async () => {
     const table = tableElement();

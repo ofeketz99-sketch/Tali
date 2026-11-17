@@ -257,6 +257,8 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { border-colo
 :root[data-textdir="ltr"] .ProseMirror { direction: ltr; }
 :root[data-textdir="auto"] .ProseMirror :is(p, h1, h2, h3, h4, li, blockquote, td, th) { unicode-bidi: plaintext; }
 :root[data-justify="on"] .ProseMirror p { text-align: justify; }
+/* 10.2: תוכן תאי טבלה ממורכז כברירת מחדל (תצוגה בלבד; הקובץ לא משתנה). יישור שנבחר בתא (style על הפסקה) גובר */
+.ProseMirror :is(td, th), :root[data-justify="on"] .ProseMirror :is(td, th) p, .ProseMirror :is(td, th) :is(p, h1, h2, h3, h4) { text-align: center; }
 .ProseMirror h1 { padding-bottom: .2em; border-bottom: 2px solid var(--accent-soft); }
 .ProseMirror h1, .ProseMirror h2, .ProseMirror h3 { color: color-mix(in srgb, var(--text) 88%, var(--accent)); }
 .ProseMirror li::marker { color: var(--accent-strong); }

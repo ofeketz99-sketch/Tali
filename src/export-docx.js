@@ -280,7 +280,8 @@ export async function buildDocx({ title, html, rtlDefault = true, fetchImage = n
     const alignment = ta === 'center' ? AlignmentType.CENTER : ta === 'justify' ? AlignmentType.BOTH
       : ta === 'right' ? (rtl ? AlignmentType.START : AlignmentType.END)
       : ta === 'left' ? (rtl ? AlignmentType.END : AlignmentType.START) : undefined;
-    return new Paragraph({ children: withFloats(runs), bidirectional: rtl, alignment, ...opts.para });
+    // יישור מפורש של הפסקה גובר; אחרת ברירת המחדל של ההקשר (בתא טבלה: מרכז, 10.2)
+    return new Paragraph({ ...opts.para, children: withFloats(runs), bidirectional: rtl, alignment: alignment ?? opts.para?.alignment });
   }
 
   function blocks(container, ctx = {}) {
@@ -372,7 +373,7 @@ export async function buildDocx({ title, html, rtlDefault = true, fetchImage = n
         tableHeader: !!tr.querySelector('th') && tr === rows[0],
         children: [...tr.children].filter((c) => c.tagName === 'TD' || c.tagName === 'TH').map((cell) => {
           const fill = hex(cell.style.backgroundColor) || (cell.tagName === 'TH' ? 'EEF2F6' : null);
-          const kids = blocks(cell, { fmt: cell.tagName === 'TH' ? { bold: true } : {} });
+          const kids = blocks(cell, { fmt: cell.tagName === 'TH' ? { bold: true } : {}, para: { alignment: AlignmentType.CENTER } });
           return new TableCell({
             children: kids.length ? kids : [new Paragraph({})],
             columnSpan: Number(cell.getAttribute('colspan')) || undefined,

@@ -79,7 +79,8 @@ img { max-width: 100%; height: auto; }
 .embed-image, .embed { display: inline-block; max-width: 100%; }
 .wrap-left { float: left; margin: 0 0 8pt 12pt; } .wrap-right { float: right; margin: 0 12pt 8pt 0; }
 table { border-collapse: collapse; margin: 8pt 0; width: 100%; page-break-inside: avoid; }
-td, th { border: 1px solid #b8c4d0; padding: 4pt 7pt; vertical-align: top; }
+td, th { border: 1px solid #b8c4d0; padding: 4pt 7pt; vertical-align: top; text-align: center; }
+td p, th p { text-align: inherit; }
 th { background: #eef3f8; }
 blockquote { margin: 8pt 0; padding: 4pt 12pt; border-inline-start: 3px solid #9fbfe6; background: #f5f8fc; color: #3a4a5a; }
 code { font-family: Consolas, monospace; background: #f1f3f5; padding: 0 3pt; border-radius: 3pt; }
