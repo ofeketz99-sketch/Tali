@@ -1200,7 +1200,16 @@ async function refreshTree() {
   editorApi.refreshLinks();
   refreshBacklinks();
   refreshLinksPanel();
+  refreshTemplates();
 }
+// יש תבניות? בלי: "מסמך חדש מתבנית" לא מופיע בתפריטים הימניים. מתעדכן עם העץ.
+let hasTemplates = false;
+function refreshTemplates() {
+  window.api.templates().then((c) => { hasTemplates = !!c?.list?.length; }, () => { hasTemplates = false; });
+}
+const templateItem = (dir) => (hasTemplates
+  ? [{ label: 'מסמך חדש מתבנית', icon: 'template', run: () => { state.selectedDir = dir; newNoteFromTemplate(); } }]
+  : []);
 
 async function noteTargetDir() {
   const prefs = getPrefs();
@@ -1466,6 +1475,7 @@ async function enterRoot(r) {
   $('vaultName').title = r.root;
   state.attachments = r.attachments || [];
   notesCache = null;
+  refreshTemplates();
   state.currentPath = null;
   state.dirty = false;
   pageOverlay.setEnabled(false);
@@ -1870,7 +1880,7 @@ function showContextMenu(node, x, y, before = []) {
   if (node.type === 'file') items.push(...fileItems(node));
   else items.push(
     { label: 'מסמך חדש בתיקייה', icon: 'filePlus', run: () => { state.selectedDir = node.path; newNote(); } },
-    { label: 'מסמך חדש מתבנית', icon: 'template', run: () => { state.selectedDir = node.path; newNoteFromTemplate(); } },
+    ...templateItem(node.path),
     { label: 'מסמך גרפי חדש (קנבס)', icon: 'canvas', run: () => { state.selectedDir = node.path; newCanvas(); } },
     'sep',
     { label: 'שינוי שם', icon: 'edit', keys: 'F2', run: () => renameNode(node) },
@@ -1904,7 +1914,7 @@ function showTabMenu(p, x, y) {
 function vaultItems() {
   return [
     { label: 'מסמך חדש', icon: 'filePlus', keys: 'Ctrl+N', run: () => { state.selectedDir = null; newNote(); } },
-    { label: 'מסמך חדש מתבנית', icon: 'template', run: () => { state.selectedDir = null; newNoteFromTemplate(); } },
+    ...templateItem(null),
     { label: 'מסמך גרפי חדש (קנבס)', icon: 'canvas', run: () => { state.selectedDir = null; newCanvas(); } },
     { label: 'תיקייה חדשה', icon: 'folderPlus', run: () => { state.selectedDir = null; newFolder(); } },
     'sep',
@@ -1941,6 +1951,7 @@ function otherContextItems(e) {
   ];
   if (t.closest('#tabBar') && !t.closest('.tab')) return [
     { label: 'מסמך חדש', icon: 'filePlus', keys: 'Ctrl+N', run: () => newNote() },
+    { label: 'מסמך גרפי חדש (קנבס)', icon: 'canvas', run: () => newCanvas() },
     { label: 'מסך הבית', icon: 'home', keys: 'Alt+Home', run: () => goHome() },
   ];
   return null;
