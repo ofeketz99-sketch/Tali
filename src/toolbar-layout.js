@@ -65,3 +65,108 @@ export function moveToolbarGroup(order, id, delta) {
   [list[i], list[j]] = [list[j], list[i]];
   return list;
 }
+
+// ===== 10.4: כל כפתור בנפרד =====
+// הסרגל הוא רשימת קבוצות, וכל קבוצה היא רשימת כפתורים. המשתמש יכול לפרק קבוצה, להוציא ממנה כפתורים,
+// להעביר כפתור לקבוצה אחרת או לקבוצה משלו, ולהוסיף כפתורים שלא מוצגים. נשמר ב־prefs.toolbarLayout:
+// { sections: [{ items: [id, ...] }], known: [id, ...] }. known: הכפתורים שהיו קיימים כשנשמר, כדי שכפתור
+// חדש בגרסה הבאה יופיע ליד אחיו (אם הקבוצה שלו לא קבוצת רשות) ולא ייעלם.
+// [מזהה, הקבוצה המקורית, שם בהגדרות, סמל]
+export const TOOLBAR_ITEMS = [
+  ['undo', 'history', 'ביטול', 'undo'], ['redo', 'history', 'חזרה', 'redo'],
+  ['style', 'style', 'סגנון פסקה (טקסט רגיל / כותרת)', 'paragraph'],
+  ['h1', 'headings', 'כותרת 1', 'h1'], ['h2', 'headings', 'כותרת 2', 'h2'], ['h3', 'headings', 'כותרת 3', 'h3'],
+  ['bold', 'marks', 'מודגש', 'bold'], ['italic', 'marks', 'נטוי', 'italic'], ['underline', 'marks', 'קו תחתון', 'underline'], ['strike', 'marks', 'קו חוצה', 'strike'],
+  ['code', 'code', 'קוד בשורה', 'code'], ['codeBlock', 'code', 'בלוק קוד', 'codeBlock'], ['clearFormat', 'code', 'ניקוי עיצוב', 'clearFormat'],
+  ['textColor', 'colors', 'צבע טקסט', 'textColor'], ['highlight', 'colors', 'מרקר', 'highlight'],
+  ['bullets', 'lists', 'רשימת תבליטים', 'bullets'], ['numbers', 'lists', 'רשימה ממוספרת', 'numbers'], ['tasks', 'lists', 'רשימת משימות', 'tasks'],
+  ['listRtl', 'lists', 'כיוון רשימה: ימין לשמאל', 'alignRight'], ['listLtr', 'lists', 'כיוון רשימה: שמאל לימין', 'alignLeft'], ['quote', 'lists', 'ציטוט', 'quote'],
+  ['alignRight', 'align', 'יישור לימין', 'alignRight'], ['alignCenter', 'align', 'מרכוז', 'alignCenter'], ['alignLeft', 'align', 'יישור לשמאל', 'alignLeft'],
+  ['insertMenu', 'insert', 'תפריט "הוספה"', 'insert'],
+  ['table', 'quickInsert', 'טבלה', 'table'], ['image', 'quickInsert', 'תמונה מקובץ', 'image'], ['link', 'quickInsert', 'קישור למסמך', 'link'],
+  ['math', 'quickInsert', 'נוסחה', 'math'], ['symbol', 'quickInsert', 'סמל מיוחד', 'symbol'], ['taskSection', 'quickInsert', 'משימות להמשך', 'taskSection'], ['rule', 'quickInsert', 'קו מפריד', 'rule'],
+  ['pageDraw', 'draw', 'שרטוט על הדף', 'pen'], ['floatBox', 'draw', 'תיבת טקסט חופשית', 'textBox'],
+  ['drawing', 'drawExtra', 'ציור (נשמר כתמונה)', 'draw'], ['comment', 'drawExtra', 'הערת שוליים', 'comment'],
+  ['exportPdf', 'export', 'ייצוא ל־PDF', 'exportPdf'], ['exportWord', 'export', 'ייצוא ל־Word', 'exportWord'],
+  ['focus', 'view', 'מצב מיקוד', 'focus'], ['sleep', 'view', 'מצב שינה', 'sleep'], ['raw', 'view', 'תצוגת Markdown', 'markdown'],
+];
+export const ITEM_IDS = TOOLBAR_ITEMS.map(([id]) => id);
+const itemInfo = (id) => TOOLBAR_ITEMS.find(([x]) => x === id);
+export const itemGroup = (id) => itemInfo(id)?.[1] || null;
+export const itemLabel = (id) => itemInfo(id)?.[2] || id;
+export const itemIcon = (id) => itemInfo(id)?.[3] || 'more';
+export const groupItems = (group) => TOOLBAR_ITEMS.filter(([, g]) => g === group).map(([id]) => id);
+
+const copy = (sections) => sections.map((s) => ({ items: [...s.items] }));
+const compact = (sections) => sections.filter((s) => s.items.length);
+
+// הסרגל לפי ההגדרות הישנות (8.2–10.3: קבוצות שלמות בלבד), או ברירת המחדל
+export function sectionsFromGroups(order, hidden, shown) {
+  const v1 = normalizeToolbarLayout(order, hidden, shown);
+  return v1.order.filter((g) => !v1.hidden.includes(g)).map((g) => ({ items: groupItems(g) }));
+}
+
+// סרגל תקין מכל ערך שמור: מזהים מוכרים בלבד, כל כפתור פעם אחת, בלי קבוצות ריקות.
+// בלי toolbarLayout שמור: הסרגל מההגדרות הישנות, כך שמי שסידר קבוצות ב־8.2 רואה אותו סרגל.
+export function normalizeToolbar(prefs = {}) {
+  const saved = prefs?.toolbarLayout;
+  if (!saved || !Array.isArray(saved.sections)) return sectionsFromGroups(prefs?.toolbarOrder, prefs?.toolbarHidden, prefs?.toolbarShown);
+  const seen = new Set();
+  const sections = saved.sections.map((s) => ({
+    items: (Array.isArray(s?.items) ? s.items : []).filter((id) => {
+      if (!ITEM_IDS.includes(id) || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    }),
+  }));
+  const known = new Set(Array.isArray(saved.known) ? saved.known : ITEM_IDS);
+  for (const id of ITEM_IDS) {
+    if (seen.has(id) || known.has(id) || isOptionalGroup(itemGroup(id))) continue;
+    const home = sections.find((s) => s.items.some((x) => itemGroup(x) === itemGroup(id)));
+    if (home) home.items.push(id); else sections.push({ items: [id] });
+    seen.add(id);
+  }
+  return compact(sections);
+}
+
+// מה ששומרים בהגדרות אחרי עריכה
+export const toolbarLayoutValue = (sections) => ({ sections: compact(copy(sections)), known: [...ITEM_IDS] });
+// הכפתורים שלא בסרגל (לרשימת "להוספה" בהגדרות), בסדר ברירת המחדל
+export function unusedItems(sections) {
+  const used = new Set(sections.flatMap((s) => s.items));
+  return ITEM_IDS.filter((id) => !used.has(id));
+}
+// העברת כפתור למקום index בקבוצה section, או לקבוצה חדשה במקום section כש־asNew
+// (section === sections.length: קבוצה חדשה בסוף). כפתור שלא היה בסרגל פשוט נכנס.
+export function moveItem(sections, id, section, index = Infinity, { asNew = false } = {}) {
+  const list = sections.map((s) => ({ items: s.items.filter((x) => x !== id) }));
+  if (asNew || !list[section]) list.splice(Math.max(0, Math.min(section, list.length)), 0, { items: [id] });
+  else {
+    const items = list[section].items;
+    // אותה קבוצה: המקום נמדד לפני ההוצאה
+    const was = sections[section]?.items.indexOf(id) ?? -1;
+    let at = Math.max(0, Math.min(index, items.length));
+    if (was >= 0 && was < index) at = Math.max(0, Math.min(index - 1, items.length));
+    items.splice(at, 0, id);
+  }
+  return compact(list);
+}
+export const removeItem = (sections, id) => compact(sections.map((s) => ({ items: s.items.filter((x) => x !== id) })));
+// פירוק קבוצה: כל כפתור בקבוצה משלו, באותו מקום
+export const splitSection = (sections, i) => sections.flatMap((s, j) => (j === i ? s.items.map((id) => ({ items: [id] })) : [{ items: [...s.items] }]));
+// איחוד קבוצה עם הקבוצה שאחריה
+export function mergeWithNext(sections, i) {
+  const out = copy(sections);
+  if (i < 0 || i >= out.length - 1) return out;
+  out[i].items.push(...out[i + 1].items);
+  out.splice(i + 1, 1);
+  return out;
+}
+export function moveSection(sections, i, delta) {
+  const out = copy(sections);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= out.length) return out;
+  [out[i], out[j]] = [out[j], out[i]];
+  return out;
+}
+export const removeSection = (sections, i) => copy(sections).filter((_, j) => j !== i);

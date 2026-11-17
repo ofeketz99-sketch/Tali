@@ -44,3 +44,55 @@ test('moving a group swaps it with its neighbour and stops at the ends', () => {
   assert.deepEqual(moveToolbarGroup(order, 'c', 1), order);
   assert.deepEqual(moveToolbarGroup(order, 'x', 1), order);
 });
+
+// ===== 10.4: כפתורים בודדים =====
+const tb = await import('data:text/javascript;base64,' + source.toString('base64'));
+const ids = (sections) => sections.map((s) => s.items);
+
+test('without a saved layout the toolbar follows the old group settings', () => {
+  const plain = tb.normalizeToolbar({});
+  assert.deepEqual(ids(plain)[0], ['undo', 'redo']);
+  assert.ok(!plain.flat().some((s) => s.items.includes('exportPdf'))); // optional group stays hidden
+  const old = tb.normalizeToolbar({ toolbarOrder: ['view', 'history'], toolbarHidden: ['align'], toolbarShown: ['export'] });
+  assert.deepEqual(ids(old)[0], ['focus', 'sleep', 'raw']);
+  assert.ok(!old.some((s) => s.items.includes('alignLeft')));
+  assert.ok(old.some((s) => s.items.includes('exportWord')));
+  // every item belongs to a known group
+  for (const id of tb.ITEM_IDS) assert.ok(TOOLBAR_IDS.includes(tb.itemGroup(id)), id);
+});
+
+test('a saved layout drops unknown and duplicate buttons, and new buttons join their siblings', () => {
+  const known = tb.ITEM_IDS.filter((id) => id !== 'italic');
+  const s = tb.normalizeToolbar({ toolbarLayout: { sections: [{ items: ['bold', 'bogus', 'bold'] }, { items: [] }, { items: ['raw'] }], known } });
+  assert.deepEqual(ids(s), [['bold', 'italic'], ['raw']]);
+  // a button the user removed (it was known) does not come back
+  const t = tb.normalizeToolbar({ toolbarLayout: { sections: [{ items: ['raw'] }], known: tb.ITEM_IDS } });
+  assert.deepEqual(ids(t), [['raw']]);
+});
+
+test('buttons move between groups, into a new group, and out of the toolbar', () => {
+  const start = [{ items: ['undo', 'redo'] }, { items: ['bold', 'italic'] }];
+  assert.deepEqual(ids(tb.moveItem(start, 'undo', 1, 1)), [['redo'], ['bold', 'undo', 'italic']]);
+  assert.deepEqual(ids(tb.moveItem(start, 'bold', 0, 0, { asNew: true })), [['bold'], ['undo', 'redo'], ['italic']]);
+  // the only button of a group: the empty group disappears
+  assert.deepEqual(ids(tb.moveItem([{ items: ['a1'] }, { items: ['bold'] }].map((x) => x), 'bold', 0, 9)).length, 1);
+  // same group, moving forward counts positions before the move
+  assert.deepEqual(ids(tb.moveItem([{ items: ['undo', 'redo', 'bold'] }], 'undo', 0, 2)), [['redo', 'undo', 'bold']]);
+  // a button that was not in the toolbar is added
+  assert.deepEqual(ids(tb.moveItem(start, 'raw', 2, 0, { asNew: true })), [['undo', 'redo'], ['bold', 'italic'], ['raw']]);
+  assert.deepEqual(ids(tb.removeItem(start, 'undo')), [['redo'], ['bold', 'italic']]);
+  assert.ok(tb.unusedItems(start).includes('raw'));
+  assert.ok(!tb.unusedItems(start).includes('bold'));
+});
+
+test('groups split, merge, move and are removed', () => {
+  const start = [{ items: ['undo', 'redo'] }, { items: ['bold'] }];
+  assert.deepEqual(ids(tb.splitSection(start, 0)), [['undo'], ['redo'], ['bold']]);
+  assert.deepEqual(ids(tb.mergeWithNext(start, 0)), [['undo', 'redo', 'bold']]);
+  assert.deepEqual(ids(tb.mergeWithNext(start, 1)), ids(start));
+  assert.deepEqual(ids(tb.moveSection(start, 1, -1)), [['bold'], ['undo', 'redo']]);
+  assert.deepEqual(ids(tb.removeSection(start, 0)), [['bold']]);
+  const saved = tb.toolbarLayoutValue([{ items: ['bold'] }, { items: [] }]);
+  assert.deepEqual(saved.sections, [{ items: ['bold'] }]);
+  assert.deepEqual(saved.known, tb.ITEM_IDS);
+});

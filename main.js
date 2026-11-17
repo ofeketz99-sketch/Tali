@@ -159,6 +159,8 @@ async function readTree(dir) {
       return { node: { name: e.name, path: full, type: 'dir', children: child.tree }, attachments: child.attachments };
     }
     if (e.name.toLowerCase().endsWith('.md')) return { node: { name: e.name, path: full, type: 'file' }, attachments: [] };
+    // 10.4: מסמך גרפי (JSON Canvas, כמו באובסידיאן). בעץ, וגם ברשימת הקבצים כדי ש־[[שם.canvas]] יימצא
+    if (e.name.toLowerCase().endsWith('.canvas')) return { node: { name: e.name, path: full, type: 'file', kind: 'canvas' }, attachments: [full] };
     return { node: null, attachments: [full] };
   }));
   const out = parts.map((part) => part.node).filter(Boolean);
@@ -567,6 +569,18 @@ function registerIpc() {
     return file;
   });
 
+  // 10.4: מסמך גרפי חדש (.canvas): קנבס ריק בפורמט JSON Canvas
+  ipcMain.handle('create-canvas', async (_e, dir, name) => {
+    const clean = name.replace(/[\\/:*?"<>|]/g, '').trim().replace(/\.canvas$/i, '') || 'ללא שם';
+    const file = safe(path.join(dir, clean + '.canvas'));
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    try { await fs.access(file); throw new Error('כבר קיים קובץ בשם הזה'); }
+    catch (err) { if (err.message === 'כבר קיים קובץ בשם הזה') throw err; }
+    await fs.writeFile(file, '{\n\t"nodes": [],\n\t"edges": []\n}', 'utf8');
+    vaultIndex.invalidate();
+    return file;
+  });
+
   // נתונים של Tali על הכספת, בקובץ נסתר בראש הכספת (.tali.json), כדי שיעברו איתה בסנכרון:
   // icons: סמלים; order: סדר ידני; pins: נעיצות; backgrounds: רקעי תיקיות עם צבע ושקיפות.
   ipcMain.handle('meta-read', async () => {
@@ -624,7 +638,9 @@ function registerIpc() {
     const isFile = (await fs.stat(from)).isFile();
     let clean = newName.replace(/[\\/:*?"<>|]/g, '').trim();
     if (!clean) throw new Error('שם ריק');
-    if (isFile && !clean.toLowerCase().endsWith('.md')) clean += '.md';
+    // 10.4: קנבס נשאר קנבס
+    const ext = isFile && from.toLowerCase().endsWith('.canvas') ? '.canvas' : '.md';
+    if (isFile && !clean.toLowerCase().endsWith(ext)) clean += ext;
     const to = safe(path.join(path.dirname(from), clean));
     if (to.toLowerCase() !== from.toLowerCase()) {
       try { await fs.access(to); throw new Error('כבר קיים קובץ או תיקייה בשם הזה'); }

@@ -72,7 +72,7 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
       t.className = 'tab' + (isActive ? ' active' : '') + (isOther ? ' side' : '') + (pin ? ' pinned' : '');
       t.setAttribute('role', 'tab');
       t.setAttribute('aria-selected', String(isActive));
-      t.dataset.tip = p.slice(getRoot().length + 1).replace(/\.md$/i, '').split(/[\\/]/).join(' › ');
+      t.dataset.tip = p.slice(getRoot().length + 1).replace(/\.(md|canvas)$/i, '').split(/[\\/]/).join(' › ');
       const flag = flagOf?.(p);
       const background = backgroundOf?.(p);
       if (background) {

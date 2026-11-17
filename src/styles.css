@@ -2181,11 +2181,25 @@ body.page-drawing-session .block-handle { display: none !important; }
 .tab .tab-flag { margin-inline: 2px 0; width: 7px; height: 7px; }
 
 /* 8.2: הגדרות ← סרגל הכלים */
-#settings .set-tb-list { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 14px; }
-#settings .set-tb-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-bg); }
-#settings .set-tb-row.off { opacity: .55; }
-#settings .set-tb-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-#settings .set-tb-move { display: flex; gap: 2px; }
+/* 10.4: עורך הסרגל: כרטיס לכל קבוצה, כפתורים שאפשר לגרור, ופסים בין הקבוצות לקבוצה חדשה */
+#settings .set-tb-list { display: flex; flex-direction: column; margin: 6px 0 10px; }
+#settings .set-tb-card { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-bg); }
+#settings .set-tb-items { flex: 1; display: flex; flex-wrap: wrap; gap: 5px; min-height: 30px; align-items: center; border-radius: 8px; padding: 2px; }
+#settings .set-tb-items.drop { background: var(--accent-soft); outline: 1px dashed var(--accent); }
+#settings .set-tb-tools { display: flex; gap: 1px; flex: none; }
+#settings .set-tb-tools .icon-btn:disabled { opacity: .3; }
+#settings .set-tb-gap { height: 8px; border-radius: 6px; transition: height .12s var(--ease), background .12s var(--ease); }
+#settings .set-tb-gap.drop { height: 26px; background: var(--accent-soft); outline: 1px dashed var(--accent); }
+#settings .set-tb-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; border: 1px solid var(--border); border-radius: 8px; background: var(--page-bg); font-size: 12px; cursor: grab; user-select: none; }
+#settings .set-tb-chip:hover { border-color: var(--accent-line); }
+#settings .set-tb-chip.dragging { opacity: .4; }
+#settings .set-tb-chip svg { flex: none; }
+#settings .set-tb-chip-x { display: inline-grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: pointer; }
+#settings .set-tb-chip-x:hover { background: var(--accent-hover); color: var(--text); }
+#settings .set-tb-pool { display: flex; flex-wrap: wrap; gap: 5px; min-height: 38px; padding: 6px; margin-bottom: 12px; border: 1px dashed var(--border); border-radius: 10px; }
+#settings .set-tb-pool.drop { background: var(--accent-soft); border-color: var(--accent); }
+#settings .set-tb-pool .set-tb-chip { cursor: pointer; opacity: .85; }
+#settings .set-sub { margin: 8px 0 4px; font-size: 13px; font-weight: 600; }
 
 /* ===== 8.3: שכבת הדף: שמונה ידיות לתיבות ולתמונות, מלבן בחירה, וכפתור "צבע אחר" ===== */
 .tali-overlay-resize[data-dir] { right: auto; bottom: auto; }
@@ -2246,3 +2260,85 @@ body.page-drawing-session .block-handle { display: none !important; }
 .hc-pin .hc-pin-tools { display: inline-flex; gap: 2px; opacity: 0; transition: opacity .15s var(--ease); }
 .hc-pin:hover .hc-pin-tools, .hc-pin:focus-within .hc-pin-tools { opacity: 1; }
 .hc-pin .hc-pin-tools .icon-btn { width: 24px; height: 24px; }
+
+/* ===== 10.4: מסמך גרפי (קנבס, canvas-view.js) ===== */
+body[data-doc="canvas"] #toolbar,
+body[data-doc="canvas"] #docCtx,
+body[data-doc="canvas"] #page { display: none !important; }
+body[data-doc="canvas"] #pageWrap { position: relative; overflow: hidden; padding: 0; display: block; }
+#canvasView { position: absolute; inset: 0; }
+#canvasView[hidden] { display: none; }
+.cv { --cv-edge: color-mix(in srgb, var(--text) 45%, transparent); position: relative; width: 100%; height: 100%; outline: none; color: var(--text); overflow: hidden; }
+.cv-viewport {
+  position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: default;
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--text) 16%, transparent) 1px, transparent 1.2px);
+}
+.cv[data-tool="hand"] .cv-viewport, .cv.pan-ready .cv-viewport { cursor: grab; }
+.cv.panning .cv-viewport { cursor: grabbing; }
+.cv[data-tool="pen"] .cv-viewport, .cv[data-tool="line"] .cv-viewport, .cv[data-tool="arrow"] .cv-viewport,
+.cv[data-tool="rect"] .cv-viewport, .cv[data-tool="ellipse"] .cv-viewport, .cv[data-tool="text"] .cv-viewport { cursor: crosshair; }
+.cv-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.cv-layer { position: absolute; left: 0; top: 0; }
+.cv-edges, .cv-draft { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.cv-edges .cv-edge-hit, .cv-edges .cv-edge-label { pointer-events: stroke; }
+.cv-edges .cv-edge-label { pointer-events: all; }
+.cv-edge-line { fill: none; stroke: var(--cv-edge); stroke-width: 2.5; }
+.cv-edge-hit { fill: none; stroke: transparent; stroke-width: 16; cursor: pointer; }
+.cv-edge.selected .cv-edge-line { stroke-width: 4; filter: drop-shadow(0 0 3px var(--accent)); }
+.cv-edge-label { font: 13px var(--font-ui, inherit); fill: var(--text); paint-order: stroke; stroke: var(--bg); stroke-width: 5px; cursor: pointer; }
+.cv-edge-draft { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 6 5; }
+.cv-node { position: absolute; box-sizing: border-box; }
+.cv-text, .cv-file, .cv-link {
+  border: 2px solid var(--cv-color, var(--border)); border-radius: 10px; background: var(--page-bg);
+  box-shadow: var(--shadow-soft); overflow: hidden; cursor: default;
+}
+.cv-node.colored.cv-text, .cv-node.colored.cv-file, .cv-node.colored.cv-link { background: color-mix(in srgb, var(--cv-color) 9%, var(--page-bg)); }
+.cv-group { border: 2px dashed var(--cv-color, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--cv-color, var(--text)) 4%, transparent); }
+.cv-group-label { position: absolute; bottom: 100%; inset-inline-start: 0; padding: 2px 6px 4px; font-size: 14px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.cv-drawing { color: var(--text); }
+.cv-drawing-svg { display: block; overflow: visible; pointer-events: none; }
+.cv-drawing { pointer-events: auto; }
+.cv-content { width: 100%; height: 100%; overflow: hidden; }
+.cv-text .cv-content { overflow: auto; padding: 10px 14px; font-size: 15px; box-sizing: border-box; }
+.cv-text .cv-content > :first-child { margin-top: 0; }
+.cv-placeholder { color: var(--muted); font-size: 13px; }
+.cv-image { display: block; }
+.cv-image img { width: 100%; height: 100%; object-fit: contain; display: block; user-select: none; }
+.cv-file .cv-image { background: transparent; }
+.cv-node.cv-file:has(.cv-image) { border-color: var(--cv-color, transparent); background: transparent; box-shadow: none; }
+.cv-file-head { display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-weight: 600; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cv-file-body { height: calc(100% - 38px); }
+.cv-editor { width: 100%; height: 100%; box-sizing: border-box; resize: none; border: 0; outline: none; padding: 10px 14px; background: transparent; color: inherit; font: 15px/1.6 var(--font-doc); }
+.cv-node.selected { outline: 2px solid var(--accent); outline-offset: 3px; }
+.cv-drawing.selected { outline-style: dashed; }
+.cv-node.drop { outline: 3px solid var(--accent); outline-offset: 3px; }
+.cv-node.editing { outline: 2px solid var(--accent); }
+.cv-resize { position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px; border-radius: 50%; background: var(--page-bg); border: 2px solid var(--accent); cursor: nwse-resize; display: none; z-index: 2; }
+.cv-node.selected .cv-resize { display: block; }
+.cv-port { position: absolute; width: 12px; height: 12px; margin: -6px; border-radius: 50%; background: var(--accent); border: 2px solid var(--page-bg); cursor: crosshair; opacity: 0; transition: opacity .12s var(--ease), transform .12s var(--ease); z-index: 2; }
+.cv-port-top { left: 50%; top: 0; } .cv-port-bottom { left: 50%; top: 100%; }
+.cv-port-left { left: 0; top: 50%; } .cv-port-right { left: 100%; top: 50%; }
+.cv[data-tool="select"] .cv-node:hover > .cv-port, .cv[data-tool="select"] .cv-node.selected > .cv-port { opacity: 1; }
+.cv-port:hover { transform: scale(1.35); }
+.cv-marquee { position: absolute; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); pointer-events: none; }
+.cv-bar {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5;
+  display: flex; align-items: center; gap: 2px; padding: 4px 6px; max-width: calc(100% - 24px); overflow-x: auto;
+  background: var(--panel-bg); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-soft);
+}
+.cv-btn { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--text); cursor: pointer; flex: none; }
+.cv-btn:hover { background: var(--accent-hover); }
+.cv-btn.on { background: var(--accent); color: var(--on-accent); }
+.cv-sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; flex: none; }
+.cv-swatches { display: flex; gap: 3px; flex: none; }
+.cv-swatch { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 2px solid var(--page-bg); box-shadow: 0 0 0 1px var(--border); cursor: pointer; }
+.cv-swatch.none { background: linear-gradient(135deg, var(--page-bg) 45%, var(--muted) 47%, var(--muted) 53%, var(--page-bg) 55%); }
+.cv-swatch.on { box-shadow: 0 0 0 2px var(--accent); }
+.cv-zoom-label { min-width: 48px; height: 28px; border: 0; background: none; color: var(--muted); font-size: 12px; cursor: pointer; border-radius: 6px; flex: none; }
+.cv-zoom-label:hover { background: var(--accent-hover); color: var(--text); }
+.cv-hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 11.5px; color: var(--muted); pointer-events: none; white-space: nowrap; opacity: .8; }
+.cv.has-selection .cv-hint { opacity: 0; }
+/* תצוגה של קנבס בחלונית השנייה (פיצול) */
+.pv-body.pv-canvas { position: relative; height: 70vh; padding: 0; }
+.pv-body.pv-canvas > div { position: absolute; inset: 0; }

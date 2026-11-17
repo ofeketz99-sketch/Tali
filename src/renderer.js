@@ -12,7 +12,7 @@ import { showLinkHubOffer } from './linkhub.js';
 import { fileUrl, bumpImage, returnImageToText } from './embed.js';
 import { imageFilesFrom, lonelyImageSrc, fileFromDataUrl } from './paste-images.js';
 import { convertToPlainMarkdown } from './plain-md.js';
-import { normalizeToolbarLayout } from './toolbar-layout.js';
+import { normalizeToolbar } from './toolbar-layout.js';
 import { usesCompactToolbar } from './editor-behavior.js';
 import { openPaint } from './paint.js';
 import { createPageOverlay } from './page-overlay.js';
@@ -29,6 +29,7 @@ import { createMeta } from './vault-meta.js';
 import { openIconPicker } from './icon-picker.js';
 import { openBackgroundPicker } from './folder-background.js';
 import { renderNoteHtml } from './note-render.js';
+import { createCanvasView } from './canvas-view.js';
 import { ARCHIVE_DIR, isArchived, isArchiveRoot, archiveDirFor, restoreDirFor, withoutArchived } from './archive.js';
 
 // אייקונים בכפתורים שב־index.html: <span data-icon="plus">
@@ -139,6 +140,7 @@ const state = {
   mtime: null,  // זמן השינוי של ההערה הפתוחה כשנקראה, כדי לזהות שינוי מבחוץ
   diskText: null, // התוכן שבדיסק לפי מה שהאפליקציה יודעת (נקרא או נשמר אחרון)
   dirty: false, // יש שינויים שעוד לא נשמרו
+  canvas: false, // 10.4: המסמך הפתוח הוא קנבס (canvasView), לא העורך
   flags: new Map(), // נתיב → צבע הדגל (flags.js)
   recent: [],   // הערות שנפתחו לאחרונה, החדשה ראשונה (למעבר המהיר)
 };
@@ -164,6 +166,8 @@ function allNotes() {
 const resolveTarget = (target) =>
   resolveLink(target, allNotes().map((n) => n.path).concat(state.attachments), state.root || '');
 const isNote = (p) => /\.md$/i.test(p);
+// 10.4: מסמך גרפי. נפתח דרך openNote, אבל בתצוגה משלו (canvas-view.js) ולא בעורך
+const isCanvas = (p) => /\.canvas$/i.test(p || '');
 
 // נתיב של תמונה ב־![](נתיב): יחסית להערה, ואם לא נמצא, יחסית לתיקייה הראשית
 function localSrc(src) {
@@ -213,7 +217,7 @@ onPrefsChange(() => editorApi.refreshPreferences());
 // 10.3: מקלדת אנגלית בחלונית הנוסחה (math.js)
 configureMathInput({ englishKeys: () => getPrefs().mathEnglishKeys !== false });
 // 8.2: סדר והסתרה של קבוצות בסרגל הכלים (הגדרות ← סרגל הכלים)
-const applyToolbarLayout = () => { const p = getPrefs(); toolbarApi.applyLayout(normalizeToolbarLayout(p.toolbarOrder, p.toolbarHidden, p.toolbarShown)); };
+const applyToolbarLayout = () => toolbarApi.applyLayout(normalizeToolbar(getPrefs()));
 onPrefsChange(applyToolbarLayout);
 const hoverPreview = setupHoverPreview({
   resolve: resolveTarget, read: (p) => window.api.read(p), fileUrl, onOpen: openLink, isNote,
@@ -227,6 +231,7 @@ const tabs = createTabs({
   flushSave: () => flushSave(),
   showEmpty: () => showEmpty(),
   renderPreview: async (el, p) => {
+    if (isCanvas(p)) { await renderCanvasPreview(el, p); return; }
     try { el.innerHTML = renderNoteHtml(await window.api.read(p), { resolve: resolveTarget, fileUrl }); }
     catch { el.textContent = 'המסמך לא נמצא'; }
   },
@@ -239,6 +244,7 @@ const tabs = createTabs({
 });
 // אין מסמך פתוח: מסך הבית (או, לפני שנבחרה תיקייה, כפתור הבחירה)
 function showEmpty() {
+  leaveCanvas();
   state.currentPath = null;
   state.dirty = false;
   pageOverlay.setEnabled(false);
@@ -641,7 +647,7 @@ function linkTextFor(p) {
   if (resolveTarget(name) === p) return name;
   return p.slice(state.root.length + 1).replace(/\\/g, '/').replace(/\.md$/i, '');
 }
-const noteName = (p) => p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1).replace(/\.md$/i, '');
+const noteName = (p) => p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1).replace(/\.(md|canvas)$/i, '');
 
 // אחרי שנוצר קישור מההערה הפתוחה להערה קיימת אחרת: מציעים פתק קישור לשתיהן
 function offerLinkHub(target, coords) {
@@ -834,6 +840,7 @@ function pasteImage(data) {
 // כל הדבקה עוברת כאן קודם (capture), חוץ משדות טקסט רגילים. בזמן סשן שרטוט: תמונה, או השרטוטים שהועתקו
 // (Ctrl+C בסשן), ואף פעם לא טקסט לתוך המסמך שמתחת. מחוץ לסשן: תמונה, או ההדבקה הרגילה של העורך.
 document.addEventListener('paste', (event) => {
+  if (state.canvas) return; // 10.4: הקנבס מטפל בהדבקה בעצמו (canvas-view.js)
   const t = event.target;
   if (t?.closest?.('textarea, input') && !t.closest('.ProseMirror')) return;
   if (pageOverlay.inSession()) {
@@ -934,7 +941,7 @@ document.addEventListener('scroll', (e) => {
   scrollTimers.set(el, setTimeout(() => el.classList.remove('is-scrolling'), 900));
 }, true);
 // נתיב יחסי להצגה: "תיקייה › הערה", בלי .md (שבעברית קפץ לתחילת השורה)
-const prettyPath = (p) => p.slice(state.root.length + 1).replace(/\.md$/i, '').split(/[\\/]/).join(' › ');
+const prettyPath = (p) => p.slice(state.root.length + 1).replace(/\.(md|canvas)$/i, '').split(/[\\/]/).join(' › ');
 
 // שומר רק אם באמת היה שינוי. שמירות לא רצות במקביל, כדי שזמן השינוי יישאר עקבי.
 let saving = Promise.resolve();
@@ -947,7 +954,8 @@ function flushSave() {
 async function saveNow() {
   if (!state.currentPath || !state.dirty) return;
   const p = state.currentPath;
-  const content = editorApi.getMarkdown();
+  const isCanvasDoc = state.canvas;
+  const content = isCanvasDoc ? canvasDoc().getText() : editorApi.getMarkdown();
   state.dirty = false;
   const slow = setTimeout(() => { if (!state.dirty) setSaveState('saving'); }, 300);
   const hadError = $('saveText')?.dataset.state === 'error';
@@ -957,8 +965,10 @@ async function saveNow() {
     if (!state.dirty) setSaveState('saved');
     // אחרי שמירה שהצליחה: הודעת השגיאה מפנה מקום לנתיב, וההודעה בפינה נסגרת
     if (hadError && state.currentPath === p) { setStatus(prettyPath(p)); if ($('toast')) $('toast').hidden = true; }
-    refreshLinksPanel(); // ייתכן שהמאפיינים (links:) נערכו ידנית
-    noteFlagChanged(p, getFlag(content));
+    if (!isCanvasDoc) {
+      refreshLinksPanel(); // ייתכן שהמאפיינים (links:) נערכו ידנית
+      noteFlagChanged(p, getFlag(content));
+    }
   } catch (err) {
     if (/CONFLICT/.test(err.message)) return saveDespiteOutsideChange(p, content);
     saveFailed(err);
@@ -1003,6 +1013,7 @@ async function reloadFromDisk() {
   state.mtime = await window.api.mtime(p);
   state.diskText = md;
   state.dirty = false;
+  if (state.canvas) { canvasDoc().load(md, p); return; }
   editorApi.setMarkdown(md);
   refreshLinksPanel();
 }
@@ -1140,7 +1151,7 @@ function pickBackground(node) {
 // סמל של מסמך לכרטיסייה (או סמל הקובץ הרגיל)
 const fileIconHtml = (p, size = 14) => {
   const c = meta.iconOf(p);
-  if (!c) return icon('file', size);
+  if (!c) return icon(isCanvas(p) ? 'canvas' : 'file', size);
   const svg = lucide(c.name, size);
   return c.color ? svg.replace('<svg ', `<svg style="color: var(--flag-${c.color})" `) : svg;
 };
@@ -1203,6 +1214,8 @@ function folderTargetDir() { return state.selectedDir || (state.currentPath ? di
 async function openNote(p, { history = true, newTab = false } = {}) {
   await flushSave();
   rememberPosition();
+  if (isCanvas(p)) return openCanvas(p, { history, newTab });
+  leaveCanvas();
   const md = await window.api.read(p);
   const mtime = await window.api.mtime(p);
   if (history) pushHistory(p);
@@ -1241,12 +1254,129 @@ async function openNote(p, { history = true, newTab = false } = {}) {
   updateNavButtons();
 }
 
+// ===== 10.4: מסמך גרפי (קנבס) =====
+// קובץ .canvas נפתח ב־#canvasView (canvas-view.js) במקום הדף. אותה כרטיסייה, היסטוריה ושמירה כמו מסמך:
+// state.currentPath הוא הקנבס, state.canvas מסמן אותו, ו־saveNow לוקח את הטקסט מ־canvasDoc().getText().
+// הסרגל העליון, לוח ההקשר ושכבת השרטוט של הדף מוסתרים (body[data-doc="canvas"] ב־styles.css).
+const canvasApi = (extra = {}) => ({
+  root: () => state.root,
+  resolveFile: (rel) => {
+    const r = String(rel || '');
+    if (!state.root || /^[a-z]:[\\/]/i.test(r)) return r;
+    const sep = state.root.includes('\\') ? '\\' : '/';
+    return state.root + sep + r.replace(/[\\/]/g, sep);
+  },
+  fileUrl,
+  readFile: (p) => window.api.read(p),
+  renderMarkdown: (md, { limit } = {}) => renderNoteHtml(md, { resolve: resolveTarget, fileUrl, limit }),
+  openFile: (p) => (isNote(p) || isCanvas(p) ? openNote(p) : window.api.openPath(p).catch((err) => setStatus(err.message))),
+  openLink: (target) => openLink(target),
+  openUrl: (url) => window.open(url, '_blank'),
+  ask: (label, value) => ask(label, value),
+  pickNote: () => new Promise((resolve) => pickNote('מסמך להצגה בקנבס…', resolve)),
+  importImages: async () => {
+    try {
+      const paths = await window.api.importImages(attachmentDir());
+      for (const p of paths || []) if (!state.attachments.includes(p)) state.attachments.push(p);
+      return paths || [];
+    } catch (err) { setStatus('שגיאה בייבוא התמונה: ' + err.message); return []; }
+  },
+  saveImages: async (files) => {
+    const out = [];
+    const d = new Date();
+    const two = (n) => String(n).padStart(2, '0');
+    const stamp = `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`;
+    for (const [i, f] of files.entries()) {
+      const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace('svg+xml', 'svg');
+      const name = f.name && !/^image\.\w+$/i.test(f.name) ? f.name : `Pasted image ${stamp}${i ? '-' + i : ''}.${ext}`;
+      try {
+        const p = await window.api.saveAttachment(attachmentDir(), name, new Uint8Array(await f.arrayBuffer()));
+        if (!state.attachments.includes(p)) state.attachments.push(p);
+        out.push(p);
+      } catch (err) { setStatus('שגיאה בשמירת התמונה: ' + err.message); }
+    }
+    return out;
+  },
+  ...extra,
+});
+let canvasView = null;
+function canvasDoc() {
+  if (!canvasView) canvasView = createCanvasView({ host: $('canvasView'), api: canvasApi({ onChange: () => {
+    if (!state.canvas) return;
+    state.dirty = true;
+    setSaveState('dirty');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flushSave, 600);
+  } }) });
+  return canvasView;
+}
+// חזרה מהקנבס לעורך (או למסך הבית)
+function leaveCanvas() {
+  if (!state.canvas) return;
+  state.canvas = false;
+  delete document.body.dataset.doc;
+  $('canvasView').hidden = true;
+}
+async function openCanvas(p, { history = true, newTab = false } = {}) {
+  let text;
+  try { text = await window.api.read(p); } catch (err) { setStatus('לא ניתן לפתוח: ' + err.message); return; }
+  const mtime = await window.api.mtime(p);
+  if (history) pushHistory(p);
+  state.currentPath = p;
+  state.mtime = mtime;
+  state.diskText = text;
+  state.dirty = false;
+  state.canvas = true;
+  state.recent = [p, ...state.recent.filter((x) => x !== p)].slice(0, 30);
+  store.set('recent:' + state.root, state.recent);
+  const openedAt = store.get('openedAt:' + state.root, {}) || {};
+  openedAt[p] = Date.now();
+  store.set('openedAt:' + state.root, Object.fromEntries(Object.entries(openedAt).sort((a, b) => b[1] - a[1]).slice(0, 300)));
+  pageOverlay.setEnabled(false);
+  toggleFocusMode(false);
+  setHome(false);
+  $('page').hidden = true;
+  document.body.dataset.doc = 'canvas';
+  $('canvasView').hidden = false;
+  const { error } = canvasDoc().load(text, p);
+  setSaveState('saved');
+  setStatus(error ? 'הקובץ לא נקרא כקנבס תקין; נפתח קנבס ריק, והקובץ לא ישתנה עד שתערכו בו' : prettyPath(p));
+  $('wordCount').textContent = '';
+  updateDocTitle();
+  tabs.opened(p, { newTab });
+  drawTree();
+  updateNavButtons();
+  canvasDoc().focus();
+}
+// תצוגה של קנבס בחלונית השנייה בפיצול: אותה תצוגה, לקריאה בלבד
+async function renderCanvasPreview(el, p) {
+  el.classList.remove('ProseMirror');
+  el.classList.add('pv-canvas');
+  let text = '';
+  try { text = await window.api.read(p); } catch { el.textContent = 'המסמך לא נמצא'; return; }
+  const host = document.createElement('div');
+  el.replaceChildren(host);
+  const v = createCanvasView({ host, api: canvasApi(), readOnly: true });
+  v.load(text, p);
+  requestAnimationFrame(() => v.zoomToFit());
+}
+async function newCanvas() {
+  if (!state.root) return;
+  const name = await ask('שם המסמך הגרפי:');
+  if (!name) return;
+  try {
+    const file = await window.api.createCanvas(await noteTargetDir(), name);
+    await refreshTree();
+    await openNote(file);
+  } catch (err) { setStatus(err.message); }
+}
+
 // ===== קישורים =====
 // לחיצה על [[קישור]]: פותחת את ההערה, או יוצרת אותה אם עדיין לא קיימת.
 // קישור לקובץ שאינו הערה (תמונה, PDF) נפתח בתוכנה של המחשב.
 async function openLink(target, opts = {}) {
   const found = resolveTarget(target);
-  if (found && isNote(found)) return openNote(found, opts);
+  if (found && (isNote(found) || isCanvas(found))) return openNote(found, opts);
   if (found) {
     try { await window.api.openPath(found); } catch (err) { setStatus(err.message); }
     return;
@@ -1707,7 +1837,9 @@ async function exportNote(format, node = currentNode()) {
 // כולם משתמשים בתפריט של context-menu.js: אותו מראה, תפריטי משנה ומקלדת כמו בדף.
 function fileItems(node) {
   const flag = state.flags.get(node.path) || null;
-  return [
+  // 10.4: בקנבס אין מאפיינים, דגל, ייצוא או כותרת: הפעולות האלה כותבות Markdown לתוך הקובץ
+  const canvasFile = isCanvas(node.path);
+  const items = [
     { label: 'פתיחה בכרטיסייה חדשה', icon: 'filePlus', keys: 'Ctrl+לחיצה', run: () => openNote(node.path, { newTab: true }) },
     { label: 'פתיחה לצד', icon: 'splitView', run: () => tabs.splitWith(node.path) },
     // 8.5: נעיצה למסך הבית (כרטיס "מסמכים נעוצים")
@@ -1730,6 +1862,8 @@ function fileItems(node) {
     { label: 'העברת הכותרת למאפיינים', icon: 'outline', run: () => convertHeader(node.path) },
     ...archiveItem(node),
   ];
+  const notForCanvas = new Set(['קישור לפתקים אחרים…', 'דגל', 'ייצוא', 'העברת הכותרת למאפיינים']);
+  return canvasFile ? items.filter((it) => it === 'sep' || !notForCanvas.has(it.label)) : items;
 }
 function showContextMenu(node, x, y, before = []) {
   const items = [...before];
@@ -1737,6 +1871,7 @@ function showContextMenu(node, x, y, before = []) {
   else items.push(
     { label: 'מסמך חדש בתיקייה', icon: 'filePlus', run: () => { state.selectedDir = node.path; newNote(); } },
     { label: 'מסמך חדש מתבנית', icon: 'template', run: () => { state.selectedDir = node.path; newNoteFromTemplate(); } },
+    { label: 'מסמך גרפי חדש (קנבס)', icon: 'canvas', run: () => { state.selectedDir = node.path; newCanvas(); } },
     'sep',
     { label: 'שינוי שם', icon: 'edit', keys: 'F2', run: () => renameNode(node) },
     { label: meta.ownBackground(node.path) ? 'שינוי צבע התיקייה…' : 'צבע לתיקייה…', icon: 'palette', run: () => pickBackground(node) },
@@ -1770,6 +1905,7 @@ function vaultItems() {
   return [
     { label: 'מסמך חדש', icon: 'filePlus', keys: 'Ctrl+N', run: () => { state.selectedDir = null; newNote(); } },
     { label: 'מסמך חדש מתבנית', icon: 'template', run: () => { state.selectedDir = null; newNoteFromTemplate(); } },
+    { label: 'מסמך גרפי חדש (קנבס)', icon: 'canvas', run: () => { state.selectedDir = null; newCanvas(); } },
     { label: 'תיקייה חדשה', icon: 'folderPlus', run: () => { state.selectedDir = null; newFolder(); } },
     'sep',
     { label: 'כיווץ כל התיקיות', icon: 'collapseAll', run: collapseAll },
@@ -1777,8 +1913,8 @@ function vaultItems() {
   ];
 }
 // 8.0: השוליים שמחוץ לדף (בתוך #pageWrap, לא בדף, לא בלוח ההקשר ולא בתיבה קיימת)
-const inPageMargin = (t) => !!(state.currentPath && !editorApi.isRaw() && t.closest?.('#pageWrap')
-  && !t.closest('#page, #docCtx, .tali-overlay-box, .tali-overlay-toolbar, #home'));
+const inPageMargin = (t) => !!(state.currentPath && !state.canvas && !editorApi.isRaw() && t.closest?.('#pageWrap')
+  && !t.closest('#page, #canvasView, #docCtx, .tali-overlay-box, .tali-overlay-toolbar, #home'));
 const addMarginNote = (x, y) => { pageOverlay.setEnabled(true); pageOverlay.addNote(x, y); };
 $('pageWrap').addEventListener('dblclick', (e) => {
   if (e.button !== 0 || !inPageMargin(e.target)) return;
@@ -1791,7 +1927,7 @@ function otherContextItems(e) {
   if (!state.root) return null;
   if (inPageMargin(t)) return [
     { label: 'הערת שוליים כאן', icon: 'comment', run: () => addMarginNote(e.clientX, e.clientY) },
-    { label: 'שרטוט על הדף', icon: 'arrow', run: () => useOverlay() },
+    { label: 'שרטוט על הדף', icon: 'pen', run: () => useOverlay() },
     'sep',
     { label: 'המרה ל־Markdown רגיל', icon: 'file', run: () => convertNoteToPlainMd() },
   ];
@@ -2281,6 +2417,7 @@ const COMMANDS = [
   { title: 'לוח פקודות', keys: 'Ctrl+P', run: openCommands },
   { title: 'מסמך חדש', keys: 'Ctrl+N', run: () => newNote(), needs: 'root' },
   { title: 'מסמך חדש מתבנית…', run: newNoteFromTemplate, needs: 'root' },
+  { title: 'מסמך גרפי חדש (קנבס: כרטיסים, תמונות, ציור וקווים)', run: newCanvas, needs: 'root' },
   { title: 'הוספת תבנית במקום הסמן…', run: insertTemplate, needs: 'note' },
   { title: 'העברת הכותרת למאפיינים', run: () => convertHeader(), needs: 'note' },
   { title: 'העברת המסמך לארכיון', run: () => { if (!archivedPath(state.currentPath)) archiveNode(currentNode()); }, needs: 'note' },
@@ -2337,8 +2474,12 @@ const COMMANDS = [
 ];
 // The default shortcut itself is a stable id for the existing command set. Custom values live in prefs.hotkeys.
 for (const command of COMMANDS) if (command.keys && !command.id) command.id = 'shortcut:' + command.keys;
+// 10.4: פקודות מסמך שמתאימות גם לקנבס
+const CANVAS_OK = new Set(['הכרטיסייה הבאה', 'הכרטיסייה הקודמת', 'סגירת הכרטיסייה', 'שני מסמכים זה לצד זה / ביטול', 'פתיחת מסמך לצד…', 'שמירה', 'שינוי שם המסמך', 'מחיקת המסמך (לסל המחזור)', 'שכפול המסמך', 'העברת המסמך לארכיון', 'החזרת המסמך מהארכיון', 'הצגת המסמך בעץ הקבצים']);
+for (const command of COMMANDS) if (CANVAS_OK.has(command.title.trim())) command.canvas = true;
 setHotkeyCatalog(COMMANDS);
-const available = (c) => !c.needs || (c.needs === 'root' ? !!state.root : !!state.currentPath);
+// 10.4: פקודות של מסמך (needs: 'note') פועלות בקנבס רק אם סומנו canvas: true (שינוי שם, מחיקה וכו')
+const available = (c) => !c.needs || (c.needs === 'root' ? !!state.root : !!state.currentPath && (!state.canvas || !!c.canvas));
 
 function openCommands() {
   openPalette({

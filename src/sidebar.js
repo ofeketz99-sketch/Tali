@@ -126,7 +126,7 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
       icon.className = 'icon';
       const label = document.createElement('span');
       label.className = 'label';
-      const text = n.type === 'file' ? n.name.replace(/\.md$/i, '') : n.name;
+      const text = n.type === 'file' ? n.name.replace(/\.(md|canvas)$/i, '') : n.name;
       const at = highlight ? text.toLowerCase().indexOf(highlight.toLowerCase()) : -1;
       if (at < 0) label.textContent = text;
       else {
@@ -174,7 +174,7 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
           frag.appendChild(kids);
         }
       } else {
-        icon.innerHTML = customSvg || svg('file', 15);
+        icon.innerHTML = customSvg || svg(/\.canvas$/i.test(n.name) ? 'canvas' : 'file', 15); // 10.4: מסמך גרפי
         if (customSvg) { icon.classList.add('cust-icon'); paint(icon); }
         // דגל (flags.js): נקודה בצבע אחרי השם
         const flag = flagOf?.(n.path);
@@ -219,7 +219,7 @@ export function filterTree(nodes, q) {
   const needle = q.toLowerCase();
   const out = [];
   for (const n of nodes) {
-    const name = (n.type === 'file' ? n.name.replace(/\.md$/i, '') : n.name).toLowerCase();
+    const name = (n.type === 'file' ? n.name.replace(/\.(md|canvas)$/i, '') : n.name).toLowerCase();
     if (name.includes(needle)) out.push(n);
     else if (n.type === 'dir') {
       const kids = filterTree(n.children, q);

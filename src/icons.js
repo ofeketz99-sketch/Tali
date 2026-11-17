@@ -2,21 +2,21 @@
 // אין להשתמש באימוג'י או בסימני טקסט (↶ ✕ 🗑 וכו') בממשק. אייקון חדש: מייבאים מ־lucide ומוסיפים ל־ICONS.
 import {
   Undo2, Redo2, List, ListOrdered, ListTodo, TextQuote, Code, AlignRight, AlignCenter, AlignLeft,
-  Table, Image, PenLine, Minus, Highlighter, FileCode, ChevronDown, File, FileText, Folder, FolderPlus,
+  Table, Image, Brush, Minus, Highlighter, FileCode, ChevronDown, File, FileText, Folder, FolderPlus,
   FolderOpen, Plus, SlidersHorizontal, Search, SquarePlus, Check, Pencil, Copy, Link, Trash2, X, FilePlus,
   Palette, TableCellsMerge, TableCellsSplit, BetweenHorizontalStart, BetweenHorizontalEnd,
   BetweenVerticalStart, BetweenVerticalEnd, Heading, Pen, Slash, MoveUpRight, Square, Circle, Eraser,
   ArrowRight, ArrowLeft, GripVertical, Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
   PanelRightClose, PanelRightOpen, Waypoints, Ghost, Hash, FileDown, FileType, ListChecks, ListTree, Info, Reply, Ellipsis, Focus, Minimize2,
   Archive, ArchiveRestore, Sigma, SquareSigma, Omega, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag, Keyboard, MessageSquareText, Braces, Moon, MousePointer2, SquareDashed, PaintBucket,
-  Group, Ungroup, RemoveFormatting, SquareCode, BringToFront, SendToBack, Pin, PinOff,
+  Group, Ungroup, LayoutDashboard, RemoveFormatting, SquareCode, BringToFront, SendToBack, Pin, PinOff,
 } from 'lucide';
 
 const ICONS = {
   // סרגל עליון
   undo: Undo2, redo: Redo2, bullets: List, numbers: ListOrdered, tasks: ListTodo, quote: TextQuote,
   code: Code, alignRight: AlignRight, alignCenter: AlignCenter, alignLeft: AlignLeft, table: Table,
-  image: Image, draw: PenLine, rule: Minus, highlight: Highlighter, textColor: Baseline, markdown: FileCode,
+  canvas: LayoutDashboard, image: Image, draw: Brush, rule: Minus, highlight: Highlighter, textColor: Baseline, markdown: FileCode,
   insert: SquarePlus, chevron: ChevronDown, bold: Bold, italic: Italic, underline: Underline, strike: Strikethrough,
   // קבצים וסרגל צד
   file: FileText, fileBlank: File, folder: Folder, folderPlus: FolderPlus, vault: FolderOpen, plus: Plus,

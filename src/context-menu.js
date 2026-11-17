@@ -297,10 +297,10 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
       { label: 'בלוק קוד', icon: 'code', run: edit.codeBlock, active: () => has('codeBlock') },
       { label: 'קו מפריד', icon: 'rule', run: edit.rule },
       ] },
-      { label: 'חופשי על הדף', icon: 'arrow', sub: [
+      { label: 'חופשי על הדף', icon: 'pen', sub: [
         { label: 'תיבת טקסט שזזה חופשי', icon: 'textBox', run: edit.floatingBox },
         { label: 'הערת שוליים לטקסט המסומן', icon: 'comment', disabled: empty || inCode(), run: edit.marginComment },
-        { label: 'שרטוט על הדף', icon: 'arrow', run: edit.pageDrawing },
+        { label: 'שרטוט על הדף', icon: 'pen', run: edit.pageDrawing },
         'sep',
         { label: 'המרה ל־Markdown רגיל', icon: 'file', run: edit.plainMarkdown },
       ] },

@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('api', {
   read: call('read'),
   write: call('write'),
   createNote: call('create-note'),
+  createCanvas: call('create-canvas'),
   createFolder: call('create-folder'),
   ensureFolder: call('ensure-folder'),
   pruneEmptyFolders: call('prune-empty-folders'),
