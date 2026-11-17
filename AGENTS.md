@@ -158,8 +158,12 @@
 | `tests/` | בדיקות יחידה (`node --test`) |
 | `launcher/` | משגר הפיתוח של Tali.exe: סמל מיידי ועדכון בטוח מענף `desktop-dev` בתהליך נפרד בפתיחה (`update-on-open.js`) ובסגירה (`update-on-close.js`), דרך `updater.js`; מועתק ל־`resources\app` |
 | `start.cmd` | בנייה והפעלה מהתיקייה (לפיתוח) |
+| `mobile/` | TALI Mobile (PWA לטלפון, מ־17.11.2026). משתמש בקבצי העורך והשכבה מ־`src/` כמו שהם; ראו `mobile/README.md` |
+| `tools/build-mobile.js` | בניית TALI Mobile ל־`mobile/www` (`npm run mobile:build`) |
 
 `dist/` נוצר על ידי `esbuild` ואין לערוך אותו ידנית.
+
+**TALI Mobile:** `src/editor.js`, `src/obsidian-md.js`, `src/overlay-data.js`, `src/page-overlay.js`, `src/theme-core.js`, `vault-data.js` ו־`links.js` משמשים גם את אפליקציית הטלפון (`mobile/`). שינוי בהם: גם `npm run mobile:build`, ואין להכניס אליהם `window.api` או תלות ב־Electron. `mobile/` לא נכנס ל־EXE, ולכן שינוי שנוגע רק בו אינו דורש Release.
 
 ## כללים חשובים לשינויים
 
