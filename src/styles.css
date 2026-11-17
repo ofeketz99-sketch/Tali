@@ -1432,6 +1432,25 @@ body[data-sidebar-mode="compact"] .side-top #btnNote {
 .math-pop .mp-display { display: flex; align-items: center; gap: 5px; cursor: pointer; }
 .math-pop .mp-display[hidden] { display: none; }
 .math-pop .mp-hint { color: var(--faint); font-size: 11px; }
+/* 10.0: תפריט הסמלים בתוך החלונית */
+.math-pop .mp-sym-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; font-size: 12px; }
+.math-pop .mp-sym-toggle .ic:last-child { transition: transform .15s var(--ease); }
+.math-pop .mp-sym-toggle.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-strong); }
+.math-pop .mp-sym-toggle.on .ic:last-child { transform: rotate(180deg); }
+.math-pop .mp-symbols {
+  margin-top: 8px; max-height: 210px; overflow-y: auto; padding: 4px 6px 6px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg);
+}
+.math-pop .mp-symbols[hidden] { display: none; }
+.math-pop .mp-sym-head { font-size: 11px; font-weight: 600; color: var(--muted); margin: 6px 2px 4px; }
+.math-pop .mp-sym-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 3px; direction: ltr; }
+.math-pop .mp-sym-grid .mp-sym {
+  height: 32px; padding: 0 2px; border-radius: 6px; border-color: transparent; background: none;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.math-pop .mp-sym-grid .mp-sym:hover { background: var(--accent-hover); border-color: var(--accent-line); }
+.math-pop .mp-sym { color: var(--text); font-size: 15px; }
+.math-pop .mp-sym .katex { font-size: 1.2em; color: var(--text); }
 .math-pop .mp-hint kbd { direction: ltr; unicode-bidi: isolate; font-family: inherit; font-size: 10.5px; padding: 0 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--muted); }
 .math-pop .mp-actions { display: flex; gap: 6px; margin-top: 10px; }
 .math-pop button {

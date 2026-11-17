@@ -1,6 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findInlineMath, mathSource, isValidInlineTex, dollarOpensEditor, blockTex, blockSource } from '../src/math.js';
+import { findInlineMath, mathSource, isValidInlineTex, dollarOpensEditor, blockTex, blockSource, arrowShortcut, MATH_SYMBOLS } from '../src/math.js';
+
+test('typed arrows become LaTeX arrows, longest first', () => {
+  assert.deepEqual(arrowShortcut('NH_4^+ + OH^- =>'), { length: 2, tex: '\\Rightarrow ' });
+  assert.deepEqual(arrowShortcut('a ->'), { length: 2, tex: '\\rightarrow ' });
+  assert.deepEqual(arrowShortcut('a <=>'), { length: 3, tex: '\\Leftrightarrow ' });
+  assert.deepEqual(arrowShortcut('a <->'), { length: 3, tex: '\\leftrightarrow ' });
+  assert.equal(arrowShortcut('a >'), null);
+  assert.equal(arrowShortcut('a >='), null);
+});
+
+test('every symbol in the menu is a real LaTeX command with at most one caret mark', () => {
+  for (const [, items] of MATH_SYMBOLS) {
+    for (const [insert] of items) {
+      assert.ok(insert.split('|').length <= 2, insert);
+      assert.ok(!/[\r\n\t]/.test(insert), JSON.stringify(insert));
+    }
+  }
+});
 
 test('finds LaTeX source without changing its logical order', () => {
   const [formula] = findInlineMath('עברית $10^{-1}=0.1$ המשך');

@@ -7,6 +7,7 @@
 import katex from 'katex';
 import { Node, Extension } from '@tiptap/core';
 import { Plugin, PluginKey, NodeSelection, TextSelection } from '@tiptap/pm/state';
+import { icon } from './icons.js';
 
 const cache = new Map();
 export function renderMath(tex, displayMode) {
@@ -74,6 +75,59 @@ export function blockSource(tex, previous = '$$\n\n$$') {
   return multiline ? `$$\n${String(tex).trim()}\n$$` : `$$${String(tex).trim()}$$`;
 }
 
+// ===== סמלים בחלונית (10.0) =====
+// [מה נכנס, תצוגה בתפריט]. | הוא מקום הסמן אחרי ההוספה. כולם LaTeX רגיל, ולכן מוצגים גם באובסידיאן.
+export const MATH_SYMBOLS = [
+  ['חצים', [
+    ['\\rightarrow'], ['\\Rightarrow'], ['\\longrightarrow'], ['\\leftarrow'], ['\\Leftarrow'],
+    ['\\leftrightarrow'], ['\\Leftrightarrow'], ['\\rightleftharpoons'], ['\\xrightarrow{|}', '\\xrightarrow{\\Delta}'],
+    ['\\uparrow'], ['\\downarrow'], ['\\mapsto'],
+  ]],
+  ['יחסים ופעולות', [
+    ['\\le'], ['\\ge'], ['\\ne'], ['\\approx'], ['\\equiv'], ['\\sim'], ['\\propto'], ['\\pm'],
+    ['\\cdot'], ['\\times'], ['\\div'], ['\\infty'], ['^{\\circ}', 'x^{\\circ}'], ['\\partial'], ['\\nabla'], ['\\in'],
+  ]],
+  ['אותיות יווניות', [
+    ['\\alpha'], ['\\beta'], ['\\gamma'], ['\\delta'], ['\\Delta'], ['\\epsilon'], ['\\theta'], ['\\lambda'],
+    ['\\mu'], ['\\pi'], ['\\rho'], ['\\sigma'], ['\\Sigma'], ['\\phi'], ['\\omega'], ['\\Omega'],
+  ]],
+  ['מבנים', [
+    ['\\frac{|}{}', '\\frac{a}{b}'], ['^{|}', 'x^{n}'], ['_{|}', 'x_{i}'], ['\\sqrt{|}', '\\sqrt{x}'],
+    ['\\sum_{|}^{}', '\\sum_{i}^{n}'], ['\\int_{|}^{}', '\\int_{a}^{b}'], ['\\lim_{|}', '\\lim_{x\\to 0}'],
+    ['\\vec{|}', '\\vec{v}'], ['\\overline{|}', '\\overline{x}'], ['\\text{|}', '\\text{abc}'],
+  ]],
+];
+
+// חיצים שמוקלדים בתיבה הופכים לחץ של LaTeX: => הוא ⇒, -> הוא →. הארוך קודם (<=> לפני =>).
+// אין <- בכוונה: הוא היה נתפס באמצע ההקלדה של <->.
+const ARROW_SHORTCUTS = [['<=>', '\\Leftrightarrow '], ['<->', '\\leftrightarrow '], ['=>', '\\Rightarrow '], ['->', '\\rightarrow ']];
+export function arrowShortcut(before) {
+  for (const [typed, tex] of ARROW_SHORTCUTS) {
+    if (before.endsWith(typed) && !before.endsWith('\\' + typed)) return { length: typed.length, tex };
+  }
+  return null;
+}
+
+// הכנסת סמל לתיבה במקום הסמן, דרך execCommand כדי ש־Ctrl+Z יבטל אותה
+function insertAtCaret(input, raw, replaceBefore = 0) {
+  let text = raw;
+  let caret = text.indexOf('|');
+  if (caret >= 0) text = text.slice(0, caret) + text.slice(caret + 1);
+  else {
+    // פקודה בלי ארגומנט (\alpha): רווח אחריה, אחרת \alphax הוא פקודה אחרת
+    if (/^\\[a-zA-Z]+$/.test(text)) text += ' ';
+    caret = text.length;
+  }
+  const start = input.selectionStart - replaceBefore;
+  input.focus();
+  input.setSelectionRange(start, input.selectionEnd);
+  if (!document.execCommand('insertText', false, text)) input.setRangeText(text, start, input.selectionEnd, 'end');
+  input.setSelectionRange(start + caret, start + caret);
+}
+
+let symbolsOpen = false;
+try { symbolsOpen = localStorage.getItem('tali:math-symbols') === '1'; } catch { /* בלי אחסון */ }
+
 // ===== החלונית =====
 let pop = null;
 export function closeMathEditor(commit = false) {
@@ -97,9 +151,11 @@ export function openMathEditor({ rect, tex = '', display = false, isNew = true, 
   el.innerHTML = `
     <div class="mp-head"><span>${isNew ? 'נוסחה חדשה' : 'עריכת נוסחה'}</span><span class="mp-tag" dir="ltr">LaTeX</span></div>
     <textarea class="mp-input" dir="ltr" spellcheck="false" autocapitalize="off" autocomplete="off" rows="2" placeholder="x^2 + y^2 = r^2"></textarea>
+    <div class="mp-symbols" hidden></div>
     <div class="mp-preview" dir="ltr"></div>
     <div class="mp-row">
       <label class="mp-display"><input type="checkbox"> בשורה נפרדת</label>
+      <button type="button" class="mp-sym-toggle" aria-expanded="false">${icon('math', 15)}<span>סמלים</span>${icon('chevronDown', 13)}</button>
       <span class="mp-hint"><kbd>Enter</kbd> ל${isNew ? 'הוספה' : 'שמירה'} · <kbd>Shift+Enter</kbd> לשורה חדשה · <kbd>Esc</kbd> לביטול${isNew ? ' · <kbd>$</kbd> בתיבה ריקה: סימן $ רגיל' : ''}</span>
     </div>
     <div class="mp-actions">
@@ -111,6 +167,37 @@ export function openMathEditor({ rect, tex = '', display = false, isNew = true, 
   const preview = el.querySelector('.mp-preview');
   const check = el.querySelector('.mp-display input');
   const ok = el.querySelector('.mp-ok');
+  const symPanel = el.querySelector('.mp-symbols');
+  const symToggle = el.querySelector('.mp-sym-toggle');
+  for (const [title, items] of MATH_SYMBOLS) {
+    const head = document.createElement('div');
+    head.className = 'mp-sym-head';
+    head.textContent = title;
+    const grid = document.createElement('div');
+    grid.className = 'mp-sym-grid';
+    for (const [insert, shown] of items) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'mp-sym';
+      b.dir = 'ltr';
+      b.innerHTML = renderMath(shown || insert.replace('|', ''), false) || insert;
+      b.dataset.tip = insert.replace('|', '');
+      // mousedown בלי ברירת מחדל: הסמן בתיבה לא זז ולא מאבד פוקוס
+      b.addEventListener('mousedown', (e) => e.preventDefault());
+      b.addEventListener('click', () => { insertAtCaret(input, insert); refresh(); });
+      grid.append(b);
+    }
+    symPanel.append(head, grid);
+  }
+  const setSymbols = (open) => {
+    symbolsOpen = open;
+    symPanel.hidden = !open;
+    symToggle.classList.toggle('on', open);
+    symToggle.setAttribute('aria-expanded', String(open));
+    try { localStorage.setItem('tali:math-symbols', open ? '1' : '0'); } catch { /* בלי אחסון */ }
+  };
+  symToggle.addEventListener('mousedown', (e) => e.preventDefault());
+  symToggle.addEventListener('click', () => { setSymbols(!symbolsOpen); pop?.place(); });
   input.value = tex;
   check.checked = !!display;
   if (!allowDisplay) el.querySelector('.mp-display').hidden = true;
@@ -146,7 +233,12 @@ export function openMathEditor({ rect, tex = '', display = false, isNew = true, 
     },
   };
   pop = p;
-  input.addEventListener('input', () => {
+  input.addEventListener('input', (e) => {
+    // => ו־-> הופכים לחץ אמיתי (אחרי ההקלדה של >)
+    if (e.inputType === 'insertText' && e.data === '>' && input.selectionStart === input.selectionEnd) {
+      const hit = arrowShortcut(input.value.slice(0, input.selectionStart));
+      if (hit) { insertAtCaret(input, hit.tex.trimEnd() + ' ', hit.length); refresh(); return; }
+    }
     // $ כשהתיבה ריקה: המשתמש רצה סימן $ רגיל (מחיר, למשל). לפי input ולא keydown, כדי שיעבוד בכל פריסת מקלדת.
     if (isNew && onLiteral && input.value === '$') {
       p.cancel = null;
@@ -166,6 +258,7 @@ export function openMathEditor({ rect, tex = '', display = false, isNew = true, 
   el.querySelector('.mp-cancel').addEventListener('click', () => closeMathEditor(false));
   el.querySelector('.mp-del')?.addEventListener('click', () => { p.cancel = null; closeMathEditor(false); onDelete?.(); });
   document.body.append(el);
+  setSymbols(symbolsOpen);
   refresh();
   p.place();
   window.addEventListener('resize', p.place);
