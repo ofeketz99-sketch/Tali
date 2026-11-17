@@ -42,6 +42,7 @@ export function buildThemeSection({ el, row, getPrefs, setPref }) {
     nowLine.textContent = text;
   });
   const modeRow = row('ערכה פעילה', null, el('div', { class: 'theme-mode' }, modeBox, nowLine));
+  modeRow.classList.add('row-stack'); // 10.6: ארבע אפשרויות לא נכנסות ליד הכותרת בחלון צר
 
   // ----- שעות -----
   const timeInput = (key) => {
@@ -157,7 +158,7 @@ export function buildThemeSection({ el, row, getPrefs, setPref }) {
       body.append(el('div', { class: 'theme-color' }, el('span', { class: 'theme-color-name' }, DETAIL_LABELS[key]), picker, hex, auto));
     }
     const details = el('details', { class: 'theme-detail-group' },
-      el('summary', {}, group.title, el('small', {}, ' · נגזרים אוטומטית אלא אם שונו')),
+      el('summary', {}, group.title),
       body);
     detailRows.append(details);
   }
@@ -197,29 +198,32 @@ export function buildThemeSection({ el, row, getPrefs, setPref }) {
   });
 
   // ----- פעולות -----
-  const resetBtn = el('button', { type: 'button' });
+  const resetBtn = el('button', { type: 'button', class: 'set-link-btn' });
   resetBtn.addEventListener('click', () => { draft[target] = { ...DEFAULT_THEMES[target] }; changed(); });
   bind(() => { resetBtn.textContent = `איפוס ${PROFILE_NAME[target]}`; });
   const cancelBtn = el('button', { type: 'button' }, 'ביטול השינויים');
   cancelBtn.addEventListener('click', () => discard());
   const applyBtn = el('button', { type: 'button', class: 'primary' }, 'החלה');
   applyBtn.addEventListener('click', () => commit());
-  const dirtyNote = el('small', { class: 'theme-dirty' }, 'שינויים שעוד לא הוחלו');
-  bind(() => {
-    const dirty = isDirty();
-    cancelBtn.disabled = !dirty;
-    applyBtn.disabled = !dirty;
-    dirtyNote.hidden = !dirty;
-  });
+  const dirtyNote = el('span', { class: 'theme-dirty' }, 'יש שינויים בצבעים שעוד לא הוחלו');
+  // 10.6: "החלה" ו"ביטול" מופיעים רק כשיש טיוטה, בפס צף בתחתית העמוד (במקום שני כפתורים כבויים תמיד)
+  const actions = el('div', { class: 'theme-actions', hidden: '' }, dirtyNote, cancelBtn, applyBtn);
+  bind(() => { actions.hidden = !isDirty(); });
 
-  const editor = el('div', { class: 'theme-editor' },
-    targetBox, presetBox,
+  const h4 = (text) => el('h4', { class: 'set-card-title' }, text);
+  const modeCard = el('div', { class: 'set-card' }, h4('מתי כל ערכה פעילה'), modeRow, scheduleRow);
+  const editor = el('div', { class: 'set-card theme-editor' },
+    el('div', { class: 'set-card-head' }, h4('עריכת ערכה'), resetBtn),
+    targetBox,
+    el('div', { class: 'theme-sub' }, 'ערכות מוכנות'),
+    presetBox,
+    el('div', { class: 'theme-sub' }, 'צבעי יסוד'),
     el('div', { class: 'theme-grid' }, colorRows, preview),
-    el('div', { class: 'theme-detail-head' },
-      el('div', {}, el('strong', {}, 'צבעים מפורטים'), el('small', {}, 'פתח קבוצה כדי לשלוט ברכיבים נוספים. כפתור האיפוס מחזיר צבע לחישוב אוטומטי.'))),
-    detailRows,
-    warnBox,
-    el('div', { class: 'theme-actions' }, resetBtn, el('span', { class: 'theme-spacer' }), dirtyNote, cancelBtn, applyBtn));
+    warnBox);
+  const detailCard = el('div', { class: 'set-card' },
+    h4('צבעים מפורטים'),
+    el('p', { class: 'set-note' }, 'נגזרים אוטומטית מצבעי היסוד. שינוי כאן גובר עליהם, והחץ המעוגל מחזיר לחישוב האוטומטי.'),
+    detailRows);
 
   function changed() {
     // הממשק עצמו מציג את הטיוטה רק אם עורכים את הערכה הפעילה; התצוגה המקדימה תמיד
@@ -239,5 +243,5 @@ export function buildThemeSection({ el, row, getPrefs, setPref }) {
   function open() { draft = clone(getPrefs().themes); target = profileNow(); setThemePreview(null); refresh(); }
   function refresh() { for (const fn of refreshers) fn(); }
 
-  return { nodes: [modeRow, scheduleRow, editor], refresh, open, isDirty, commit, discard };
+  return { nodes: [modeCard, editor, detailCard, actions], refresh, open, isDirty, commit, discard };
 }

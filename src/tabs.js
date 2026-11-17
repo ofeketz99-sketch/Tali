@@ -8,7 +8,7 @@
 // renderer.js קורא ל־opened() מתוך openNote, ול־remap/drop בשינוי שם, העברה ומחיקה.
 import { icon } from './icons.js';
 
-export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave, showEmpty, renderPreview, noteName, onContext, onHome, onNewNote, fileIcon, flagOf, backgroundOf }) {
+export function createTabs({ navEl, $, store, getRoot, getCurrent, openNote, flushSave, showEmpty, renderPreview, noteName, onContext, onHome, onNewNote, fileIcon, flagOf, backgroundOf }) {
   const bar = $('tabBar');
   const panesEl = $('panes');
   const pane0 = $('pane0');
@@ -62,6 +62,7 @@ export function createTabs({ $, store, getRoot, getCurrent, openNote, flushSave,
     homeBtn.innerHTML = icon('home', 16);
     homeBtn.addEventListener('click', () => onHome?.());
     bar.append(homeBtn);
+    if (navEl) bar.append(navEl); // אחורה/קדימה (renderer.js), אותו אלמנט בכל ציור
     const strip = document.createElement('div');
     strip.className = 'tab-strip';
     list.forEach((p) => {

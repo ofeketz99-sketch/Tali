@@ -134,6 +134,7 @@ export function openSettings() {
   if (!dialog) dialog = buildDialog();
   dialog.open();
   dialog.el.showModal();
+  dialog.el.focus(); // 10.6: המיקוד על החלון עצמו, ולא טבעת מיקוד על ✕ בכל פתיחה
 }
 
 function el(tag, attrs = {}, ...kids) {
@@ -151,6 +152,13 @@ function row(title, hint, control) {
   const label = el('label', {}, title);
   if (hint) label.append(el('small', {}, hint));
   return el('div', { class: 'row' }, label, control);
+}
+// 10.6: כל עמוד בהגדרות מתחיל בכותרת ובשורת הסבר, וההגדרות מקובצות בכרטיסים עם כותרת
+function pageHead(title, desc) {
+  return el('header', { class: 'set-page-head' }, el('h3', {}, title), desc ? el('p', {}, desc) : '');
+}
+function card(title, ...kids) {
+  return el('div', { class: 'set-card' }, title ? el('h4', { class: 'set-card-title' }, title) : '', ...kids);
 }
 
 function buildDialog() {
@@ -269,43 +277,56 @@ function buildDialog() {
     noteFolderStatus.classList.remove('error');
   });
 
-  const appearance = el('section', { class: 'set-page', 'data-page': 'appearance' }, ...themes.nodes);
+  const appearance = el('section', { class: 'set-page', 'data-page': 'appearance' },
+    pageHead('מראה וערכות', 'ערכת יום וערכת לילה נפרדות. שינוי צבע מוצג מיד, ונשמר רק ב"החלה".'),
+    ...themes.nodes);
   const writing = el('section', { class: 'set-page', 'data-page': 'writing', hidden: '' },
-    row('כיוון הטקסט', 'אוטומטי: כל פסקה לפי השפה שבה היא מתחילה', seg('textDir', [['rtl', 'ימין לשמאל'], ['auto', 'אוטומטי'], ['ltr', 'שמאל לימין']])),
-    row('יישור לשני הצדדים', 'כמו בעיתון: השורות נמתחות עד הקצה', check('justify')),
-    row('גופן', null, fontSelect),
-    row('גופן כותרות', null, headingSelect),
-    row('גודל', null, range('fontSize', 13, 24, 1, (v) => v + 'px')),
-    row('מרווח שורות', null, range('lineHeight', 1.3, 2.2, 0.05, (v) => Number(v).toFixed(2))),
-    row('רוחב הדף', null, seg('pageWidth', [['narrow', 'צר'], ['normal', 'רגיל'], ['wide', 'רחב'], ['full', 'מלא']])),
-    row('מראה דף', 'דף עם צל, כמו במסמך Word', check('pageLook')),
-    row('גודל כותרת המסמך', 'השם שמופיע מעל הדף; אפשר להגדיל גם מעבר לכותרת H1', range('docTitleSize', 20, 64, 1, (v) => v + 'px')),
-    row('סגנון כותרת המסמך', null, seg('docTitleStyle', [['clean', 'נקי'], ['strong', 'מודגש'], ['underline', 'קו צבע'], ['label', 'תווית']])),
-    el('div', { class: 'preview doc-title-preview' }, 'כותרת המסמך לדוגמה'),
-    el('div', { class: 'preview' },
-      el('div', { style: 'font-family:var(--font-heading);font-weight:700;font-size:1.3em;margin-bottom:4px' }, 'כותרת לדוגמה'),
-      'כך ייראה הטקסט במסמכים. The quick brown fox jumps over the lazy dog.'),
-    row('סימנים חכמים', 'בזמן ההקלדה: ‎-> ‎<- ‎=> ‎!= ‎>= ‎<= ‎+-‎ הופכים לחץ ולסימן המתאים. Backspace מיד אחרי מחזיר', check('smartSymbols')),
-    row('אנגלית בחלונית הנוסחה', 'בתיבת ה־LaTeX כל מקש כותב את התו שלו במקלדת אנגלית, גם כשהמקלדת בעברית. שפת המקלדת עצמה לא משתנה, ולכן ביציאה הכול כמו שהיה', check('mathEnglishKeys')),
-    row('משימות שבוצעו בסוף הרשימה', 'בעת סימון תיבת משימה היא עוברת, עם תנועה וקו מפריד, לסוף הרשימה שלה', check('completedTasksAtBottom')),
-    row('קו מפריד: סגנון', 'לקו --- במסמך ולקו שבין משימות פתוחות למשימות שבוצעו', seg('doneDividerStyle', [['solid', 'רציף'], ['dashed', 'מקווקו'], ['dotted', 'נקודות'], ['double', 'כפול'], ['none', 'בלי קו']])),
-    row('קו מפריד: צבע', null, seg('doneDividerColor', [['accent', 'צבע הערכה'], ['muted', 'עדין'], ['text', 'אפור כהה']])),
-    row('קו מפריד: עובי', null, range('doneDividerWidth', 1, 4, 1, (v) => v + 'px')),
-    el('div', { class: 'preview done-divider-preview' }, el('div', {}, 'טקסט לפני קו מפריד'), el('div', { class: 'ddp-line' }), el('div', { style: 'opacity:.7' }, 'טקסט אחרי הקו')),
+    pageHead('כתיבה ודף', 'איך הטקסט והדף נראים בכל המסמכים.'),
+    card('טקסט',
+      row('גופן', null, fontSelect),
+      row('גופן כותרות', null, headingSelect),
+      row('גודל', null, range('fontSize', 13, 24, 1, (v) => v + 'px')),
+      row('מרווח שורות', null, range('lineHeight', 1.3, 2.2, 0.05, (v) => Number(v).toFixed(2))),
+      row('כיוון הטקסט', 'אוטומטי: כל פסקה לפי השפה שבה היא מתחילה', seg('textDir', [['rtl', 'ימין לשמאל'], ['auto', 'אוטומטי'], ['ltr', 'שמאל לימין']])),
+      row('יישור לשני הצדדים', 'כמו בעיתון: השורות נמתחות עד הקצה', check('justify')),
+      el('div', { class: 'preview' },
+        el('div', { style: 'font-family:var(--font-heading);font-weight:700;font-size:1.3em;margin-bottom:4px' }, 'כותרת לדוגמה'),
+        'כך ייראה הטקסט במסמכים. The quick brown fox jumps over the lazy dog.')),
+    card('דף',
+      row('רוחב הדף', null, seg('pageWidth', [['narrow', 'צר'], ['normal', 'רגיל'], ['wide', 'רחב'], ['full', 'מלא']])),
+      row('מראה דף', 'דף עם צל, כמו במסמך Word', check('pageLook'))),
+    card('שם המסמך מעל הדף',
+      row('גודל', 'אפשר להגדיל גם מעבר לכותרת H1', range('docTitleSize', 20, 64, 1, (v) => v + 'px')),
+      row('סגנון', null, seg('docTitleStyle', [['clean', 'נקי'], ['strong', 'מודגש'], ['underline', 'קו צבע'], ['label', 'תווית']])),
+      el('div', { class: 'preview preview-title' }, el('div', { class: 'doc-title-preview' }, 'שם המסמך לדוגמה'))),
+    card('הקלדה',
+      row('סימנים חכמים', 'בזמן ההקלדה: ‎-> ‎<- ‎=> ‎!= ‎>= ‎<= ‎+-‎ הופכים לחץ ולסימן המתאים. Backspace מיד אחרי מחזיר', check('smartSymbols')),
+      row('אנגלית בחלונית הנוסחה', 'בתיבת ה־LaTeX כל מקש כותב את התו שלו במקלדת אנגלית, גם כשהמקלדת בעברית. שפת המקלדת עצמה לא משתנה', check('mathEnglishKeys'))),
+    card('משימות וקו מפריד',
+      row('משימות שבוצעו בסוף הרשימה', 'תיבה שסומנה עוברת, עם תנועה וקו מפריד, לסוף הרשימה שלה', check('completedTasksAtBottom')),
+      row('סגנון הקו', 'לקו --- במסמך ולקו שבין משימות פתוחות למשימות שבוצעו', seg('doneDividerStyle', [['solid', 'רציף'], ['dashed', 'מקווקו'], ['dotted', 'נקודות'], ['double', 'כפול'], ['none', 'בלי']])),
+      row('צבע הקו', null, seg('doneDividerColor', [['accent', 'צבע הערכה'], ['muted', 'עדין'], ['text', 'אפור כהה']])),
+      row('עובי הקו', null, range('doneDividerWidth', 1, 4, 1, (v) => v + 'px')),
+      el('div', { class: 'preview done-divider-preview' }, el('div', {}, 'משימה פתוחה'), el('div', { class: 'ddp-line' }), el('div', { style: 'opacity:.6' }, 'משימה שבוצעה'))),
   );
   const files = el('section', { class: 'set-page', 'data-page': 'files', hidden: '' },
-    row('מסמך חדש נוצר', null, select('newNoteLocation', [
-      ['selected', 'בתיקייה שנבחרה בעץ'],
-      ['folder', 'בתיקיית מסמכים חדשים'],
-      ['root', 'בתיקייה הראשית'],
-    ], { onChange: refresh })),
-    row('תיקיית מסמכים חדשים', 'נשמרת ביחס לתיקיית העבודה ונוצרת אוטומטית אם חסרה', noteFolderControl),
-    row('תמונות מיובאות נשמרות', null, select('attachMode', [['folder', 'בתיקייה קבועה'], ['beside', 'ליד המסמך']], { onChange: refresh })),
-    row('תיקיית הקבצים המצורפים', 'אפשר להקליד נתיב בתוך הכספת, לבחור תיקייה קיימת או לפתוח אותה בסייר. היא נוצרת אוטומטית אם חסרה', attachFolderControl),
+    pageHead('מסמכים וקבצים', 'איפה נשמרים מסמכים חדשים ותמונות. כל הנתיבים בתוך תיקיית המסמכים.'),
+    card('מסמכים חדשים',
+      row('מסמך חדש נוצר', null, select('newNoteLocation', [
+        ['selected', 'בתיקייה שנבחרה בעץ'],
+        ['folder', 'בתיקיית מסמכים חדשים'],
+        ['root', 'בתיקייה הראשית'],
+      ], { onChange: refresh })),
+      row('תיקיית מסמכים חדשים', 'נוצרת אוטומטית אם חסרה', noteFolderControl)),
+    card('תמונות וקבצים מצורפים',
+      row('תמונות מיובאות נשמרות', null, select('attachMode', [['folder', 'בתיקייה קבועה'], ['beside', 'ליד המסמך']], { onChange: refresh })),
+      row('תיקיית הקבצים המצורפים', 'נתיב בתוך הכספת. נוצרת אוטומטית אם חסרה', attachFolderControl)),
   );
 
-  const shortcutNotice = el('p', { class: 'set-note' }, 'לחיצה על קיצור מאפשרת להקליד קיצור חדש. Backspace מבטל קיצור; הכפתור הקטן מחזיר לברירת המחדל.');
-  const shortcuts = el('section', { class: 'set-page set-shortcuts', 'data-page': 'shortcuts', hidden: '' }, shortcutNotice);
+  const shortcutList = card(null);
+  const shortcuts = el('section', { class: 'set-page set-shortcuts', 'data-page': 'shortcuts', hidden: '' },
+    pageHead('קיצורי מקלדת', 'לחיצה על קיצור ואז הקלדת קיצור חדש. Backspace מבטל קיצור, והחץ המעוגל מחזיר לברירת המחדל.'),
+    shortcutList);
   for (const command of hotkeyCatalog) {
     const capture = el('button', { type: 'button', class: 'hotkey-capture' });
     const resetKey = el('button', { type: 'button', class: 'icon-btn hotkey-reset', 'aria-label': 'החזרה לברירת המחדל' });
@@ -336,7 +357,7 @@ function buildDialog() {
       delete next[command.id];
       setPref('hotkeys', next); refresh();
     });
-    shortcuts.append(row(command.title, null, control));
+    shortcutList.append(row(command.title, null, control));
   }
 
   // 10.4: עורך הסרגל, כפתור אחד בכל פעם. כל קבוצה היא כרטיס עם הכפתורים שבה; גוררים כפתור לקבוצה אחרת,
@@ -357,8 +378,9 @@ function buildDialog() {
       x.addEventListener('click', onRemove);
       c.append(x);
     }
-    c.addEventListener('dragstart', (e) => { dragging = id; e.dataTransfer.setData(DRAG, id); e.dataTransfer.effectAllowed = 'move'; c.classList.add('dragging'); });
-    c.addEventListener('dragend', () => { dragging = null; c.classList.remove('dragging'); toolbarList.querySelectorAll('.drop').forEach((n) => n.classList.remove('drop')); toolbarPool.classList.remove('drop'); });
+    // בזמן גרירה (is-dragging) הפסים שבין הקבוצות נפתחים; אחרת הם נסתרים, כדי שהרשימה תהיה נקייה
+    c.addEventListener('dragstart', (e) => { dragging = id; e.dataTransfer.setData(DRAG, id); e.dataTransfer.effectAllowed = 'move'; c.classList.add('dragging'); toolbarList.classList.add('is-dragging'); });
+    c.addEventListener('dragend', () => { dragging = null; c.classList.remove('dragging'); toolbarList.classList.remove('is-dragging'); toolbarList.querySelectorAll('.drop').forEach((n) => n.classList.remove('drop')); toolbarPool.classList.remove('drop'); });
     return c;
   };
   // מקום ההכנסה בתוך קבוצה לפי העכבר: מספר הכפתורים שלפני הנקודה בכיוון הכתיבה של הרשימה
@@ -391,6 +413,7 @@ function buildDialog() {
       const body = el('div', { class: 'set-tb-items' }, ...sec.items.map((id) => chip(id, () => saveSections(removeItem(sections, id)))));
       dropTarget(body, (id, e) => saveSections(moveItem(sections, id, i, indexAt(body, e.clientX))));
       const card = el('div', { class: 'set-tb-card' },
+        el('span', { class: 'set-tb-num', 'aria-hidden': 'true' }, String(i + 1)),
         body,
         el('span', { class: 'set-tb-tools' },
           tool('chevronUp', 'הזזת הקבוצה ימינה בסרגל', () => saveSections(moveSection(sections, i, -1)), i === 0),
@@ -416,15 +439,13 @@ function buildDialog() {
   };
   dropTarget(toolbarPool, (id) => saveSections(removeItem(sectionsNow(), id)));
   bind(drawToolbarList);
-  const toolbarReset = el('button', { type: 'button', class: 'btn', on: { click: () => {
+  const toolbarReset = el('button', { type: 'button', class: 'set-link-btn', on: { click: () => {
     setPref('toolbarOrder', []); setPref('toolbarHidden', []); setPref('toolbarShown', []); setPref('toolbarLayout', null); drawToolbarList();
   } } }, 'החזרה לברירת המחדל');
   const toolbarPage = el('section', { class: 'set-page', 'data-page': 'toolbar', hidden: '' },
-    el('p', { class: 'set-note' }, 'כל כרטיס הוא קבוצה בסרגל, לפי הסדר מימין לשמאל. גוררים כפתור לקבוצה אחרת, לפס שבין הקבוצות (קבוצה חדשה משלו) או לרשימה שלמטה (הוצאה מהסרגל). ✕ מוציא כפתור, ובצד כל קבוצה: הזזה, פירוק לכפתורים בודדים, איחוד עם הקבוצה הבאה והוצאה. כשאין מקום בחלון, קבוצות עוברות לתפריט "עוד".'),
-    toolbarList,
-    el('h3', { class: 'set-sub' }, 'כפתורים שלא בסרגל'),
-    toolbarPool,
-    toolbarReset);
+    pageHead('סרגל הכלים', 'כל שורה היא קבוצה בסרגל, לפי הסדר מימין לשמאל. גוררים כפתור לקבוצה אחרת, או בין שתי קבוצות כדי ליצור קבוצה חדשה. הכלים של כל קבוצה מופיעים בריחוף.'),
+    card(null, el('div', { class: 'set-card-head' }, el('h4', { class: 'set-card-title' }, 'בסרגל'), toolbarReset), toolbarList),
+    card('כפתורים שלא בסרגל', el('p', { class: 'set-note' }, 'לחיצה מוסיפה לסוף הסרגל. אפשר גם לגרור לקבוצה מסוימת, או לגרור לכאן כדי להוציא.'), toolbarPool));
 
   const pages = [appearance, writing, files, toolbarPage, shortcuts];
   const nav = el('nav', { class: 'set-nav', 'aria-label': 'נושאי הגדרות' });
@@ -446,15 +467,16 @@ function buildDialog() {
     button.innerHTML = icon(iconName, 17) + `<span>${title}</span>`;
     nav.append(button);
   }
-  const body = el('div', { class: 'set-body' }, nav, el('div', { class: 'set-pages' }, ...pages));
-  showPage(activePage);
-
-  const reset = el('button', { type: 'button', on: { click: () => {
+  const reset = el('button', { type: 'button', class: 'set-link-btn set-reset-all', on: { click: () => {
     prefs = { ...DEFAULTS, themes: { day: { ...DEFAULT_THEMES.day }, night: { ...DEFAULT_THEMES.night } }, schedule: { ...DEFAULT_SCHEDULE } };
     setPref('version', DEFAULTS.version, { animate: true });
     themes.open();
     refresh();
-  } } }, 'איפוס לברירת המחדל');
+  } } }, 'איפוס כל ההגדרות');
+  // 10.6: בלי שורה תחתונה. האיפוס הכללי בתחתית הניווט, והסגירה ב־✕ שבראש החלון (כפתור "סגירה" שני הוסר)
+  nav.append(el('span', { class: 'set-nav-spacer' }), reset);
+  const body = el('div', { class: 'set-body' }, nav, el('div', { class: 'set-pages' }, ...pages));
+  showPage(activePage);
   // סגירה עם צבעים שלא הוחלו: שואלים בתוך החלון (בלי חלון של Windows)
   const pending = el('div', { class: 'set-pending', hidden: '' },
     el('span', {}, 'יש שינויים בצבעים שעוד לא הוחלו.'),
@@ -464,14 +486,12 @@ function buildDialog() {
     if (themes.isDirty()) { pending.hidden = false; pending.querySelector('button').focus(); return; }
     dlg.close();
   };
-  const close = el('button', { type: 'button', class: 'primary', on: { click: tryClose } }, 'סגירה');
   const closeBtn = el('button', { type: 'button', class: 'icon-btn', 'data-tip': 'סגירה', 'aria-label': 'סגירה', on: { click: tryClose } });
   closeBtn.innerHTML = icon('close', 18);
-  const dlg = el('dialog', { id: 'settings' },
+  const dlg = el('dialog', { id: 'settings', tabindex: '-1' },
     el('div', { class: 'set-head' }, el('h2', {}, 'הגדרות'), closeBtn),
     body,
     pending,
-    el('div', { class: 'set-foot' }, reset, close),
   );
   document.body.append(dlg);
   // Escape ולחיצה בחוץ (המאזין הכללי ב־renderer.js) שולחים cancel: אם יש טיוטה, לא סוגרים ושואלים

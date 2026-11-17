@@ -161,7 +161,9 @@ export function createCanvasView({ host, api, readOnly = false }) {
     world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.z})`;
     host.style.setProperty('--cv-z', view.z);
     zoomLabel.textContent = Math.round(view.z * 100) + '%';
-    viewport.style.backgroundSize = `${24 * view.z}px ${24 * view.z}px`;
+    // 10.6: שתי רשתות נקודות (styles.css, .cv-viewport): הגדולה (תכלת) כל 44, הקטנה כל 11, ביחידות הקנבס
+    const major = 44 * view.z, minor = 11 * view.z;
+    viewport.style.backgroundSize = `${major}px ${major}px, ${minor}px ${minor}px`;
     viewport.style.backgroundPosition = `${view.x}px ${view.y}px`;
   };
   const saveView = () => { if (path && !readOnly) { try { localStorage.setItem('tali:canvas-view:' + path, JSON.stringify(view)); } catch {} } };

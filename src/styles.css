@@ -53,12 +53,19 @@
   --doc-line: 1.75;
   --page-width: 820px;
   --h2-rule: #d6dde1; /* הקו שליד כותרת H2 */
+  /* רקע הקנבס (10.6): בז׳ פסטלי, נקודות חומות קטנות ונקודות תכלת בצבע המודגש */
+  --canvas-bg: #ebe3d4;
+  --canvas-dot: rgba(110, 85, 50, .18);
+  --canvas-dot-major: color-mix(in srgb, color-mix(in srgb, var(--accent) 75%, #1d4e75) 60%, transparent);
 }
 /* מצב כהה */
 :root[data-theme="dark"] {
   --graph-1: #6aa8ea; --graph-2: #f0975c; --graph-3: #5cc28a; --graph-4: #df74ab; --graph-5: #a690ea; --graph-6: #e2bf4c; --graph-7: #50c2c6; --graph-8: #ea7a72;
   --bg: #1b1d21; --sidebar-bg: #212328; --page-bg: #26292f; --panel-bg: #23262b; --input-bg: #2c3036;
   --h2-rule: color-mix(in srgb, #d6dde1 22%, transparent);
+  --canvas-bg: color-mix(in srgb, #c9a86e 8%, var(--bg)); /* בז׳ כהה וחם */
+  --canvas-dot: color-mix(in srgb, var(--text) 13%, transparent);
+  --canvas-dot-major: color-mix(in srgb, var(--accent) 60%, transparent);
   --border: #383c44; --text: #e4e5e8; --muted: #9a9fa8; --faint: #6f747d;
   --code-bg: #30343b; --pre-bg: #17191d; --pre-text: #e4e5e8;
   --shadow: 0 1px 3px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .25);
@@ -1782,13 +1789,15 @@ body[data-sidebar-mode="compact"] #flagged { display: none; }
 }
 
 /* ----- שם המסמך מעל הדף (#docTitle, בתוך #page כדי שיוסתר יחד איתו) ----- */
-#pageWrap { padding-top: calc(var(--doc-title-size, 26px) + 43px); }
-body[data-focus] #pageWrap { padding-top: calc(var(--doc-title-size, 26px) + 59px); }
+/* 10.6: השם תמיד במלואו. הוא גולש לכמה שורות, ו־--title-h (הגובה שלו, נמדד ב־renderer.js) קובע כמה מקום
+   משאירים מעל הדף. שורת המידע (תיקייה · תאריך) קטנה, מעל השם. */
+#pageWrap { --title-h: calc(var(--doc-title-size, 26px) * 1.25 + 4px); padding-top: calc(var(--title-h) + 54px); }
+body[data-focus] #pageWrap { padding-top: calc(var(--title-h) + 70px); }
 #docTitle {
-  position: absolute; bottom: calc(100% + 10px); inset-inline-start: 6px; max-width: 58%;
+  position: absolute; bottom: calc(100% + 10px); inset-inline-start: 2px; width: fit-content; max-width: calc(100% - 4px);
   padding: 2px 8px; margin: 0; border: 0; border-radius: 8px; background: none; box-shadow: none;
   font: 600 var(--doc-title-size, 26px)/1.25 var(--font-heading, var(--font-ui)); color: var(--text); letter-spacing: -.2px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: start; cursor: text;
+  white-space: normal; overflow-wrap: anywhere; text-wrap: balance; text-align: start; cursor: text;
   transition: background .16s var(--ease), color .16s var(--ease);
 }
 :root[data-doc-title-style="strong"] #docTitle,
@@ -1805,7 +1814,7 @@ body[data-focus] #pageWrap { padding-top: calc(var(--doc-title-size, 26px) + 59p
 #docTitle:empty { display: none; }
 /* מידע ליד השם: תיקייה ותאריך יצירה, בצד השני של הדף */
 #docMeta {
-  position: absolute; bottom: calc(100% + 12px); inset-inline-end: 6px; max-width: 40%;
+  position: absolute; bottom: calc(100% + 14px + var(--title-h)); inset-inline-start: 4px; max-width: calc(100% - 8px);
   display: flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--muted); white-space: nowrap;
 }
 #docMeta[hidden] { display: none; }
@@ -1933,8 +1942,6 @@ body.pane-resizing { cursor: col-resize; user-select: none; }
 /* כשצר: התיקייה שומרת על מקום, והתאריך מתכווץ קודם */
 #docMeta .dm-folder > span { min-width: 5.5em; }
 #docMeta .dm-date { flex: 0 1 auto; min-width: 0; }
-/* המידע לוקח את כל הרוחב שהשם לא תופס (--title-w נמדד ב־renderer.js) */
-#docMeta { max-width: calc(100% - var(--title-w, 58%) - 12px); }
 
 /* ----- שורת הפעולות מעל העץ: מיקוד וכיווץ ----- */
 .tree-head { display: flex; align-items: center; gap: 2px; padding: 6px 10px 2px 8px; }
@@ -2271,8 +2278,12 @@ body[data-doc="canvas"] #pageWrap { position: relative; overflow: hidden; paddin
 .cv { --cv-edge: color-mix(in srgb, var(--text) 45%, transparent); position: relative; width: 100%; height: 100%; outline: none; color: var(--text); overflow: hidden; }
 .cv-viewport {
   position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: default;
-  background-color: var(--bg);
-  background-image: radial-gradient(circle, color-mix(in srgb, var(--text) 16%, transparent) 1px, transparent 1.2px);
+  /* 10.6: בז׳ פסטלי עם רשת כפולה: נקודה בתכלת (הצבע המודגש) כל 4 נקודות בז׳ קטנות. הגדלים ב־canvas-view.js (applyView) */
+  background-color: var(--canvas-bg);
+  background-image:
+    radial-gradient(circle, var(--canvas-dot-major) 1.3px, transparent 1.7px),
+    radial-gradient(circle, var(--canvas-dot) .8px, transparent 1px);
+  background-size: 44px 44px, 11px 11px;
 }
 .cv[data-tool="hand"] .cv-viewport, .cv.pan-ready .cv-viewport { cursor: grab; }
 .cv.panning .cv-viewport { cursor: grabbing; }
@@ -2286,7 +2297,7 @@ body[data-doc="canvas"] #pageWrap { position: relative; overflow: hidden; paddin
 .cv-edge-line { fill: none; stroke: var(--cv-edge); stroke-width: 2.5; }
 .cv-edge-hit { fill: none; stroke: transparent; stroke-width: 16; cursor: pointer; }
 .cv-edge.selected .cv-edge-line { stroke-width: 4; filter: drop-shadow(0 0 3px var(--accent)); }
-.cv-edge-label { font: 13px var(--font-ui, inherit); fill: var(--text); paint-order: stroke; stroke: var(--bg); stroke-width: 5px; cursor: pointer; }
+.cv-edge-label { font: 13px var(--font-ui, inherit); fill: var(--text); paint-order: stroke; stroke: var(--canvas-bg); stroke-width: 5px; cursor: pointer; }
 .cv-edge-draft { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 6 5; }
 .cv-node { position: absolute; box-sizing: border-box; }
 .cv-text, .cv-file, .cv-link {
@@ -2342,3 +2353,162 @@ body[data-doc="canvas"] #pageWrap { position: relative; overflow: hidden; paddin
 /* תצוגה של קנבס בחלונית השנייה (פיצול) */
 .pv-body.pv-canvas { position: relative; height: 70vh; padding: 0; }
 .pv-body.pv-canvas > div { position: absolute; inset: 0; }
+
+/* =====================================================================
+   10.6: ליטוש ממשק. הסעיף הזה בכוונה אחרון ודורס הגדרות קודמות.
+   ===================================================================== */
+
+/* ----- פסים עליונים מיושרים: ראש הסרגל הימני בגובה סרגל הכרטיסיות, ושורת "מסמך חדש" בגובה סרגל העיצוב.
+   כך שני קווי המסגרת ממשיכים ישר מצד לצד (עד 10.5 הם נשברו באמצע) ----- */
+:root { --tab-h: 40px; }
+#tabBar { height: var(--tab-h); min-height: var(--tab-h); padding: 0 8px; gap: 4px; }
+#tabBar .tab-home, #tabBar .tab-split, #tabBar .tab-navbtn { width: 28px; height: 28px; margin-bottom: 6px; border-radius: 8px; }
+.tab-nav { flex: none; display: flex; align-items: center; gap: 1px; margin-bottom: 6px; padding-inline: 2px 6px; border-inline-end: 1px solid var(--accent-line); }
+#tabBar .tab-nav .tab-navbtn { margin-bottom: 0; }
+.tab-navbtn:disabled { opacity: .3; }
+body:not([data-sidebar-mode="compact"]):has(#tabBar:not([hidden])) .side-head {
+  height: var(--tab-h); padding: 0 8px 0 6px;
+  background: color-mix(in srgb, var(--accent-tint) 45%, var(--sidebar-bg));
+}
+body:not([data-sidebar-mode="compact"]):has(#tabBar:not([hidden])) .side-head .app-logo { width: 26px; height: 26px; }
+body:not([data-sidebar-mode="compact"]):has(#tabBar:not([hidden])) .brand { font-size: 14.5px; }
+body:not([data-sidebar-mode="compact"]):has(#tabBar:not([hidden])) #vaultName { font-size: 11px; }
+body:not([data-sidebar-mode="compact"]):has(#tabBar:not([hidden])) .side-head .icon-btn { width: 28px; height: 28px; border-radius: 8px; }
+body:not([data-sidebar-mode="compact"]) .side-top {
+  height: var(--bar-h); padding: 0 10px; align-items: center; box-sizing: border-box;
+  background: var(--accent-tint); border-bottom: 1px solid var(--accent-line); margin-bottom: 10px;
+}
+
+/* ----- סרגל העיצוב: קבוצות מופרדות בקו דק במקום מסגרת לכל קבוצה (פחות רעש) ----- */
+.tb-group { background: transparent; border-color: transparent; box-shadow: none; padding: 2px 0; gap: 2px; }
+.tb-group:hover { border-color: transparent; box-shadow: none; }
+#toolbar { gap: 4px; }
+#toolbar > .tb-group + .tb-group { border-inline-start: 1px solid color-mix(in srgb, var(--accent-line) 80%, transparent); border-radius: 0; padding-inline-start: 6px; margin-inline-start: 2px; }
+#toolbar > .tb-group.tb-end { border-inline-start: 0; margin-inline-start: auto; }
+.tb-btn { border-radius: 8px; }
+
+/* ----- תנועה: רגועה ועקבית. ריחוף לא מזיז כפתורים רגילים (רק הכפתור הראשי מתרומם), לחיצה נמעכת קלות ----- */
+button:hover:not(:disabled), .tb-btn:hover:not(:disabled) { transform: none; }
+.tb-btn:hover:not(:disabled), .icon-btn:hover { box-shadow: none; }
+button.primary:hover:not(:disabled) { transform: translateY(-1px); }
+button:active:not(:disabled) { transform: scale(.97); }
+@keyframes jelly {
+  0% { transform: scale(1); } 30% { transform: scale(.985, 1.015); } 60% { transform: scale(1.01, .99); } 100% { transform: scale(1); }
+}
+/* שורה בעץ: התווית זזה מעט בריחוף עם transform (בלי לשנות ריווח, ולכן בלי ריצוד של הטקסט) */
+.node:hover { padding-inline-start: 8px; }
+.node .label { transition: transform .2s var(--ease); }
+.node:hover .label { transform: translateX(-2px); }
+:root[dir="ltr"] .node:hover .label { transform: translateX(2px); }
+/* תפריט ימני: פריט מסומן בלי קפיצה של ריווח */
+#ctx .ctx-item { transition: background-color .14s var(--ease), color .14s var(--ease); }
+/* חלונות: הרקע מתעמעם בהדרגה, החלון עולה קלות */
+@keyframes dlg-rise { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: none; } }
+dialog[open] { animation: dlg-rise .24s cubic-bezier(.2, .8, .2, 1); }
+dialog[open]::backdrop { animation: fade .24s ease; }
+.tab { transition: background-color .18s var(--ease), color .18s var(--ease), border-color .18s var(--ease), box-shadow .22s var(--ease), height .18s var(--ease); }
+
+/* ----- חלון ההגדרות ----- */
+#settings { width: min(900px, 94vw); height: min(84vh, 780px); padding: 0; overflow: hidden; }
+#settings[open] { display: flex; flex-direction: column; }
+#settings .set-head { flex: none; padding: 12px 16px 12px 20px; background: var(--panel-bg); border-bottom: 1px solid var(--border); }
+#settings .set-head h2 { font: 650 16px var(--font-heading); }
+#settings .set-body { flex: 1; height: auto; min-height: 0; grid-template-columns: 196px minmax(0, 1fr); }
+#settings .set-nav { gap: 2px; padding: 14px 10px 12px; background: color-mix(in srgb, var(--sidebar-bg) 70%, var(--panel-bg)); border-inline-end: 1px solid var(--border); }
+#settings .set-nav button { position: relative; padding: 8px 12px; border: 0; border-radius: 9px; font-size: 13.5px; color: var(--muted); }
+#settings .set-nav button svg { color: var(--faint); transition: color .16s var(--ease); }
+#settings .set-nav button:hover { background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); }
+#settings .set-nav button.on { background: var(--page-bg); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, .06), 0 0 0 1px color-mix(in srgb, var(--border) 80%, transparent); }
+#settings .set-nav button.on svg { color: var(--accent-strong); }
+#settings .set-nav button.on::before { content: ""; position: absolute; inset-inline-start: -10px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+#settings .set-nav-spacer { flex: 1; }
+#settings .set-pages { padding: 22px 26px 28px; background: color-mix(in srgb, var(--bg) 55%, var(--panel-bg)); }
+#settings .set-page { animation: rise-small .22s var(--ease); max-width: 680px; }
+#settings .set-page-head { margin: 0 0 16px; }
+#settings .set-page-head h3 { margin: 0 0 4px; font: 650 19px var(--font-heading); color: var(--text); }
+#settings .set-page-head p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+#settings .set-card { margin: 0 0 14px; padding: 4px 18px 6px; border: 1px solid color-mix(in srgb, var(--border) 85%, transparent); border-radius: 14px; background: var(--page-bg); box-shadow: 0 1px 2px rgba(40, 35, 25, .04); }
+#settings .set-card-title { margin: 14px 0 4px; font: 600 12.5px var(--font-ui); color: var(--accent-strong); letter-spacing: .1px; }
+#settings .set-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#settings .row { margin: 0; padding: 12px 0; border-radius: 0; gap: 24px; border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+#settings .row:hover { background: none; }
+#settings:focus { outline: none; }
+#settings .set-card > .row:nth-last-child(1 of :not([hidden])), #settings .set-card > .row:has(+ :not(.row)) { border-bottom: none; }
+#settings .row > label { min-width: 0; font-size: 13.5px; font-weight: 500; }
+#settings .row small { margin-top: 3px; font-size: 12px; font-weight: 400; line-height: 1.5; max-width: 44ch; }
+#settings .row-stack { flex-direction: column; align-items: stretch; gap: 8px; }
+#settings select, #settings input[type="text"] { height: 32px; min-width: 200px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg); font-size: 13px; }
+#settings .preview { margin: 4px 0 14px; padding: 12px 16px; border-radius: 10px; border: 1px dashed color-mix(in srgb, var(--border) 90%, var(--accent)); background: color-mix(in srgb, var(--bg) 35%, var(--page-bg)); }
+#settings .preview-title { padding: 6px 10px; }
+#settings .preview-title .doc-title-preview { margin: 0; }
+#settings .set-note { font-size: 12px; }
+/* בחירה מקטעים: "גלולה" אחת, האפשרות הפעילה מורמת */
+#settings .seg { gap: 2px; padding: 3px; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--text) 7%, var(--input-bg)); overflow: visible; flex-wrap: wrap; }
+#settings .seg button { padding: 5px 12px; border: 0 !important; border-radius: 7px; background: transparent; color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+#settings .seg button:hover { color: var(--text); background: color-mix(in srgb, var(--page-bg) 55%, transparent); }
+#settings .seg button.on { background: var(--page-bg); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, .1), 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent); animation: none; }
+#settings .seg button.on .theme-live { background: var(--accent-soft); color: var(--accent-strong); }
+/* מחוון: מסילה דקה וידית לבנה עם מסגרת בצבע המודגש */
+#settings input[type="range"] { -webkit-appearance: none; appearance: none; width: 170px; height: 18px; background: transparent; cursor: pointer; }
+#settings input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+#settings input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%; background: var(--page-bg); border: 2px solid var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, .18); transition: transform .18s var(--ease), box-shadow .18s var(--ease); }
+#settings input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.12); box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 18%, transparent); }
+#settings input[type="range"] + span { min-width: 3.4em !important; padding: 2px 6px; border-radius: 6px; background: color-mix(in srgb, var(--text) 6%, transparent); font: 12px Consolas, "Cascadia Mono", monospace; color: var(--muted); direction: ltr; }
+#settings input[type="checkbox"] { background: color-mix(in srgb, var(--text) 18%, var(--border)); }
+#settings input[type="checkbox"]:checked { background: var(--accent); }
+/* כפתור טקסט קטן (איפוס, החזרה לברירת מחדל) */
+#settings .set-link-btn { padding: 4px 8px; border: 0; border-radius: 7px; background: none; color: var(--accent-strong); font-size: 12.5px; box-shadow: none; }
+#settings .set-link-btn:hover { background: var(--accent-hover); }
+#settings .set-reset-all { color: var(--muted); align-self: flex-start; margin-inline-start: 4px; }
+#settings .set-reset-all:hover { color: var(--danger-ink, #b23b3b); background: color-mix(in srgb, var(--danger-ink, #b23b3b) 8%, transparent); }
+#settings .set-pending { flex: none; margin: 0; border-radius: 0; padding: 10px 20px; border-top: 1px solid var(--accent-line); }
+
+/* ----- מראה וערכות ----- */
+#settings .theme-editor { margin: 0 0 14px; padding: 4px 18px 16px; gap: 10px; border-radius: 14px; background: var(--page-bg); }
+#settings .theme-editor .set-card-title { margin-bottom: 0; }
+#settings .theme-sub { margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
+#settings .theme-target { align-self: stretch; display: grid; grid-template-columns: 1fr 1fr; }
+#settings .theme-target button { justify-content: center; padding-block: 7px; }
+#settings .theme-presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 8px; }
+#settings .theme-preset { justify-content: flex-start; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--input-bg); font-size: 12.5px; }
+#settings .theme-preset:hover { border-color: var(--accent-line); background: var(--accent-hover); }
+#settings .theme-preset.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); box-shadow: 0 0 0 1px var(--accent) inset; font-weight: 600; }
+#settings .theme-grid { grid-template-columns: minmax(0, 1fr) 240px; gap: 18px; }
+#settings .theme-colors { gap: 0; }
+#settings .theme-color { padding: 7px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
+#settings .theme-colors .theme-color:last-child { border-bottom: 0; }
+#settings .theme-color-name { min-width: 0; }
+#settings input.theme-hex, #settings input.time-input { min-width: 0; height: 28px; }
+#settings input.theme-hex { width: 6.6em; }
+#settings .theme-accents { padding-top: 2px; }
+#settings .theme-preview { border-radius: 12px; box-shadow: 0 6px 18px -8px rgba(40, 35, 25, .25); }
+#settings .theme-details { gap: 8px; padding-bottom: 12px; }
+#settings .theme-detail-group { border-radius: 10px; background: var(--input-bg); }
+#settings .theme-detail-group summary { padding: 9px 12px; font-weight: 500; }
+#settings .theme-actions { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; gap: 8px; margin: 4px 0 0; padding: 10px 12px 10px 16px; border: 1px solid var(--accent-line); border-radius: 12px; background: var(--floating-bg); box-shadow: 0 10px 28px -10px rgba(0, 0, 0, .3); animation: rise-small .22s var(--ease); }
+#settings .theme-actions[hidden] { display: none; }
+#settings .theme-dirty { flex: 1; font-size: 13px; color: var(--text); }
+
+/* ----- סרגל הכלים (בהגדרות) ----- */
+#settings .set-tb-list { margin: 4px 0 12px; }
+#settings .set-tb-card { gap: 10px; padding: 6px 8px 6px 10px; border-radius: 10px; background: var(--input-bg); transition: border-color .16s var(--ease), box-shadow .16s var(--ease); }
+#settings .set-tb-card:hover, #settings .set-tb-card:focus-within { border-color: var(--accent-line); box-shadow: 0 2px 8px -4px rgba(0, 0, 0, .15); }
+#settings .set-tb-num { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--muted); font-size: 11px; font-weight: 600; }
+#settings .set-tb-tools { opacity: 0; transition: opacity .16s var(--ease); }
+#settings .set-tb-card:hover .set-tb-tools, #settings .set-tb-card:focus-within .set-tb-tools { opacity: 1; }
+#settings .set-tb-tools .icon-btn { width: 26px; height: 26px; border-radius: 7px; }
+#settings .set-tb-gap { height: 6px; }
+#settings .set-tb-list.is-dragging .set-tb-gap { height: 12px; margin-block: 2px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 8%, transparent); }
+#settings .set-tb-list.is-dragging .set-tb-gap.drop { height: 30px; background: var(--accent-soft); outline: 1px dashed var(--accent); }
+#settings .set-tb-chip { padding: 4px 6px 4px 9px; border-radius: 8px; background: var(--page-bg); transition: border-color .14s var(--ease), box-shadow .14s var(--ease); }
+#settings .set-tb-chip:hover { border-color: var(--accent-line); box-shadow: 0 2px 6px -3px rgba(0, 0, 0, .2); }
+#settings .set-tb-chip svg { color: var(--accent-strong); }
+#settings .set-tb-chip-x { opacity: .35; transition: opacity .14s var(--ease); }
+#settings .set-tb-chip:hover .set-tb-chip-x { opacity: 1; }
+#settings .set-tb-pool { margin: 0 0 14px; padding: 8px; background: color-mix(in srgb, var(--bg) 35%, transparent); }
+#settings .set-tb-pool .set-tb-chip { opacity: 1; }
+@media (max-width: 760px) {
+  #settings .set-body { grid-template-columns: 1fr; }
+  #settings .set-nav .set-nav-spacer, #settings .set-nav button.on::before { display: none; }
+  #settings .theme-grid { grid-template-columns: 1fr; }
+}

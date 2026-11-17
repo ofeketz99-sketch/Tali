@@ -222,8 +222,12 @@ onPrefsChange(applyToolbarLayout);
 const hoverPreview = setupHoverPreview({
   resolve: resolveTarget, read: (p) => window.api.read(p), fileUrl, onOpen: openLink, isNote,
 });
+// 10.6: אחורה/קדימה עברו מסרגל העיצוב לסרגל הכרטיסיות, ליד כפתור הבית (ניווט, כמו בדפדפן)
+const navGroup = document.createElement('div');
+navGroup.className = 'tab-nav';
 // כרטיסיות ופיצול (src/tabs.js)
 const tabs = createTabs({
+  navEl: navGroup,
   $, store, noteName: (p) => noteName(p),
   getRoot: () => state.root,
   getCurrent: () => state.currentPath,
@@ -857,8 +861,12 @@ function setStatus(text) { $('status').textContent = text; }
 // ולידו (#docMeta): התיקייה (לחיצה מראה בעץ) ותאריך היצירה.
 // התאריך: מתוך ההערה (getCreatedDate), ואם אין, המוקדם מבין זמן היצירה והשינוי של הקובץ,
 // כי העתקה או סנכרון מאפסים את זמן היצירה (ואז הוא אחרי זמן השינוי).
-// הרוחב שהשם תופס, כדי שהמידע ייקח את כל השאר (חשוב בחלונית צרה בפיצול)
-const measureTitle = () => $('page').style.setProperty('--title-w', $('docTitle').offsetWidth + 'px');
+// 10.6: השם מוצג במלואו (גולש לכמה שורות), והמידע בשורה קטנה מעליו. הגובה של השם נמדד,
+// כדי ש־#pageWrap ישאיר בדיוק את המקום שהכותרת צריכה (styles.css: --title-h)
+const measureTitle = () => {
+  const h = $('docTitle').offsetHeight; // 0 כשהדף מוסתר (מסך הבית, קנבס): ברירת המחדל של ה־CSS
+  if (h) $('pageWrap').style.setProperty('--title-h', h + 'px'); else $('pageWrap').style.removeProperty('--title-h');
+};
 new ResizeObserver(measureTitle).observe($('docTitle'));
 function updateDocTitle() {
   const p = state.currentPath;
@@ -1439,13 +1447,11 @@ async function goHistory(dir) {
   } catch { setStatus('המסמך כבר לא קיים'); }
   updateNavButtons();
 }
-const navGroup = document.createElement('div');
-navGroup.className = 'tb-group tb-nav';
 const navButton = (ic, tip, dir) => {
   const b = document.createElement('button');
   b.type = 'button';
-  b.className = 'tb-btn';
-  b.innerHTML = icon(ic, 18);
+  b.className = 'icon-btn tab-navbtn';
+  b.innerHTML = icon(ic, 16);
   b.dataset.tip = tip;
   b.setAttribute('aria-label', tip);
   b.addEventListener('mousedown', (e) => e.preventDefault());
@@ -1456,7 +1462,6 @@ const navButton = (ic, tip, dir) => {
 // בממשק מימין לשמאל "אחורה" מצביע ימינה
 const navBack = navButton('arrowRight', 'אחורה (Alt+←)', -1);
 const navForward = navButton('arrowLeft', 'קדימה (Alt+→)', 1);
-$('toolbar').prepend(navGroup);
 function updateNavButtons() {
   navBack.disabled = !state.back.length;
   navForward.disabled = !state.forward.length;
