@@ -2327,6 +2327,7 @@ const COMMANDS = [
   { title: 'לוח ההקשר: מאפיינים (YAML)', run: () => docPanel.open('props'), needs: 'note' },
   { title: 'סגירת לוח ההקשר', run: () => docPanel.open(null), needs: 'note' },
   { title: 'הוספת מאפיינים', run: () => { docPanel.open('props'); editorApi.addProperties(); }, needs: 'note' },
+  { title: 'הוספת סמל מיוחד (α ∀ → ⊂)', run: () => toolbarApi.edit.symbol(), needs: 'note' },
   { title: 'ייצוא ל־PDF', run: () => exportNote('pdf'), needs: 'note' },
   { title: 'ייצוא ל־Word', run: () => exportNote('docx'), needs: 'note' },
   { title: 'החלפת תיקיית עבודה', run: pickRoot },

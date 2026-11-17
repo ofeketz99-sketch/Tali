@@ -288,6 +288,7 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
         { label: 'נוסחה בשורה  $…$', icon: 'math', run: edit.mathInline },
         { label: 'נוסחה בשורה נפרדת  $$…$$', icon: 'mathBlock', run: edit.mathBlock },
       ] },
+      { label: 'סמל מיוחד (α ∀ →)', icon: 'symbol', disabled: inCode(), run: edit.symbol },
       { label: 'תמונה', icon: 'image', run: edit.image },
       { label: 'קישור למסמך', icon: 'link', disabled: inCode(), run: edit.link },
       { label: 'ציור (נשמר כתמונה)', icon: 'draw', run: edit.drawing },

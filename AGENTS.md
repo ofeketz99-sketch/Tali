@@ -1530,7 +1530,8 @@
 ### נוסחאות (KaTeX)
 
  רגיל. מקור שלא ייקרא חזרה כנוסחה אחת (`isValidInlineTex`, למשל `a$b`) לא נשמר. לחיצה על נוסחה (`handleClickOn`) או Enter עליה פותחים עריכה עם מחיקה; `draggable: true` מאפשר גרירה של ProseMirror. גוש `$` (`rawHtmlBlock` עם `kind: 'math'`) נערך באותה חלונית (`editBlockMath`, `blockSource` שומר שורה אחת או כמה).
-- **סמלים (10.0):** `MATH_SYMBOLS` ב־`math.js` (`[מה נכנס, תצוגה]`, `|` = מקום הסמן) מוצגים בתפריט "סמלים" בחלונית; ההכנסה דרך `execCommand('insertText')` כדי ש־Ctrl+Z יעבוד. `arrowShortcut` הופך `=>`, `->`, `<=>`, `<->` שהוקלדו בתיבה לפקודות LaTeX (בלי `<-`, שהיה נתפס באמצע `<->`). מצב התפריט: `tali:math-symbols`.
+- **סמלים (10.1):** `src/symbols.js`: `SYMBOL_GROUPS` (לכל סמל `ch` לטקסט ו/או `tex` לנוסחה, `show` לתצוגה, `name` לחיפוש בעברית ובאנגלית) ו־`buildSymbolPicker({ mode: 'tex' | 'text' })` (חיפוש, לשוניות, "אחרונים" ב־`tali:recent-symbols`, הלשונית ב־`tali:symbol-tab`). בחלונית הנוסחה `mode: 'tex'`; בטקסט רגיל `openSymbolPicker` (מ־`edit.symbol`) מכניס את התו, ו־`textForContext` עוטף ב־LRM תו `Bidi_Mirrored` כשהפסקה עברית (`neutralIsRtl` מ־`smart-symbols.js`). בדיקה ב־`tests/math.test.mjs` מוודאת שכל `tex` נטען ב־KaTeX.
+- **סמלים (10.0, היסטוריה):** `MATH_SYMBOLS` ב־`math.js` (`[מה נכנס, תצוגה]`, `|` = מקום הסמן) מוצגים בתפריט "סמלים" בחלונית; ההכנסה דרך `execCommand('insertText')` כדי ש־Ctrl+Z יעבוד. `arrowShortcut` הופך `=>`, `->`, `<=>`, `<->` שהוקלדו בתיבה לפקודות LaTeX (בלי `<-`, שהיה נתפס באמצע `<->`). מצב התפריט: `tali:math-symbols`.
 - `appendTransaction` הופך טקסט `$...# Tali: מדריך לעבודה עם AI
 
 שם האפליקציה הוא **Tali**. הסמל: `build/icon.ico` (חלון וקיצור דרך), `build/icon.png` (512), `src/logo.png` (בתוך הממשק). המקור היה תמונה מהמשתמש; הרקע הלבן סביב הריבוע הוסר והפך לשקוף, ונשארו שוליים של כ־8% מכל צד (כמו באייקונים של Windows), אחרת הפינות המעוגלות נראות חתוכות.

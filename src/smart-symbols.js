@@ -11,7 +11,7 @@ const STRONG_RTL = /[֐-ࣿיִ-﷿ﹰ-﻿]/;
 const STRONG_LTR = /[A-Za-zÀ-ɏͰ-ϿЀ-ӿ]/;
 
 // הכיוון של תו ניטרלי (כמו >) במקום `at` בפסקה: לפי האות החזקה האחרונה לפניו, ואם אין, כיוון הפסקה
-function neutralIsRtl(view, $from, at) {
+export function neutralIsRtl(view, $from, at) {
   const text = $from.parent.textBetween(0, Math.max(0, at), null, ' ');
   for (let i = text.length - 1; i >= 0; i--) {
     if (STRONG_RTL.test(text[i])) return true;

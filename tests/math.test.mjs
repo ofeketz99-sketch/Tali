@@ -1,6 +1,50 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findInlineMath, mathSource, isValidInlineTex, dollarOpensEditor, blockTex, blockSource, arrowShortcut, MATH_SYMBOLS } from '../src/math.js';
+import { findInlineMath, mathSource, isValidInlineTex, dollarOpensEditor, blockTex, blockSource, arrowShortcut } from '../src/math.js';
+import { SYMBOL_GROUPS, searchSymbols, textForContext, usable } from '../src/symbols.js';
+
+test('symbol search finds by English, Hebrew, LaTeX or the character itself', () => {
+  assert.equal(searchSymbols('forall', 'text')[0].ch, '∀');
+  assert.equal(searchSymbols('לכל', 'text')[0].ch, '∀');
+  assert.equal(searchSymbols('\\subseteq', 'tex')[0].tex, '\\subseteq');
+  assert.equal(searchSymbols('⊂', 'text')[0].ch, '⊂');
+  // structures have no plain character, so text mode never offers them
+  assert.equal(searchSymbols('fraction', 'text').length, 0);
+  assert.equal(searchSymbols('fraction', 'tex')[0].tex, '\\frac{|}{}');
+});
+
+test('mirrored symbols get invisible LTR marks only inside right-to-left text', () => {
+  assert.equal(textForContext('⊂', true), '‎⊂‎');
+  assert.equal(textForContext('⊂', false), '⊂');
+  assert.equal(textForContext('α', true), 'α');
+  assert.equal(textForContext('→', true), '→');
+});
+
+test('every LaTeX command in the symbol menu really renders in KaTeX', async () => {
+  const katex = (await import('katex')).default;
+  const bad = [];
+  for (const g of SYMBOL_GROUPS) {
+    for (const s of g.items) {
+      if (!s.tex) continue;
+      const tex = (s.show || s.tex.replace('|', 'x'));
+      try { katex.renderToString(tex, { throwOnError: true, strict: 'ignore' }); } catch (e) { bad.push(`${g.id}: ${tex} (${e.message.split('\n')[0]})`); }
+    }
+  }
+  assert.deepEqual(bad, []);
+});
+
+test('every symbol has a usable form and LaTeX commands are clean', () => {
+  for (const g of SYMBOL_GROUPS) {
+    assert.ok(g.items.length, g.id);
+    for (const s of g.items) {
+      assert.ok(usable(s, 'tex') || usable(s, 'text'), s.name);
+      if (s.tex) {
+        assert.ok(s.tex.split('|').length <= 2, s.tex);
+        assert.ok(!/[\r\n\t]/.test(s.tex), JSON.stringify(s.tex));
+      }
+    }
+  }
+});
 
 test('typed arrows become LaTeX arrows, longest first', () => {
   assert.deepEqual(arrowShortcut('NH_4^+ + OH^- =>'), { length: 2, tex: '\\Rightarrow ' });
@@ -11,14 +55,6 @@ test('typed arrows become LaTeX arrows, longest first', () => {
   assert.equal(arrowShortcut('a >='), null);
 });
 
-test('every symbol in the menu is a real LaTeX command with at most one caret mark', () => {
-  for (const [, items] of MATH_SYMBOLS) {
-    for (const [insert] of items) {
-      assert.ok(insert.split('|').length <= 2, insert);
-      assert.ok(!/[\r\n\t]/.test(insert), JSON.stringify(insert));
-    }
-  }
-});
 
 test('finds LaTeX source without changing its logical order', () => {
   const [formula] = findInlineMath('עברית $10^{-1}=0.1$ המשך');

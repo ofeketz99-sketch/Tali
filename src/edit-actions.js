@@ -5,6 +5,8 @@ import { openTableGrid } from './table.js';
 import { FOLLOW_UP, isFollowUpHeading } from '../vault-data.js';
 import { LIST_TYPES } from './list-direction.js';
 import { insertMath } from './math.js';
+import { openSymbolPicker } from './symbols.js';
+import { neutralIsRtl } from './smart-symbols.js';
 
 export function createEditActions(editor, hooks = {}) {
   const chain = () => editor.chain().focus();
@@ -84,6 +86,10 @@ export function createEditActions(editor, hooks = {}) {
     mathInline() { insertMath(editor.view); },
     // נוסחה בשורה נפרדת: בפסקה ריקה גוש $$ אמיתי, ואחרת נוסחה מרכזית בתוך השורה ($$...$$)
     mathBlock() { insertMath(editor.view, { preferBlock: true }); },
+    // סמל מיוחד בטקסט רגיל (10.1): התו עצמו (α ∀ ⊂), לא LaTeX. בפסקה עברית תו שמשתקף נעטף ב־LRM.
+    symbol() {
+      openSymbolPicker(editor.view, { isRtlAt: (view, pos) => { const $p = view.state.doc.resolve(pos); return neutralIsRtl(view, $p, $p.parentOffset); } });
+    },
     // קישור למסמך: עם טקסט מסומן, הוא הופך ל־[[קישור]]. בלי, נכנס [[ וההשלמה האוטומטית נפתחת.
     link() {
       const text = selectedText().trim();

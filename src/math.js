@@ -8,6 +8,7 @@ import katex from 'katex';
 import { Node, Extension } from '@tiptap/core';
 import { Plugin, PluginKey, NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { icon } from './icons.js';
+import { buildSymbolPicker } from './symbols.js';
 
 const cache = new Map();
 export function renderMath(tex, displayMode) {
@@ -75,28 +76,7 @@ export function blockSource(tex, previous = '$$\n\n$$') {
   return multiline ? `$$\n${String(tex).trim()}\n$$` : `$$${String(tex).trim()}$$`;
 }
 
-// ===== סמלים בחלונית (10.0) =====
-// [מה נכנס, תצוגה בתפריט]. | הוא מקום הסמן אחרי ההוספה. כולם LaTeX רגיל, ולכן מוצגים גם באובסידיאן.
-export const MATH_SYMBOLS = [
-  ['חצים', [
-    ['\\rightarrow'], ['\\Rightarrow'], ['\\longrightarrow'], ['\\leftarrow'], ['\\Leftarrow'],
-    ['\\leftrightarrow'], ['\\Leftrightarrow'], ['\\rightleftharpoons'], ['\\xrightarrow{|}', '\\xrightarrow{\\Delta}'],
-    ['\\uparrow'], ['\\downarrow'], ['\\mapsto'],
-  ]],
-  ['יחסים ופעולות', [
-    ['\\le'], ['\\ge'], ['\\ne'], ['\\approx'], ['\\equiv'], ['\\sim'], ['\\propto'], ['\\pm'],
-    ['\\cdot'], ['\\times'], ['\\div'], ['\\infty'], ['^{\\circ}', 'x^{\\circ}'], ['\\partial'], ['\\nabla'], ['\\in'],
-  ]],
-  ['אותיות יווניות', [
-    ['\\alpha'], ['\\beta'], ['\\gamma'], ['\\delta'], ['\\Delta'], ['\\epsilon'], ['\\theta'], ['\\lambda'],
-    ['\\mu'], ['\\pi'], ['\\rho'], ['\\sigma'], ['\\Sigma'], ['\\phi'], ['\\omega'], ['\\Omega'],
-  ]],
-  ['מבנים', [
-    ['\\frac{|}{}', '\\frac{a}{b}'], ['^{|}', 'x^{n}'], ['_{|}', 'x_{i}'], ['\\sqrt{|}', '\\sqrt{x}'],
-    ['\\sum_{|}^{}', '\\sum_{i}^{n}'], ['\\int_{|}^{}', '\\int_{a}^{b}'], ['\\lim_{|}', '\\lim_{x\\to 0}'],
-    ['\\vec{|}', '\\vec{v}'], ['\\overline{|}', '\\overline{x}'], ['\\text{|}', '\\text{abc}'],
-  ]],
-];
+// ===== סמלים בחלונית: הרשימה והרכיב ב־symbols.js (10.1) =====
 
 // חיצים שמוקלדים בתיבה הופכים לחץ של LaTeX: => הוא ⇒, -> הוא →. הארוך קודם (<=> לפני =>).
 // אין <- בכוונה: הוא היה נתפס באמצע ההקלדה של <->.
@@ -169,26 +149,9 @@ export function openMathEditor({ rect, tex = '', display = false, isNew = true, 
   const ok = el.querySelector('.mp-ok');
   const symPanel = el.querySelector('.mp-symbols');
   const symToggle = el.querySelector('.mp-sym-toggle');
-  for (const [title, items] of MATH_SYMBOLS) {
-    const head = document.createElement('div');
-    head.className = 'mp-sym-head';
-    head.textContent = title;
-    const grid = document.createElement('div');
-    grid.className = 'mp-sym-grid';
-    for (const [insert, shown] of items) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'mp-sym';
-      b.dir = 'ltr';
-      b.innerHTML = renderMath(shown || insert.replace('|', ''), false) || insert;
-      b.dataset.tip = insert.replace('|', '');
-      // mousedown בלי ברירת מחדל: הסמן בתיבה לא זז ולא מאבד פוקוס
-      b.addEventListener('mousedown', (e) => e.preventDefault());
-      b.addEventListener('click', () => { insertAtCaret(input, insert); refresh(); });
-      grid.append(b);
-    }
-    symPanel.append(head, grid);
-  }
+  // 10.1: אותו רכיב סמלים כמו בטקסט רגיל (symbols.js), במצב LaTeX: לשוניות לפי נושא וחיפוש
+  const picker = buildSymbolPicker({ mode: 'tex', onPick: (s) => { insertAtCaret(input, s.tex); refresh(); } });
+  symPanel.append(picker.el);
   const setSymbols = (open) => {
     symbolsOpen = open;
     symPanel.hidden = !open;

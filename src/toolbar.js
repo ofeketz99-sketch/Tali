@@ -183,6 +183,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
         ['image', 'תמונה', ed.image],
         ['math', 'נוסחה בשורה', ed.mathInline],
         ['mathBlock', 'נוסחה בשורה נפרדת', ed.mathBlock],
+        ['symbol', 'סמל מיוחד (α ∀ →)', ed.symbol],
         ['link', 'קישור למסמך', ed.link],
         ['draw', 'ציור (נשמר כתמונה)', ed.drawing],
         ['quote', 'מסגרת סביב טקסט', ed.textBox],
@@ -216,6 +217,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
   button(gQuick, { html: icon('image'), tip: 'תמונה מקובץ', run: () => ed.image() });
   button(gQuick, { html: icon('link'), tip: 'קישור למסמך', run: () => ed.link() });
   button(gQuick, { html: icon('math'), tip: 'נוסחה', run: () => ed.mathInline() });
+  button(gQuick, { html: icon('symbol'), tip: 'סמל מיוחד בטקסט (α ∀ → ⊂)', run: () => ed.symbol() });
   button(gQuick, { html: icon('taskSection'), tip: 'משימות להמשך', run: () => ed.taskSection() });
   button(gQuick, { html: icon('rule'), tip: 'קו מפריד', run: () => ed.rule() });
 

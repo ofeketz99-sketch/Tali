@@ -1442,15 +1442,44 @@ body[data-sidebar-mode="compact"] .side-top #btnNote {
   border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg);
 }
 .math-pop .mp-symbols[hidden] { display: none; }
-.math-pop .mp-sym-head { font-size: 11px; font-weight: 600; color: var(--muted); margin: 6px 2px 4px; }
-.math-pop .mp-sym-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 3px; direction: ltr; }
-.math-pop .mp-sym-grid .mp-sym {
-  height: 32px; padding: 0 2px; border-radius: 6px; border-color: transparent; background: none;
-  display: flex; align-items: center; justify-content: center; overflow: hidden;
+.math-pop .mp-symbols { max-height: none; overflow: visible; }
+
+/* 10.1: בוחר הסמלים (symbols.js), משותף לחלונית הנוסחה ולטקסט רגיל */
+.sym-picker { display: flex; flex-direction: column; gap: 6px; }
+.sym-picker .sym-search {
+  width: 100%; box-sizing: border-box; padding: 5px 9px; font: inherit; font-size: 12.5px;
+  border: 1px solid var(--border); border-radius: 7px; background: var(--input-bg); color: var(--text); outline: none;
 }
-.math-pop .mp-sym-grid .mp-sym:hover { background: var(--accent-hover); border-color: var(--accent-line); }
-.math-pop .mp-sym { color: var(--text); font-size: 15px; }
-.math-pop .mp-sym .katex { font-size: 1.2em; color: var(--text); }
+.sym-picker .sym-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.sym-picker .sym-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.sym-picker .sym-tabs[hidden] { display: none; }
+.sym-picker button.sym-tab {
+  font: inherit; font-size: 11.5px; padding: 2px 9px; border-radius: 999px; line-height: 1.6;
+  border: 1px solid var(--border); background: var(--panel-bg); color: var(--muted); cursor: pointer;
+}
+.sym-picker button.sym-tab:hover { background: var(--accent-hover); color: var(--text); }
+.sym-picker button.sym-tab.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-strong); font-weight: 600; }
+.sym-picker .sym-grid-wrap { max-height: 196px; overflow-y: auto; }
+.sym-picker .sym-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 3px; direction: ltr; }
+.sym-picker button.sym-cell {
+  height: 34px; padding: 0 2px; border-radius: 6px; border: 1px solid transparent; background: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  color: var(--text); font-size: 17px; font-family: "Cambria Math", "Segoe UI Symbol", var(--font-doc);
+}
+.sym-picker button.sym-cell:hover { background: var(--accent-hover); border-color: var(--accent-line); }
+.sym-picker.sym-tex button.sym-cell { font-size: 15px; }
+.sym-picker .sym-cell .katex { font-size: 1.15em; color: var(--text); }
+.sym-picker .sym-empty { padding: 14px; text-align: center; color: var(--faint); font-size: 12px; }
+
+/* בחירת סמל לטקסט רגיל: חלונית ליד הסמן */
+.sym-pop {
+  position: fixed; z-index: 1200; width: min(400px, calc(100vw - 16px)); box-sizing: border-box;
+  padding: 9px 11px 11px; border: 1px solid var(--floating-border); border-radius: 12px;
+  background: var(--floating-bg); color: var(--text); box-shadow: var(--shadow); font-family: var(--font-ui); font-size: 13px;
+  animation: rise-small .14s var(--ease);
+}
+.sym-pop .sym-pop-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-weight: 600; margin-bottom: 7px; }
+.sym-pop .sym-pop-hint { font-size: 10.5px; font-weight: 400; color: var(--faint); }
 .math-pop .mp-hint kbd { direction: ltr; unicode-bidi: isolate; font-family: inherit; font-size: 10.5px; padding: 0 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--muted); }
 .math-pop .mp-actions { display: flex; gap: 6px; margin-top: 10px; }
 .math-pop button {
