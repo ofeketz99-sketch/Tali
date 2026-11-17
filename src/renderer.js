@@ -19,7 +19,7 @@ import { createPageOverlay } from './page-overlay.js';
 import { icon, lucide } from './icons.js';
 import { setupHoverPreview } from './hover-preview.js';
 import { openGraph, openGhosts, openTags, openTasks, openRecent } from './vault-views.js';
-import { exportHtml, EXPORT_CSS } from './export.js';
+import { exportHtml, collectFloats, EXPORT_CSS } from './export.js';
 import { buildDocx } from './export-docx.js';
 import { openHeaderConvert } from './header-convert.js';
 import { createTabs } from './tabs.js';
@@ -322,16 +322,18 @@ async function goHome({ history = true } = {}) {
 }
 // 8.3: תצוגה מיידית של תמונה מודבקת, עוד לפני שנשמרה לקובץ: src בשכבה ← כתובת blob: של התוכן שבזיכרון
 const previewUrls = new Map();
+// 7.8: תמונה חופשית. ![[...]] נפתרת כמו בעורך; ![](נתיב) יחסית להערה ואז לתיקייה הראשית
+function overlayImageUrls(o) {
+  if (o.ref === 'md') return localSrc(o.src);
+  const p = resolveTarget(o.src);
+  // 8.3: תמונה שהודבקה עכשיו: קודם מהזיכרון (מיידי, גם לפני שהקובץ נשמר), ואז מהקובץ
+  const pre = previewUrls.get(o.src);
+  return [pre, p && fileUrl(p)].filter(Boolean);
+}
 const pageOverlay = createPageOverlay({
   page: $('page'), onChange: noteChanged,
   // 7.8: תמונה חופשית. ![[...]] נפתרת כמו בעורך; ![](נתיב) יחסית להערה ואז לתיקייה הראשית
-  resolveImage: (o) => {
-    if (o.ref === 'md') return localSrc(o.src);
-    const p = resolveTarget(o.src);
-    // 8.3: תמונה שהודבקה עכשיו: קודם מהזיכרון (מיידי, גם לפני שהקובץ נשמר), ואז מהקובץ
-    const pre = previewUrls.get(o.src);
-    return [pre, p && fileUrl(p)].filter(Boolean);
-  },
+  resolveImage: (o) => overlayImageUrls(o),
   // 8.3: לחיצה על הטקסט בכלי הבחירה מחזירה לכתיבה בדיוק בנקודה שנלחצה
   onTextClick: (x, y) => {
     const view = editorApi.editor.view;
@@ -1678,12 +1680,18 @@ async function exportNote(format, node = currentNode()) {
     if (editorApi.isRaw()) editorApi.toggleRaw();
     await flushSave();
     setStatus(format === 'pdf' ? 'מייצא ל־PDF…' : 'מייצא ל־Word…');
-    const html = exportHtml($('editor').querySelector('.ProseMirror'));
+    // 9.9: גם שכבת הדף: תמונות חופשיות (כך נכנסות תמונות שהודבקו), שרטוטים, תיבות טקסט והערות
+    const pm = $('editor').querySelector('.ProseMirror');
+    const floats = await collectFloats({
+      proseMirrorElement: pm, pageElement: $('page'), items: pageOverlay.getItems(), toScreen: pageOverlay.toScreen,
+      resolveImage: overlayImageUrls, shapes: pageOverlay.exportShapes(),
+    });
+    const html = exportHtml(pm, floats);
     let out;
     if (format === 'docx') {
       // הקובץ נבנה כאן (צריך DOM), אחרי שהתמונות הוטמעו ב־main
       const withImages = await window.api.inlineImages(html);
-      const bytes = await buildDocx({ title: noteName(state.currentPath), html: withImages, rtlDefault: getPrefs().textDir !== 'ltr' });
+      const bytes = await buildDocx({ title: noteName(state.currentPath), html: withImages, rtlDefault: getPrefs().textDir !== 'ltr', fetchImage: (u) => window.api.fetchImage(u) });
       out = await window.api.exportNote('docx', noteName(state.currentPath), bytes);
     } else out = await window.api.exportNote(format, noteName(state.currentPath), html, EXPORT_CSS);
     if (!out) { setStatus('הייצוא בוטל'); return; }

@@ -51,7 +51,8 @@ export const WordTable = Table.extend({
             row.forEach((cell, _p, j) => {
               if (j) state.write(' | ');
               const p = cell.firstChild;
-              if (p && p.textContent.trim()) state.renderInline(p);
+              // גם תא שיש בו רק נוסחה או תמונה (צמתים בלי טקסט)
+              if (p && (p.textContent.trim() || p.content.content.some((n) => !n.isText && n.type.name !== 'hardBreak'))) state.renderInline(p);
             });
             state.write(' |');
             state.ensureNewLine();

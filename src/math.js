@@ -1,9 +1,12 @@
-// נוסחאות LaTeX בתצוגה בלבד (KaTeX). הקובץ לא משתנה: $...$ נשאר טקסט, ו־$$...$$ גוש גולמי.
-// נוסחה בשורה מוצגת מעובדת כשהסמן מחוץ לה, וכטקסט המקורי כשהסמן בתוכה (כמו באובסידיאן).
+// נוסחאות LaTeX (KaTeX). מ־9.9 נוסחה בתוך שורה היא אובייקט אטומי בעורך (mathInline), ולא טקסט:
+// - בקובץ היא נשארת $...$ (או $$...$$ בתוך שורה), כמו באובסידיאן. הקריאה והכתיבה ב־obsidian-md.js.
+// - הקלדת $ פותחת חלונית עם תיבת LTR לכתיבת המקור, עם תצוגה מקדימה. כך אין יותר ערבוב כיוונים
+//   של מקור LaTeX בתוך פסקה בעברית.
+// - לחיצה על נוסחה פותחת את החלונית לעריכה (עם מחיקה); גרירה מזיזה אותה; Backspace/Delete מוחקים.
+// - טקסט $...$ שנכנס בדרך אחרת (הדבקה, הקלדה ידנית אחרי $ רגיל) הופך לאובייקט אוטומטית.
 import katex from 'katex';
-import { Extension } from '@tiptap/core';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
-import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { Node, Extension } from '@tiptap/core';
+import { Plugin, PluginKey, NodeSelection, TextSelection } from '@tiptap/pm/state';
 
 const cache = new Map();
 export function renderMath(tex, displayMode) {
@@ -40,71 +43,342 @@ export function findInlineMath(text) {
   return out;
 }
 
-// מקור הנוסחה חייב להישאר יחידת LTR גם בתוך פסקה עברית. בלי מעטפת כזו
-// אלגוריתם ה־bidi מסדר מחדש $, חזקות וסימנים בזמן העריכה, אף שהטקסט השמור תקין.
-export function mathSourceAttrs(editing, display = false) {
-  return {
-    class: ['math-src', editing && 'math-src-editing', display && 'math-src-display'].filter(Boolean).join(' '),
-    dir: 'ltr',
-    spellcheck: 'false',
-    autocapitalize: 'off',
-    translate: 'no',
-    'data-math-source': editing ? 'editing' : 'hidden',
+// המקור כפי שייכתב לקובץ. נוסחה בשורה לא יכולה להתחיל או להיגמר ברווח (אחרת היא לא תיקרא חזרה כנוסחה).
+export function mathSource(tex, display) {
+  const t = String(tex || '').trim();
+  return display ? `$$${t}$$` : `$${t}$`;
+}
+// האם הנוסחה תיקרא חזרה מהקובץ כנוסחה אחת בדיוק (למשל לא $ בודד בלי \ בתוכה)
+export function isValidInlineTex(tex, display) {
+  const t = String(tex || '').trim();
+  if (!t) return false;
+  const src = mathSource(t, display);
+  const found = findInlineMath(src);
+  return found.length === 1 && found[0].from === 0 && found[0].to === src.length;
+}
+
+// האם הקלדת $ בנקודה הזו פותחת נוסחה חדשה: לא אחרי \, ולא כשכבר יש $ פתוח לפני הסמן
+// (מי שמקליד את הנוסחה ביד, כמו באובסידיאן, סוגר אותה בעצמו).
+export function dollarOpensEditor(textBefore) {
+  if (textBefore.endsWith('\\')) return false;
+  const open = (textBefore.match(/(^|[^\\])\$/g) || []).length;
+  return open % 2 === 0;
+}
+
+// גוש $$ על כמה שורות (rawHtmlBlock): המקור בלי הסימנים, ובנייה חזרה באותה צורה
+export function blockTex(html) {
+  return String(html || '').replace(/^\s*\$\$/, '').replace(/\$\$\s*$/, '').replace(/^\n|\n$/g, '');
+}
+export function blockSource(tex, previous = '$$\n\n$$') {
+  const multiline = /^\s*\$\$\s*\n/.test(previous) || String(tex).includes('\n');
+  return multiline ? `$$\n${String(tex).trim()}\n$$` : `$$${String(tex).trim()}$$`;
+}
+
+// ===== החלונית =====
+let pop = null;
+export function closeMathEditor(commit = false) {
+  if (!pop) return;
+  const p = pop;
+  pop = null;
+  if (commit) p.save(); else p.cancel?.();
+  p.el.remove();
+  document.removeEventListener('pointerdown', p.outside, true);
+  window.removeEventListener('resize', p.place);
+}
+export const isMathEditorOpen = () => !!pop;
+
+// rect: איפה להציג (מתחת). tex, display: ערכים התחלתיים. isNew: הוספה (אחרת עריכה, עם מחיקה).
+// allowDisplay: להציג את "בשורה נפרדת". onSave({tex, display}), onDelete(), onCancel(), onLiteral()
+export function openMathEditor({ rect, tex = '', display = false, isNew = true, allowDisplay = true, onSave, onDelete, onCancel, onLiteral }) {
+  closeMathEditor(false);
+  const el = document.createElement('div');
+  el.className = 'math-pop';
+  el.dir = 'rtl';
+  el.innerHTML = `
+    <div class="mp-head"><span>${isNew ? 'נוסחה חדשה' : 'עריכת נוסחה'}</span><span class="mp-tag" dir="ltr">LaTeX</span></div>
+    <textarea class="mp-input" dir="ltr" spellcheck="false" autocapitalize="off" autocomplete="off" rows="2" placeholder="x^2 + y^2 = r^2"></textarea>
+    <div class="mp-preview" dir="ltr"></div>
+    <div class="mp-row">
+      <label class="mp-display"><input type="checkbox"> בשורה נפרדת</label>
+      <span class="mp-hint"><kbd>Enter</kbd> ל${isNew ? 'הוספה' : 'שמירה'} · <kbd>Shift+Enter</kbd> לשורה חדשה · <kbd>Esc</kbd> לביטול${isNew ? ' · <kbd>$</kbd> בתיבה ריקה: סימן $ רגיל' : ''}</span>
+    </div>
+    <div class="mp-actions">
+      <button type="button" class="mp-ok">${isNew ? 'הוספה' : 'שמירה'}</button>
+      ${isNew ? '' : '<button type="button" class="mp-del">מחיקה</button>'}
+      <button type="button" class="mp-cancel">ביטול</button>
+    </div>`;
+  const input = el.querySelector('.mp-input');
+  const preview = el.querySelector('.mp-preview');
+  const check = el.querySelector('.mp-display input');
+  const ok = el.querySelector('.mp-ok');
+  input.value = tex;
+  check.checked = !!display;
+  if (!allowDisplay) el.querySelector('.mp-display').hidden = true;
+
+  const fit = () => { input.style.height = 'auto'; input.style.height = Math.min(220, input.scrollHeight + 2) + 'px'; };
+  const refresh = () => {
+    const t = input.value.trim();
+    const html = t ? renderMath(t, check.checked || !allowDisplay) : '';
+    preview.innerHTML = html || '';
+    preview.classList.toggle('empty', !t);
+    if (!t) preview.textContent = 'התצוגה המקדימה תופיע כאן';
+    const valid = !t || !allowDisplay || isValidInlineTex(t, check.checked);
+    ok.disabled = !t || !valid;
+    el.classList.toggle('invalid', !valid);
+    fit();
   };
+  const p = {
+    el,
+    save: () => {
+      const t = input.value.trim();
+      if (t && (!allowDisplay || isValidInlineTex(t, check.checked))) onSave?.({ tex: t, display: check.checked });
+      else onCancel?.();
+    },
+    cancel: onCancel,
+    outside: (e) => { if (!el.contains(e.target)) closeMathEditor(false); },
+    place: () => {
+      const w = el.offsetWidth, h = el.offsetHeight;
+      let top = rect.bottom + 8;
+      if (top + h > window.innerHeight - 8) top = Math.max(8, rect.top - h - 8);
+      const mid = (rect.left + rect.right) / 2;
+      el.style.top = Math.round(top) + 'px';
+      el.style.left = Math.round(Math.max(8, Math.min(mid - w / 2, window.innerWidth - w - 8))) + 'px';
+    },
+  };
+  pop = p;
+  input.addEventListener('input', () => {
+    // $ כשהתיבה ריקה: המשתמש רצה סימן $ רגיל (מחיר, למשל). לפי input ולא keydown, כדי שיעבוד בכל פריסת מקלדת.
+    if (isNew && onLiteral && input.value === '$') {
+      p.cancel = null;
+      closeMathEditor(false);
+      onLiteral();
+      return;
+    }
+    refresh();
+  });
+  check.addEventListener('change', refresh);
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Escape') { e.preventDefault(); closeMathEditor(false); return; }
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!ok.disabled) closeMathEditor(true); }
+  });
+  ok.addEventListener('click', () => closeMathEditor(true));
+  el.querySelector('.mp-cancel').addEventListener('click', () => closeMathEditor(false));
+  el.querySelector('.mp-del')?.addEventListener('click', () => { p.cancel = null; closeMathEditor(false); onDelete?.(); });
+  document.body.append(el);
+  refresh();
+  p.place();
+  window.addEventListener('resize', p.place);
+  // אחרי ה־pointerdown שפתח את החלונית
+  setTimeout(() => { if (pop === p) document.addEventListener('pointerdown', p.outside, true); }, 0);
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+  return el;
+}
+
+// מיקום להצגת החלונית: מתחת לנוסחה, או מתחת לסמן
+function rectAt(view, pos) {
+  const dom = view.nodeDOM(pos);
+  if (dom instanceof HTMLElement) return dom.getBoundingClientRect();
+  const c = view.coordsAtPos(pos);
+  return { left: c.left, right: c.right, top: c.top, bottom: c.bottom };
+}
+const back = (view) => setTimeout(() => view.focus(), 0);
+
+// עריכת נוסחה קיימת בשורה (pos: המיקום של הצומת)
+export function editInlineMath(view, pos) {
+  const node = view.state.doc.nodeAt(pos);
+  if (!node || node.type.name !== 'mathInline') return false;
+  view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos)));
+  openMathEditor({
+    rect: rectAt(view, pos), tex: node.attrs.tex, display: node.attrs.display, isNew: false,
+    onSave: ({ tex, display }) => {
+      const cur = view.state.doc.nodeAt(pos);
+      if (cur?.type.name === 'mathInline') view.dispatch(view.state.tr.setNodeMarkup(pos, null, { ...cur.attrs, tex, display }));
+      back(view);
+    },
+    onDelete: () => {
+      const cur = view.state.doc.nodeAt(pos);
+      if (cur?.type.name === 'mathInline') view.dispatch(view.state.tr.delete(pos, pos + cur.nodeSize));
+      back(view);
+    },
+    onCancel: () => back(view),
+  });
+  return true;
+}
+
+// עריכת גוש $$ על כמה שורות (rawHtmlBlock עם kind=math)
+export function editBlockMath(view, pos) {
+  const node = view.state.doc.nodeAt(pos);
+  if (!node || node.type.name !== 'rawHtmlBlock' || node.attrs.kind !== 'math') return false;
+  view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos)));
+  openMathEditor({
+    rect: rectAt(view, pos), tex: blockTex(node.attrs.html), display: true, isNew: false, allowDisplay: false,
+    onSave: ({ tex }) => {
+      const cur = view.state.doc.nodeAt(pos);
+      if (cur) view.dispatch(view.state.tr.setNodeMarkup(pos, null, { ...cur.attrs, html: blockSource(tex, cur.attrs.html) }));
+      back(view);
+    },
+    onDelete: () => {
+      const cur = view.state.doc.nodeAt(pos);
+      if (cur) view.dispatch(view.state.tr.delete(pos, pos + cur.nodeSize));
+      back(view);
+    },
+    onCancel: () => back(view),
+  });
+  return true;
+}
+
+// הוספת נוסחה חדשה בסמן (מ־$, מהסרגל או מהתפריט). preferBlock: "נוסחה בשורה נפרדת"
+export function insertMath(view, { preferBlock = false, literalDollar = false } = {}) {
+  const { state } = view;
+  const { from, to, empty } = state.selection;
+  const initial = empty ? '' : state.doc.textBetween(from, to, ' ').trim();
+  const type = state.schema.nodes.mathInline;
+  if (!type) return false;
+  openMathEditor({
+    rect: rectAt(view, from), tex: initial, display: preferBlock, isNew: true,
+    onSave: ({ tex, display }) => {
+      let tr = view.state.tr;
+      const $from = tr.doc.resolve(from);
+      const block = view.state.schema.nodes.rawHtmlBlock;
+      // בשורה נפרדת בפסקה ריקה: גוש $$ אמיתי, כמו באובסידיאן
+      if (display && block && $from.parent.type.name === 'paragraph' && $from.parent.content.size === 0 && from === to) {
+        const node = block.create({ html: blockSource(tex), kind: 'math' });
+        tr = tr.replaceWith($from.before(), $from.after(), node);
+        const after = $from.before() + node.nodeSize;
+        if (after >= tr.doc.content.size) tr = tr.insert(after, view.state.schema.nodes.paragraph.create());
+        tr = tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(after + 1, tr.doc.content.size))));
+      } else {
+        const node = type.create({ tex, display });
+        tr = tr.replaceWith(from, to, node);
+        tr = tr.setSelection(TextSelection.create(tr.doc, from + node.nodeSize));
+      }
+      view.dispatch(tr.scrollIntoView());
+      back(view);
+    },
+    onLiteral: literalDollar ? () => { view.dispatch(view.state.tr.insertText('$', from, to)); back(view); } : null,
+    onCancel: () => back(view),
+  });
+  return true;
+}
+
+// ===== הצומת =====
+export const MathInline = Node.create({
+  name: 'mathInline',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: true,
+  draggable: true,
+  addAttributes() {
+    return {
+      tex: { default: '', parseHTML: (el) => el.getAttribute('data-tex') || '' },
+      display: { default: false, parseHTML: (el) => el.getAttribute('data-display') === '1' },
+    };
+  },
+  parseHTML() { return [{ tag: 'span[data-math]' }]; },
+  // בהעתקה: גם המקור כטקסט, כך שהדבקה לאפליקציה אחרת נותנת $...$
+  renderHTML({ node }) {
+    return ['span', { 'data-math': '', 'data-tex': node.attrs.tex, 'data-display': node.attrs.display ? '1' : null }, mathSource(node.attrs.tex, node.attrs.display)];
+  },
+  renderText({ node }) { return mathSource(node.attrs.tex, node.attrs.display); },
+  addNodeView() {
+    return ({ node: initial }) => {
+      const dom = document.createElement('span');
+      let current = null;
+      const draw = (node) => {
+        current = node;
+        dom.className = 'math-inline' + (node.attrs.display ? ' math-display-inline' : '');
+        dom.dir = 'ltr';
+        const html = renderMath(node.attrs.tex, node.attrs.display);
+        if (html) dom.innerHTML = html; else dom.textContent = mathSource(node.attrs.tex, node.attrs.display);
+        dom.dataset.tip = 'לחיצה לעריכה · גרירה להזזה';
+      };
+      draw(initial);
+      return {
+        dom,
+        update: (node) => {
+          if (node.type.name !== 'mathInline') return false;
+          if (node.attrs.tex !== current.attrs.tex || node.attrs.display !== current.attrs.display) draw(node);
+          return true;
+        },
+        ignoreMutation: () => true,
+      };
+    };
+  },
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state, node) { state.write(mathSource(node.attrs.tex, node.attrs.display)); },
+        parse: {},
+      },
+    };
+  },
+});
+
+// טקסט $...$ שלם במסמך (הדבקה, או מי שהקליד $ רגיל וסגר ביד) הופך לצומת.
+// לא בקוד, ולא כשהסמן בתוך הנוסחה עצמה (באמצע הקלדה).
+function convertTextFormulas(state) {
+  const type = state.schema.nodes.mathInline;
+  if (!type) return null;
+  const found = [];
+  const { from: selFrom, to: selTo } = state.selection;
+  state.doc.descendants((node, pos, parent) => {
+    if (node.type.spec.code) return false;
+    if (!node.isText || !node.text.includes('$')) return;
+    if (parent?.type.spec.code || node.marks.some((m) => m.type.spec.code)) return;
+    for (const m of findInlineMath(node.text)) {
+      const from = pos + m.from, to = pos + m.to;
+      if ((selFrom > from && selFrom < to) || (selTo > from && selTo < to)) continue;
+      if (!m.tex.trim()) continue;
+      found.push({ from, to, tex: m.tex, display: m.display, marks: node.marks });
+    }
+  });
+  if (!found.length) return null;
+  const tr = state.tr;
+  for (const f of found.reverse()) tr.replaceWith(f.from, f.to, type.create({ tex: f.tex, display: f.display }, null, f.marks));
+  return tr;
 }
 
 const key = new PluginKey('taliMath');
-function build(doc, selection) {
-  const decos = [];
-  doc.descendants((node, pos, parent) => {
-    if (parent?.type.spec.code) return false;
-    if (!node.isText || !node.text.includes('$')) return;
-    if (node.marks.some((m) => m.type.spec.code)) return;
-    for (const m of findInlineMath(node.text)) {
-      const from = pos + m.from, to = pos + m.to;
-      const editing = selection.from <= to && selection.to >= from;
-      // גם כשהמקור גלוי עוטפים אותו ב־span מבודד. כך סדר התווים והסמן נשארים LTR.
-      if (editing) {
-        decos.push(Decoration.inline(from, to, mathSourceAttrs(true, m.display)));
-        continue;
-      }
-      const html = renderMath(m.tex, m.display);
-      if (!html) continue;
-      decos.push(Decoration.inline(from, to, mathSourceAttrs(false, m.display)));
-      decos.push(Decoration.widget(from, () => {
-        const span = document.createElement('span');
-        span.className = 'math-inline' + (m.display ? ' math-display-inline' : '');
-        span.innerHTML = html;
-        span.dataset.tip = 'לחיצה לעריכת הנוסחה';
-        return span;
-      }, { side: -1, key: `${from}:${m.tex}`, ignoreSelection: true }));
-    }
-  });
-  return DecorationSet.create(doc, decos);
-}
-
-export const MathPreview = Extension.create({
-  name: 'mathPreview',
+export const MathEditing = Extension.create({
+  name: 'mathEditing',
+  addKeyboardShortcuts() {
+    return {
+      // Enter על נוסחה מסומנת: עריכה
+      Enter: ({ editor }) => {
+        const sel = editor.state.selection;
+        if (!(sel instanceof NodeSelection)) return false;
+        if (sel.node.type.name === 'mathInline') return editInlineMath(editor.view, sel.from);
+        if (sel.node.type.name === 'rawHtmlBlock' && sel.node.attrs.kind === 'math') return editBlockMath(editor.view, sel.from);
+        return false;
+      },
+    };
+  },
   addProseMirrorPlugins() {
     return [new Plugin({
       key,
-      state: {
-        init: (_, state) => build(state.doc, state.selection),
-        apply: (tr, old, _o, state) => (tr.docChanged || tr.selectionSet ? build(state.doc, state.selection) : old),
+      appendTransaction(trs, _old, state) {
+        if (!trs.some((tr) => tr.docChanged) || trs.some((tr) => tr.getMeta(key))) return null;
+        const tr = convertTextFormulas(state);
+        return tr ? tr.setMeta(key, true) : null;
       },
       props: {
-        decorations: (state) => key.getState(state),
-        // לחיצה על נוסחה מעובדת מכניסה את הסמן לתוכה, ואז מוצג המקור לעריכה
-        handleDOMEvents: {
-          mousedown(view, event) {
-            const el = event.target.closest?.('.math-inline');
-            if (!el) return false;
-            const pos = view.posAtDOM(el, 0);
-            event.preventDefault();
-            view.dispatch(view.state.tr.setSelection(view.state.selection.constructor.near(view.state.doc.resolve(Math.min(pos + 1, view.state.doc.content.size)))));
-            view.focus();
-            return true;
-          },
+        handleTextInput(view, from, to, text) {
+          if (text !== '$' || view.composing) return false;
+          const $from = view.state.doc.resolve(from);
+          if ($from.parent.type.spec.code) return false;
+          if ((view.state.storedMarks || $from.marks()).some((m) => m.type.spec.code)) return false;
+          const before = $from.parent.textBetween(0, $from.parentOffset, null, '');
+          if (!dollarOpensEditor(before)) return false;
+          return insertMath(view, { literalDollar: true });
+        },
+        handleClickOn(view, _pos, node, nodePos, event, direct) {
+          if (!direct || event.button !== 0) return false;
+          if (node.type.name === 'mathInline') return editInlineMath(view, nodePos);
+          if (node.type.name === 'rawHtmlBlock' && node.attrs.kind === 'math') return editBlockMath(view, nodePos);
+          return false;
         },
       },
     })];

@@ -18,7 +18,7 @@ import { WikiLink } from './wikilink.js';
 import { splitLinksLines, mergeLinksLines } from '../links.js';
 import { Embed, LocalImage } from './embed.js';
 import { splitOverlay, joinOverlay } from './overlay-data.js';
-import { MathPreview } from './math.js';
+import { MathInline, MathEditing } from './math.js';
 import { Tags } from './tags.js';
 import { DirectionBulletList, DirectionOrderedList, DirectionTaskList, HeadingDirection } from './list-direction.js';
 import { CompletedDivider, sortCompletedTaskLists } from './task-layout.js';
@@ -101,7 +101,8 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       Embed.configure({ resolve: links.resolve, onOpen: links.onOpen, onEditDrawing: links.onEditDrawing, read: links.read, onFree: links.onFreeImage || null }),
       Placeholder.configure({ placeholder: 'התחל לכתוב… ([[ לקישור למסמך אחר)' }),
       WikiLink.configure(links),
-      MathPreview,
+      MathInline,
+      MathEditing,
       Tags.configure({ onClick: (tag) => links.onTag?.(tag) }),
       // html: true שומר עיצוב שאין לו תחביר Markdown (צבע, יישור) כ־HTML בתוך הקובץ.
       // breaks: true כמו באובסידיאן: ירידת שורה בודדת היא ירידת שורה.
@@ -223,7 +224,8 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       if (raw) return null;
       const last = editor.state.doc.lastChild;
       const formula = last?.type.name === 'rawHtmlBlock' && last.attrs.kind === 'math'
-        || last?.isTextblock && isFormulaOnlyText(last.textContent);
+        || last?.isTextblock && isFormulaOnlyText(last.textContent)
+        || last?.isTextblock && last.childCount === 1 && last.firstChild.type.name === 'mathInline';
       if (!formula) return null;
       const at = editor.state.doc.content.size;
       const paragraph = editor.schema.nodes.paragraph?.create();

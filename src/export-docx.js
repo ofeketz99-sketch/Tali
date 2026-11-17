@@ -3,7 +3,11 @@
 // נשארת מימין לשמאל ב־Word, ואנגלית בתוכה לא מתהפכת.
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, ImageRun,
-  ExternalHyperlink, AlignmentType, BorderStyle, ShadingType, LevelFormat,
+  ExternalHyperlink, AlignmentType, BorderStyle, ShadingType, LevelFormat, CheckBox, Textbox,
+  CommentRangeStart, CommentRangeEnd, CommentReference, TextWrappingType, TextWrappingSide,
+  HorizontalPositionRelativeFrom, VerticalPositionRelativeFrom,
+  Math as OMath, MathRun, MathFraction, MathSuperScript, MathSubScript, MathSubSuperScript, MathRadical,
+  MathSum, MathIntegral, MathLimitLower, MathLimitUpper,
 } from 'docx';
 
 const HEADINGS = { H1: HeadingLevel.HEADING_1, H2: HeadingLevel.HEADING_2, H3: HeadingLevel.HEADING_3, H4: HeadingLevel.HEADING_4, H5: HeadingLevel.HEADING_5, H6: HeadingLevel.HEADING_6 };
@@ -26,8 +30,20 @@ const hex = (css) => {
 };
 
 // תמונה מ־data URI: PNG/JPEG/GIF/BMP כמו שהן, כל השאר (WebP, SVG, AVIF) עוברות ל־PNG דרך canvas
-async function imageData(img) {
-  const src = img.getAttribute('src') || '';
+// fetchImage(url) -> { bytes, type }: תמונה מהאינטרנט (![](https://...)), דרך main.js. עד 9.8 היא נשמטה.
+async function imageData(img, fetchImage) {
+  let src = img.getAttribute('src') || '';
+  if (/^https?:/i.test(src) && fetchImage) {
+    try {
+      const got = await fetchImage(src);
+      if (got?.bytes) {
+        let bin = '';
+        const bytes = new Uint8Array(got.bytes);
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        src = `data:${got.type || 'image/png'};base64,${btoa(bin)}`;
+      }
+    } catch { /* בלי רשת: ממקום שמור */ }
+  }
   if (!src.startsWith('data:')) return null;
   const el = new Image();
   el.src = src;
@@ -48,42 +64,145 @@ async function imageData(img) {
   return { type: type || 'png', data, transformation: { width: Math.round(w), height: Math.round(w * ratio) } };
 }
 
-// נוסחה (MathML מ־KaTeX) כטקסט: חזקה ואינדקס כ־superscript/subscript, שבר כ־(א)/(ב), שורש כ־√(…).
-// בלי המקור ב־TeX (annotation). זה לא אובייקט נוסחה של Word, אבל נקרא נכון.
-function mathRuns(node, fmt0) {
-  const { rtlPara, ...f } = fmt0; // נוסחה תמיד משמאל לימין
+// ===== נוסחאות: MathML של KaTeX ← נוסחה אמיתית של Word (OMML) =====
+// (9.9) עד 9.8 הנוסחה יצאה כטקסט בגופן Cambria Math. עכשיו היא אובייקט נוסחה שאפשר לערוך ב־Word:
+// שברים, חזקות ואינדקסים, שורשים, סכום ואינטגרל עם גבולות. מה שאין לו מקבילה (מטריצה, למשל) יוצא כרצף.
+const NARY = { '∑': 'sum', '∫': 'int' };
+const naryOp = (el) => {
+  if (!el || el.nodeType !== 1) return null;
+  const t = el.localName;
+  if (t === 'mo') return NARY[el.textContent.trim()] ? el : null;
+  if (['munderover', 'msubsup', 'munder', 'mover', 'msub', 'msup'].includes(t)) return naryOp(el.children[0]);
+  return null;
+};
+function omml(node) {
+  if (node.nodeType === 3) { const t = node.textContent.replace(/\s+/g, ' '); return t.trim() ? [new MathRun(t)] : []; }
+  if (node.nodeType !== 1) return [];
+  const t = node.localName;
+  const kids = [...node.children];
+  const c = (i) => (kids[i] ? omml(kids[i]) : []);
+  switch (t) {
+    case 'annotation': case 'annotation-xml': case 'mphantom': return [];
+    case 'semantics': return c(0);
+    case 'mi': case 'mn': case 'mo': case 'ms': {
+      const text = node.textContent;
+      if (!text.trim()) return [];
+      // שם פונקציה (sin, log) או טקסט: לא נטוי
+      if (t === 'mi' && text.length > 1) return [new MathRun({ text, style: 'plain' })];
+      return [new MathRun(text)];
+    }
+    case 'mtext': return node.textContent.trim() ? [new MathRun({ text: node.textContent, normalText: true })] : [];
+    case 'mspace': return [];
+    case 'mfrac': return [new MathFraction({ numerator: c(0), denominator: c(1) })];
+    case 'msqrt': return [new MathRadical({ children: seq(kids) })];
+    case 'mroot': return [new MathRadical({ children: c(0), degree: c(1) })];
+    case 'msup': return [new MathSuperScript({ children: c(0), superScript: c(1) })];
+    case 'msub': return [new MathSubScript({ children: c(0), subScript: c(1) })];
+    case 'msubsup': return [new MathSubSuperScript({ children: c(0), subScript: c(1), superScript: c(2) })];
+    case 'munder': return [new MathLimitLower({ children: c(0), limit: c(1) })];
+    case 'mover': return [new MathLimitUpper({ children: c(0), limit: c(1) })];
+    case 'munderover': return [new MathLimitLower({ children: [new MathLimitUpper({ children: c(0), limit: c(2) })], limit: c(1) })];
+    case 'mtable': // מטריצה / יישור: שורה אחרי שורה, תאים ברווח
+      return kids.flatMap((row, i) => [...(i ? [new MathRun(' ; ')] : []), ...[...row.children].flatMap((cell, j) => [...(j ? [new MathRun('  ')] : []), ...seq([...cell.children])])]);
+    default: return seq(kids.length ? kids : [...node.childNodes]);
+  }
+}
+// רצף של אחים: סכום/אינטגרל לוקח את האיבר שאחריו כגוף שלו, כמו ב־Word
+function seq(list) {
   const out = [];
-  const walk = (n, fmt) => {
-    if (n.nodeType === Node.TEXT_NODE) { if (n.textContent.trim()) out.push(new TextRun({ text: n.textContent.trim(), ...fmt })); return; }
-    if (n.nodeType !== Node.ELEMENT_NODE) return;
-    const t = n.tagName.toLowerCase();
-    const kids = [...n.children];
-    if (t === 'annotation' || t === 'annotation-xml') return;
-    if (t === 'mi' && n.textContent.length === 1) { out.push(new TextRun({ text: n.textContent, ...fmt, italics: true })); return; }
-    if ((t === 'msup' || t === 'msub') && kids.length >= 2) {
-      walk(kids[0], fmt);
-      walk(kids[1], { ...fmt, [t === 'msup' ? 'superScript' : 'subScript']: true });
-      return;
+  for (let i = 0; i < list.length; i++) {
+    const el = list[i];
+    const op = naryOp(el);
+    if (op) {
+      const kind = NARY[op.textContent.trim()];
+      const k = [...el.children];
+      const t = el.localName;
+      const sub = ['munderover', 'msubsup', 'munder', 'msub'].includes(t) ? omml(k[1]) : undefined;
+      const sup = ['munderover', 'msubsup'].includes(t) ? omml(k[2]) : ['mover', 'msup'].includes(t) ? omml(k[1]) : undefined;
+      const body = i + 1 < list.length ? omml(list[++i]) : [];
+      const limits = t === 'msubsup' || t === 'msub' || t === 'msup' ? 'side' : 'aboveBelow';
+      const Cls = kind === 'sum' ? MathSum : MathIntegral;
+      out.push(new Cls({ children: body, subScript: sub, superScript: sup, ...(kind === 'int' || limits === 'side' ? { limits } : {}) }));
+      continue;
     }
-    if (t === 'msubsup' && kids.length >= 3) { walk(kids[0], fmt); walk(kids[1], { ...fmt, subScript: true }); walk(kids[2], { ...fmt, superScript: true }); return; }
-    if (t === 'mfrac' && kids.length >= 2) {
-      out.push(new TextRun({ text: '(', ...fmt })); walk(kids[0], fmt); out.push(new TextRun({ text: ')/(', ...fmt })); walk(kids[1], fmt); out.push(new TextRun({ text: ')', ...fmt }));
-      return;
-    }
-    if (t === 'msqrt') { out.push(new TextRun({ text: '√(', ...fmt })); kids.forEach((k) => walk(k, fmt)); out.push(new TextRun({ text: ')', ...fmt })); return; }
-    for (const c of n.childNodes) walk(c, fmt);
-  };
-  walk(node, f);
+    out.push(...omml(el));
+  }
   return out;
 }
+export function mathToWord(mathEl) {
+  const sem = mathEl.querySelector('semantics');
+  const children = sem ? omml(sem) : seq([...mathEl.children]);
+  return new OMath({ children });
+}
 
-export async function buildDocx({ title, html, rtlDefault = true }) {
+// ===== שכבת הדף: תמונות חופשיות, שרטוטים, תיבות טקסט והערות (9.9) =====
+// exportHtml מכניס לפני הגוש שלידו כל אחד מהם <div data-tali-float="{...}">, עם dx/dy בפיקסלים מתחילת הגוש
+// ומהקצה השמאלי של אזור הטקסט. ב־Word: אובייקט צף שמעוגן לפסקה, והטקסט עוטף אותו.
+const WORD_TEXT_PX = 602; // רוחב הטקסט ב־A4 עם שוליים של אינץ', ב־96dpi
+const EMU = 9525;
+
+// נוסחה של Word, ואם ההמרה נכשלה: המקור ב־TeX כטקסט, כדי שלא יאבד מידע
+function mathOrText(m) {
+  try { return mathToWord(m); } catch {
+    const tex = m.querySelector('annotation')?.textContent || m.textContent;
+    return new TextRun({ text: tex, font: 'Cambria Math' });
+  }
+}
+
+export async function buildDocx({ title, html, rtlDefault = true, fetchImage = null }) {
   const root = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html').body;
   // התמונות קודם (אסינכרוני), כדי שהמעבר על המסמך יהיה סינכרוני
   const images = new Map();
-  for (const img of root.querySelectorAll('img')) images.set(img, await imageData(img));
+  for (const img of root.querySelectorAll('img')) images.set(img, await imageData(img, fetchImage));
 
   let listInstance = 0;
+
+  // ----- שכבת הדף -----
+  let pending = []; // אובייקטים צפים שמחכים לפסקה הבאה, שאליה הם יעוגנו
+  const comments = [];
+  const floatRuns = () => {
+    const list = pending;
+    pending = [];
+    const runs = [], wrap = [];
+    for (const { info, el } of list) {
+      const k = Math.min(1, WORD_TEXT_PX / (info.textWidth || WORD_TEXT_PX));
+      const position = {
+        horizontalPosition: { relative: HorizontalPositionRelativeFrom.MARGIN, offset: Math.round(info.dx * k * EMU) },
+        verticalPosition: { relative: VerticalPositionRelativeFrom.PARAGRAPH, offset: Math.round(info.dy * k * EMU) },
+      };
+      if (info.kind === 'image') {
+        const im = images.get(el.querySelector('img'));
+        if (!im) continue;
+        const w = Math.max(8, Math.round(info.w * k)), h = Math.max(8, Math.round(info.h * k));
+        runs.push(new ImageRun({ ...im, transformation: { width: w, height: h },
+          floating: { ...position, allowOverlap: true, wrap: { type: TextWrappingType.SQUARE, side: TextWrappingSide.BOTH_SIDES }, margins: { left: 114300, right: 114300 } } }));
+      } else if (info.kind === 'textbox') {
+        const lines = String(info.text || '').split(/\r?\n/);
+        const rtl = isRtl(info.text, rtlDefault);
+        runs.push(new Textbox({
+          style: { width: `${Math.round(info.w * k * 0.75)}pt`, height: `${Math.round(info.h * k * 0.75)}pt`, position: 'absolute',
+            left: `${Math.round(info.dx * k * 0.75)}pt`, top: `${Math.round(info.dy * k * 0.75)}pt`,
+            positionHorizontalRelative: 'margin', positionVerticalRelative: 'text', wrapStyle: 'square' },
+          children: lines.map((line) => new Paragraph({ bidirectional: rtl, children: [new TextRun({ text: line, rightToLeft: RTL_CHAR.test(line) })] })),
+        }));
+      } else if (info.kind === 'comment') {
+        const id = comments.length;
+        const body = [info.quote ? `«${info.quote}»` : '', info.text || ''].filter(Boolean);
+        comments.push({ id, author: 'Tali', initials: 'T', date: new Date(),
+          children: body.map((line) => new Paragraph({ bidirectional: isRtl(line, rtlDefault), children: [new TextRun({ text: line, rightToLeft: RTL_CHAR.test(line) })] })) });
+        wrap.push(id);
+      }
+    }
+    return { runs, wrap };
+  };
+  // הערה בשוליים: Word צריך טווח בפסקה. עוטפים את כל הפסקה שהיא לידה.
+  const withFloats = (children) => {
+    if (!pending.length) return children;
+    const { runs, wrap } = floatRuns();
+    let out = [...runs, ...children];
+    for (const id of wrap) out = [new CommentRangeStart(id), ...out, new CommentRangeEnd(id), new TextRun({ children: [new CommentReference(id)] })];
+    return out;
+  };
 
   // ----- טקסט בתוך פסקה -----
   function inline(node, fmt, out) {
@@ -112,10 +231,17 @@ export async function buildDocx({ title, html, rtlDefault = true }) {
     if (tag === 'IMG') {
       const im = images.get(node);
       if (im) out.push(new ImageRun(im));
+      else {
+        // תמונה שלא נמצאה (קובץ חסר, בלי רשת): לפחות השם שלה, כדי שלא תיעלם בשקט
+        const src = node.getAttribute('src') || '';
+        let name = node.getAttribute('alt') || (src.startsWith('data:') ? '' : src.split(/[\\/]/).pop().split('?')[0]);
+        try { name = decodeURIComponent(name); } catch { /* נשאר כמו שהוא */ }
+        if (name) out.push(new TextRun({ text: `[תמונה: ${name}]`, color: '888888', italics: true }));
+      }
       return out;
     }
     // MathML שומר על שם תגית באותיות קטנות (math), בניגוד לתגיות HTML
-    if (node.localName === 'math') { out.push(...mathRuns(node, { ...f, font: 'Cambria Math' })); return out; }
+    if (node.localName === 'math') { out.push(mathOrText(node)); return out; }
     if (tag === 'STRONG' || tag === 'B') f.bold = true;
     if (tag === 'EM' || tag === 'I') f.italics = true;
     if (tag === 'U') f.underline = {};
@@ -145,13 +271,16 @@ export async function buildDocx({ title, html, rtlDefault = true }) {
   // ----- פסקאות -----
   function para(node, opts = {}) {
     const rtl = isRtl(node.textContent, rtlDefault);
-    const runs = opts.prefix ? [new TextRun({ text: opts.prefix, rightToLeft: rtl })] : [];
+    // תיבת סימון של משימה: תיבה אמיתית של Word (אפשר לסמן בלחיצה), ואחריה רווח
+    const box = opts.prefix && /^[☐☑]/.test(opts.prefix);
+    const runs = box ? [new CheckBox({ checked: opts.prefix.startsWith('☑') }), new TextRun({ text: ' ', rightToLeft: rtl })]
+      : opts.prefix ? [new TextRun({ text: opts.prefix, rightToLeft: rtl })] : [];
     for (const c of node.childNodes) inline(c, { ...opts.fmt, rtlPara: rtl }, runs);
     const ta = (node.style?.textAlign || node.getAttribute?.('align') || '').toLowerCase();
     const alignment = ta === 'center' ? AlignmentType.CENTER : ta === 'justify' ? AlignmentType.BOTH
       : ta === 'right' ? (rtl ? AlignmentType.START : AlignmentType.END)
       : ta === 'left' ? (rtl ? AlignmentType.END : AlignmentType.START) : undefined;
-    return new Paragraph({ children: runs, bidirectional: rtl, alignment, ...opts.para });
+    return new Paragraph({ children: withFloats(runs), bidirectional: rtl, alignment, ...opts.para });
   }
 
   function blocks(container, ctx = {}) {
@@ -170,6 +299,10 @@ export async function buildDocx({ title, html, rtlDefault = true }) {
       const isBlock = tag && /^(P|H[1-6]|UL|OL|BLOCKQUOTE|PRE|TABLE|HR|DIV|FIGURE|SECTION|LI)$/.test(tag);
       if (!isBlock) { loose.push(node); continue; }
       flush();
+      if (tag === 'DIV' && node.hasAttribute('data-tali-float')) {
+        try { pending.push({ info: JSON.parse(node.getAttribute('data-tali-float')), el: node }); } catch { /* פגום: מדלגים */ }
+        continue;
+      }
       if (tag === 'P') { out.push(para(node, { para: ctx.para, prefix: ctx.prefix, fmt: ctx.fmt })); ctx = { ...ctx, prefix: undefined }; }
       else if (HEADINGS[tag]) out.push(para(node, { para: { ...ctx.para, heading: HEADINGS[tag] } }));
       else if (tag === 'UL' || tag === 'OL') out.push(...list(node, ctx, 0));
@@ -188,9 +321,9 @@ export async function buildDocx({ title, html, rtlDefault = true }) {
         if (head) out.push(para(head, { fmt: { bold: true, color: '2F6FB0' } }));
         const body = node.querySelector('.en-body');
         if (body) out.push(...blocks(body, { ...ctx, para: { ...ctx.para, indent: { start: 360 } } }));
-      } else if (tag === 'DIV' && (node.classList.contains('math-display') || node.querySelector(':scope > math'))) {
+      } else if (tag === 'DIV' && (node.classList.contains('math-display') || node.classList.contains('math-block') || node.querySelector(':scope > math'))) {
         const m = node.querySelector('math');
-        out.push(new Paragraph({ alignment: AlignmentType.CENTER, bidirectional: false, children: m ? mathRuns(m, { font: 'Cambria Math' }) : [new TextRun({ text: node.textContent.trim(), font: 'Cambria Math' })] }));
+        out.push(new Paragraph({ alignment: AlignmentType.CENTER, bidirectional: false, children: withFloats(m ? [mathOrText(m)] : [new TextRun({ text: node.textContent.trim(), font: 'Cambria Math' })]) }));
       } else out.push(...blocks(node, ctx));
     }
     flush();
@@ -253,6 +386,7 @@ export async function buildDocx({ title, html, rtlDefault = true }) {
   }
 
   const body = blocks(root);
+  if (pending.length) body.push(new Paragraph({ children: withFloats([]) })); // אובייקט צף אחרי הגוש האחרון
   // כותרת מהשם, אלא אם המסמך כבר פותח בכותרת זהה (כמו בייצוא ל־PDF)
   const first = root.querySelector(':scope > h1');
   if (!(first && first === root.firstElementChild && first.textContent.trim() === String(title).trim())) {
@@ -266,6 +400,7 @@ export async function buildDocx({ title, html, rtlDefault = true }) {
   }));
   const doc = new Document({
     creator: 'Tali',
+    comments: comments.length ? { children: comments } : undefined,
     title: String(title),
     styles: { default: { document: { run: { font: 'Calibri', size: 22, sizeComplexScript: 22 }, paragraph: { spacing: { after: 120, line: 300 } } } } },
     numbering: { config: [{ reference: 'tali-bullets', levels: levels(LevelFormat.BULLET) }, { reference: 'tali-numbers', levels: levels(LevelFormat.DECIMAL) }] },

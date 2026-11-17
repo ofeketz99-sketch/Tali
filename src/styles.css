@@ -1389,27 +1389,60 @@ body[data-sidebar-mode="compact"] .side-top #btnNote {
 .ProseMirror .embed-note .en-body { display: block; padding: 8px 14px 4px; max-height: 420px; overflow: auto; }
 .ProseMirror .embed-note .en-body img { max-width: 100%; }
 
-/* נוסחאות */
-.ProseMirror .math-src { display: none; }
-.ProseMirror .math-src.math-src-editing {
-  display: inline-block; direction: ltr; unicode-bidi: isolate; text-align: left; white-space: pre;
-  font-family: "Cascadia Mono", Consolas, "Courier New", monospace; font-size: .86em; line-height: 1.55;
-  color: var(--text); background: color-mix(in srgb, var(--accent-tint) 52%, var(--page-bg));
-  border: 1px solid var(--accent-line); border-radius: 6px; padding: 1px 5px; margin: 0 2px;
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 7%, transparent);
+/* נוסחאות (9.9): אובייקט אטומי בשורה; המקור נערך בחלונית .math-pop */
+.ProseMirror .math-inline {
+  cursor: pointer; padding: 0 2px; margin: 0 1px; border-radius: 5px; direction: ltr; unicode-bidi: isolate;
+  display: inline-block; transition: background .12s;
 }
-.ProseMirror .math-src-editing.math-src-display {
-  display: block; width: fit-content; max-width: 100%; overflow-x: auto;
-  margin: .45em auto; padding: 4px 8px;
-}
-.ProseMirror .math-inline { cursor: text; padding: 0 1px; border-radius: 4px; direction: ltr; unicode-bidi: isolate; display: inline-block; }
+.ProseMirror .math-inline:hover { background: var(--accent-soft); }
+.ProseMirror .math-inline.ProseMirror-selectednode { background: var(--accent-soft); outline: 2px solid var(--accent); outline-offset: 1px; }
+.ProseMirror .math-inline:active { cursor: grabbing; }
+.ProseMirror .math-display-inline { display: block; text-align: center; margin: .3em auto; width: fit-content; max-width: 100%; }
+.ProseMirror .math-block.rendered { cursor: pointer; }
+.ProseMirror .math-block.ProseMirror-selectednode { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
 .np-body .katex, .en-body .katex { direction: ltr; unicode-bidi: isolate; display: inline-block; }
 .np-task { list-style: none; margin-inline-start: -1.1em; }
-.ProseMirror .math-inline:hover { background: var(--accent-soft); }
-.ProseMirror .math-display-inline { display: block; text-align: center; }
 .ProseMirror .math-block.rendered { font-family: inherit; white-space: normal; text-align: center; padding: 6px 0; background: none; border: none; }
 .ProseMirror .math-block.rendered:hover { background: var(--accent-soft); border-radius: 8px; }
 .katex { font-size: 1.12em; font-synthesis: none; text-rendering: optimizeLegibility; }
+
+/* חלונית הנוסחה: המקור תמיד משמאל לימין, בנפרד מהפסקה */
+.math-pop {
+  position: fixed; z-index: 1200; width: min(460px, calc(100vw - 16px)); box-sizing: border-box;
+  padding: 10px 12px 12px; border: 1px solid var(--floating-border); border-radius: 12px;
+  background: var(--floating-bg); color: var(--text); box-shadow: var(--shadow); font-family: var(--font-ui); font-size: 13px;
+  animation: rise-small .14s var(--ease);
+}
+.math-pop .mp-head { display: flex; align-items: center; justify-content: space-between; font-weight: 600; margin-bottom: 6px; }
+.math-pop .mp-tag { font-size: 11px; font-weight: 500; color: var(--muted); }
+.math-pop .mp-input {
+  display: block; width: 100%; box-sizing: border-box; resize: none; min-height: 38px;
+  direction: ltr; unicode-bidi: plaintext; text-align: left;
+  font-family: "Cascadia Mono", Consolas, "Courier New", monospace; font-size: 14px; line-height: 1.5;
+  padding: 7px 9px; border: 1px solid var(--accent-line); border-radius: 8px; background: var(--input-bg); color: var(--text); outline: none;
+}
+.math-pop .mp-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.math-pop.invalid .mp-input { border-color: var(--danger-ink); }
+.math-pop .mp-preview {
+  margin-top: 8px; min-height: 34px; max-height: 180px; overflow: auto; padding: 6px 8px; border-radius: 8px;
+  background: color-mix(in srgb, var(--accent-tint) 60%, var(--page-bg)); text-align: center; direction: ltr;
+}
+.math-pop .mp-preview.empty { color: var(--faint); font-size: 12px; display: flex; align-items: center; justify-content: center; }
+.math-pop .mp-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.math-pop .mp-display { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.math-pop .mp-display[hidden] { display: none; }
+.math-pop .mp-hint { color: var(--faint); font-size: 11px; }
+.math-pop .mp-hint kbd { direction: ltr; unicode-bidi: isolate; font-family: inherit; font-size: 10.5px; padding: 0 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--muted); }
+.math-pop .mp-actions { display: flex; gap: 6px; margin-top: 10px; }
+.math-pop button {
+  font: inherit; padding: 5px 14px; border-radius: 7px; border: 1px solid var(--border); background: var(--panel-bg); color: var(--text); cursor: pointer;
+}
+.math-pop button:hover { background: var(--accent-hover); }
+.math-pop .mp-ok { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.math-pop .mp-ok:hover { background: color-mix(in srgb, var(--accent) 88%, var(--text)); }
+.math-pop .mp-ok:disabled { opacity: .45; cursor: default; }
+.math-pop .mp-del { color: var(--danger-ink); margin-inline-start: auto; }
+.math-pop .mp-del:hover { background: var(--danger); }
 
 /* טופס מאפיינים */
 .props-form { margin: 0 0 18px; padding: 8px 10px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--input-bg); animation: rise-small .2s var(--ease); }

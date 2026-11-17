@@ -62,7 +62,15 @@ function setupMarkdownIt(md) {
       if (m) end = pos + m[0].length;
     }
     if (end < 0) return false;
-    if (!silent) state.push('text', '', 0).content = src.slice(pos, end);
+    // 9.9: נוסחה ($...$ או $$...$$ בשורה) הופכת לצומת mathInline. content הוא המקור המלא, כדי
+    // ש־isPlainInline ידע שאפשר לכתוב אותו חזרה כמו שהוא.
+    if (!silent && src[pos] === '$') {
+      const display = src.startsWith('$$', pos);
+      const tex = src.slice(pos + (display ? 2 : 1), end - (display ? 2 : 1));
+      const t = state.push('math_inline', '', 0);
+      t.content = src.slice(pos, end);
+      t.meta = { tex, display };
+    } else if (!silent) state.push('text', '', 0).content = src.slice(pos, end);
     state.pos = end;
     return true;
   });
@@ -88,6 +96,8 @@ function setupMarkdownIt(md) {
     state.line = line + 1;
     return true;
   }, { alt: ['paragraph', 'blockquote', 'list'] });
+  md.renderer.rules.math_inline = (tokens, i) =>
+    `<span data-math="" data-tex="${esc(tokens[i].meta.tex)}"${tokens[i].meta.display ? ' data-display="1"' : ''}></span>`;
   md.renderer.rules.math_block = (tokens, i) =>
     `<div data-raw-block="${esc(tokens[i].content)}" data-kind="math"></div>`;
 
@@ -127,7 +137,7 @@ function setupMarkdownIt(md) {
 // האם אפשר לכתוב את הטקסט כמו שהוא, בלי תווי בריחה, והוא ייקרא חזרה כטקסט רגיל?
 function isPlainInline(md, text) {
   const tokens = md.parseInline(text, {})[0]?.children || [];
-  return tokens.every((t) => t.type === 'text') && tokens.map((t) => t.content).join('') === text;
+  return tokens.every((t) => t.type === 'text' || t.type === 'math_inline') && tokens.map((t) => t.content).join('') === text;
 }
 // בתחילת שורה, דברים שייקראו כמבנה (כותרת, רשימה, ציטוט...) ולכן חייבים בריחה
 const BLOCK_START = /^(#{1,6}(\s|$)|[-+*](\s|$)|\d{1,9}[.)](\s|$)|>|`{3}|~{3}|[=-]{3,}\s*$|\s{4}|\|)/;
@@ -313,7 +323,9 @@ export const RawHtmlBlock = Node.create({
       const dom = document.createElement('div');
       dom.title = 'לעריכה: מצב Markdown';
       if (node.attrs.kind === 'math') {
-        // $...$: מוצג מעובד (KaTeX). המקור נשמר כמו שהוא, ונערך במצב Markdown.
+        // $$...$$: מוצג מעובד (KaTeX). המקור נשמר כמו שהוא; לחיצה פותחת את חלונית הנוסחה (math.js).
+        dom.title = '';
+        dom.dataset.tip = 'לחיצה לעריכה';
         dom.className = 'math-block';
         const tex = node.attrs.html.replace(/^\s*\$\$/, '').replace(/\$\$\s*$/, '');
         const html = renderMath(tex, true);

@@ -1,10 +1,10 @@
 // פעולות עיצוב והוספה, משותפות לסרגל הכלים, לתפריט "הוספה" ולתפריט הלחיצה הימנית (context-menu.js).
 // כל פעולה עוברת דרך הפקודות של TipTap/ProseMirror, ולכן היא חלק מהיסטוריית הביטול ונשמרת כמו כל עריכה.
 // פעולה חדשה: מוסיפים כאן, ומשתמשים בה מכל המקומות. לא כותבים מימוש מקביל בתפריט אחר.
-import { TextSelection } from '@tiptap/pm/state';
 import { openTableGrid } from './table.js';
 import { FOLLOW_UP, isFollowUpHeading } from '../vault-data.js';
 import { LIST_TYPES } from './list-direction.js';
+import { insertMath } from './math.js';
 
 export function createEditActions(editor, hooks = {}) {
   const chain = () => editor.chain().focus();
@@ -80,40 +80,10 @@ export function createEditActions(editor, hooks = {}) {
       view.dispatch(tr);
     },
 
-    // נוסחה בשורה: $...$ כטקסט (כמו נוסחה שנכתבה ביד), והתוכן מסומן כדי להקליד מיד.
-    // אם יש טקסט מסומן, הוא הופך לנוסחה.
-    mathInline() {
-      const { from, to } = editor.state.selection;
-      const tex = selectedText().trim() || 'x';
-      const { state, view } = editor;
-      let tr = state.tr.replaceWith(from, to, state.schema.text(`$${tex}$`));
-      tr = tr.setSelection(TextSelection.create(tr.doc, from + 1, from + 1 + tex.length));
-      view.dispatch(tr.scrollIntoView());
-      view.focus();
-    },
-    // נוסחה בשורה נפרדת: פסקה שכל התוכן שלה $$...$$. מוצגת כנוסחה מרכזית ונערכת במקום,
-    // ובקובץ היא שורה של $$...$$, כמו באובסידיאן.
-    mathBlock() {
-      const tex = selectedText().trim() || 'x';
-      const { state, view } = editor;
-      const text = state.schema.text(`$$${tex}$$`);
-      let tr = state.tr;
-      let start;
-      const $sel = state.selection.$from;
-      if ($sel.parent.type.name === 'paragraph' && $sel.parent.content.size === 0) {
-        start = $sel.pos; // פסקה ריקה: הנוסחה נכנסת אליה
-        tr = tr.insert(start, text);
-      } else {
-        if (!state.selection.empty) tr = tr.deleteSelection();
-        const $p = tr.selection.$from;
-        const after = $p.after();
-        tr = tr.insert(after, state.schema.nodes.paragraph.create(null, text));
-        start = after + 1;
-      }
-      tr = tr.setSelection(TextSelection.create(tr.doc, start + 2, start + 2 + tex.length));
-      view.dispatch(tr.scrollIntoView());
-      view.focus();
-    },
+    // נוסחה (9.9): חלונית עם תיבת LTR לכתיבת המקור (math.js). טקסט מסומן נכנס אליה כמקור.
+    mathInline() { insertMath(editor.view); },
+    // נוסחה בשורה נפרדת: בפסקה ריקה גוש $$ אמיתי, ואחרת נוסחה מרכזית בתוך השורה ($$...$$)
+    mathBlock() { insertMath(editor.view, { preferBlock: true }); },
     // קישור למסמך: עם טקסט מסומן, הוא הופך ל־[[קישור]]. בלי, נכנס [[ וההשלמה האוטומטית נפתחת.
     link() {
       const text = selectedText().trim();
