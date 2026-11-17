@@ -1,0 +1,525 @@
+// TALI Mobile: אפליקציית Companion לטלפון. ראו mobile/README.md.
+// משתמשת באותו מנוע מסמכים כמו הדסקטופ (createEditor, שכבת השרטוט, שמירה נאמנה לאובסידיאן),
+// כדי שמסמך שנפתח ונשמר בטלפון יישאר זהה בתוכן שהטלפון לא נוגע בו.
+import { createEditor } from '../../src/editor.js';
+import { createPageOverlay } from '../../src/page-overlay.js';
+import { createEditActions } from '../../src/edit-actions.js';
+import { icon, lucide } from '../../src/icons.js';
+import { deriveVars, DEFAULT_THEMES } from '../../src/theme-core.js';
+import { resolveLink } from '../../links.js';
+import { withCreated, extractTags } from '../../vault-data.js';
+import { vault, meta, localForSync, isNotePath, hashData } from './store.js';
+import { runSync } from './sync-core.js';
+import { connectedRemote, remoteLabel, setRemote, memoryRemote } from './remotes.js';
+
+const $ = (id) => document.getElementById(id);
+const state = {
+  files: [],          // כל הרשומות החיות
+  folder: '',         // התיקייה שמוצגת ברשימה
+  current: null,      // הנתיב של המסמך הפתוח
+  dirty: false,
+  query: '',
+};
+const blobUrls = new Map(); // נתיב קובץ מצורף -> כתובת blob:
+
+// ===== ערכת צבעים: אותן ערכות ברירת מחדל כמו בדסקטופ, יום/לילה לפי הטלפון =====
+const darkQuery = matchMedia('(prefers-color-scheme: dark)');
+function paintTheme() {
+  const { vars, dark } = deriveVars(darkQuery.matches ? DEFAULT_THEMES.night : DEFAULT_THEMES.day);
+  const root = document.documentElement;
+  for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+  root.dataset.theme = dark ? 'dark' : 'light';
+  root.style.colorScheme = dark ? 'dark' : 'light';
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', vars['--panel-bg']);
+}
+paintTheme();
+darkQuery.addEventListener('change', paintTheme);
+
+// ===== עזרים =====
+const baseName = (p) => p.split('/').pop();
+const noteName = (p) => baseName(p).replace(/\.md$/i, '');
+const dirOf = (p) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
+const notes = () => state.files.filter((f) => isNotePath(f.path));
+const notePaths = () => notes().map((f) => f.path);
+const resolve = (target) => {
+  const t = String(target || '').split('#')[0].split('|')[0].trim();
+  if (!t) return null;
+  const files = state.files.map((f) => f.path);
+  const withExt = /\.[a-z0-9]+$/i.test(t) ? t : t + '.md';
+  return resolveLink(withExt, files, '') || resolveLink(t, files, '');
+};
+function toast(text, ms = 2600) {
+  const el = $('mToast');
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => { el.hidden = true; }, ms);
+}
+const fmtTime = (ms) => {
+  const d = new Date(ms);
+  const today = new Date();
+  return d.toDateString() === today.toDateString()
+    ? d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' });
+};
+function setIcon(el, name, size = 20) { el.innerHTML = icon(name, size); }
+
+async function loadFiles() {
+  state.files = await vault.list({ includeDeleted: false });
+  for (const f of state.files) {
+    if (f.data instanceof Blob && !blobUrls.has(f.path)) blobUrls.set(f.path, URL.createObjectURL(f.data));
+  }
+  await updateSyncBadge();
+}
+
+// ===== תמונות: העורך של הדסקטופ מצייר file:///נתיב; בטלפון מחליפים בכתובת blob מהכספת המקומית =====
+const fileUrlPath = (src) => { try { return decodeURIComponent(src.replace(/^file:\/\/\//, '').split('?')[0]); } catch { return null; } };
+function fixImages(root) {
+  for (const img of root.querySelectorAll('img[src^="file:"]')) {
+    const url = blobUrls.get(fileUrlPath(img.src));
+    if (url) img.src = url;
+  }
+}
+const localSrc = (src) => {
+  if (/^(https?:|data:|blob:)/i.test(src)) return [src];
+  let rel = src;
+  try { rel = decodeURI(src); } catch { /* כמו שהוא */ }
+  rel = rel.replace(/^\.?\//, '');
+  const dir = state.current ? dirOf(state.current) : '';
+  return [dir ? `${dir}/${rel}` : rel, rel].map((p) => blobUrls.get(p)).filter(Boolean);
+};
+
+// ===== רשימת המסמכים =====
+function folderChildren(folder) {
+  const prefix = folder ? folder + '/' : '';
+  const dirs = new Set();
+  const docs = [];
+  for (const f of notes()) {
+    if (!f.path.startsWith(prefix)) continue;
+    const rest = f.path.slice(prefix.length);
+    if (rest.includes('/')) dirs.add(rest.split('/')[0]);
+    else docs.push(f);
+  }
+  return { dirs: [...dirs].sort((a, b) => a.localeCompare(b, 'he')), docs: docs.sort((a, b) => b.mtime - a.mtime) };
+}
+
+function row({ iconName, title, sub, onClick, cls = '' }) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'm-row ' + cls;
+  b.innerHTML = `<span class="m-row-icon">${icon(iconName, 20)}</span><span class="m-row-text"><span class="m-row-title"></span><span class="m-row-sub"></span></span>`;
+  b.querySelector('.m-row-title').textContent = title;
+  b.querySelector('.m-row-sub').textContent = sub || '';
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function snippet(text, q) {
+  const body = String(text || '').replace(/^---[\s\S]*?\n---\n?/, '').replace(/<!-- TALI-OVERLAY[\s\S]*?-->/, '');
+  if (!q) return body.replace(/[#>*_`[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
+  const i = body.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return '';
+  return '…' + body.slice(Math.max(0, i - 30), i + 60).replace(/\s+/g, ' ') + '…';
+}
+
+function renderList() {
+  const list = $('mList');
+  list.innerHTML = '';
+  const q = state.query.trim();
+  $('mCrumb').hidden = !!q || !state.folder;
+  $('mCrumbText').textContent = state.folder || '';
+  if (q) {
+    const lower = q.toLowerCase();
+    const byName = notes().filter((f) => noteName(f.path).toLowerCase().includes(lower));
+    const byText = notes().filter((f) => !byName.includes(f) && typeof f.data === 'string' && f.data.toLowerCase().includes(lower));
+    for (const f of [...byName, ...byText]) {
+      list.append(row({ iconName: 'file', title: noteName(f.path), sub: byName.includes(f) ? dirOf(f.path) || 'התיקייה הראשית' : snippet(f.data, q), onClick: () => openNote(f.path) }));
+    }
+    if (!list.children.length) list.append(empty('לא נמצאו מסמכים'));
+    return;
+  }
+  const { dirs, docs } = folderChildren(state.folder);
+  // בתיקייה הראשית: האחרונים שנערכו קודם (גישה מהירה, זה עיקר השימוש בטלפון)
+  if (!state.folder && notes().length > 6) {
+    const head = document.createElement('div');
+    head.className = 'm-section';
+    head.textContent = 'נערכו לאחרונה';
+    list.append(head);
+    for (const f of [...notes()].sort((a, b) => b.mtime - a.mtime).slice(0, 5)) {
+      list.append(row({ iconName: 'history', title: noteName(f.path), sub: `${fmtTime(f.mtime)} · ${dirOf(f.path) || 'התיקייה הראשית'}`, onClick: () => openNote(f.path) }));
+    }
+    const all = document.createElement('div');
+    all.className = 'm-section';
+    all.textContent = 'כל המסמכים';
+    list.append(all);
+  }
+  for (const d of dirs) {
+    const path = state.folder ? `${state.folder}/${d}` : d;
+    const count = notes().filter((f) => f.path.startsWith(path + '/')).length;
+    list.append(row({ iconName: 'folder', title: d, sub: `${count} מסמכים`, cls: 'is-folder', onClick: () => { state.folder = path; renderList(); } }));
+  }
+  for (const f of docs) {
+    list.append(row({ iconName: 'file', title: noteName(f.path), sub: `${fmtTime(f.mtime)} · ${snippet(f.data)}`, onClick: () => openNote(f.path) }));
+  }
+  if (!list.children.length) list.append(empty(notes().length ? 'התיקייה ריקה' : 'עוד אין מסמכים בטלפון. אפשר ליצור מסמך חדש, לייבא קבצים או לחבר סנכרון (בתפריט).'));
+}
+function empty(text) {
+  const p = document.createElement('p');
+  p.className = 'm-empty';
+  p.textContent = text;
+  return p;
+}
+
+// ===== עורך =====
+let saveTimer = null;
+const noteChanged = () => {
+  if (!state.current) return;
+  state.dirty = true;
+  $('mSaveDot').dataset.state = 'dirty';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNow, 700);
+};
+async function saveNow() {
+  clearTimeout(saveTimer);
+  if (!state.current || !state.dirty) return;
+  const path = state.current;
+  state.dirty = false;
+  try {
+    await vault.write(path, editorApi.getMarkdown());
+    $('mSaveDot').dataset.state = 'saved';
+    await loadFiles();
+    scheduleAutoSync();
+  } catch (error) {
+    state.dirty = true;
+    $('mSaveDot').dataset.state = 'error';
+    toast('השמירה בטלפון נכשלה: ' + (error?.message || error));
+  }
+}
+
+const editorApi = createEditor({
+  element: $('editor'),
+  rawElement: $('raw'),
+  propsElement: $('props'),
+  onChange: noteChanged,
+  links: {
+    getNotes: () => notePaths().filter((p) => p !== state.current).map((path) => ({ path, name: noteName(path) })),
+    resolve,
+    onOpen: (target) => openLink(target),
+    onLinked: () => {},
+    onEditDrawing: () => toast('עריכת ציור שמור: במחשב'),
+    localSrc,
+    read: async (p) => (await vault.get(p))?.data || '',
+    onTag: (tag) => { closeNote(); $('mSearch').value = '#' + tag; state.query = '#' + tag; renderList(); },
+  },
+  onImageFiles: (files) => addImages(files),
+});
+const actions = createEditActions(editorApi.editor, {});
+
+// כפתור השרטוט: השכבה (page-overlay.js) מסיימת את הסשן בלחיצה מחוץ לדף כבר ב־pointerdown (window, capture),
+// ולכן המצב נקרא במאזין שנרשם לפניה, על אותו window
+let drawWasOn = false;
+window.addEventListener('pointerdown', (e) => {
+  if (e.target.closest?.('.m-tool[data-tool="draw"]')) drawWasOn = overlay.inSession();
+}, true);
+const overlay = createPageOverlay({
+  page: $('page'),
+  onChange: noteChanged,
+  resolveImage: (o) => {
+    const p = o.ref === 'embed' ? resolve(o.src) : o.src;
+    return localSrc(p || o.src);
+  },
+  onTextClick: () => setDrawing(false),
+  onReturnImage: () => false,
+});
+editorApi.setOverlayController(overlay);
+
+// נוסחאות: בטלפון לקריאה בלבד (האפיון). לחיצה על נוסחה לא פותחת את חלונית העריכה של הדסקטופ.
+$('editor').addEventListener('click', (e) => {
+  if (e.target.closest('.math-inline, .katex, [data-type="math"], .raw-html-block')) { e.stopPropagation(); e.preventDefault(); toast('נוסחה: עריכה במחשב'); }
+}, true);
+$('editor').addEventListener('mousedown', (e) => {
+  if (e.target.closest('.math-inline, .katex')) { e.stopPropagation(); e.preventDefault(); }
+}, true);
+
+new MutationObserver(() => fixImages($('page'))).observe($('page'), { subtree: true, childList: true, attributes: true, attributeFilter: ['src'] });
+
+async function openNote(path) {
+  await saveNow();
+  const rec = await vault.get(path);
+  if (!rec || rec.deleted) { toast('המסמך לא נמצא'); return; }
+  state.current = path;
+  state.dirty = false;
+  setDrawing(false);
+  $('mTitle').textContent = noteName(path);
+  $('mSaveDot').dataset.state = 'saved';
+  document.body.dataset.view = 'note';
+  editorApi.setMarkdown(typeof rec.data === 'string' ? rec.data : '');
+  overlay.setEnabled(true);
+  $('pageWrap').scrollTop = 0;
+  history.pushState({ note: path }, '', '#' + encodeURIComponent(path));
+  await meta.set('lastOpen', path);
+}
+async function openLink(target) {
+  const p = resolve(target);
+  if (p && isNotePath(p)) { openNote(p); return; }
+  if (p) { toast('קובץ מצורף: פתיחה במחשב'); return; }
+  const name = String(target).split('#')[0].split('|')[0].trim();
+  if (name && confirm(`ליצור את המסמך "${name}"?`)) await createNote(name);
+}
+async function closeNote({ fromHistory = false } = {}) {
+  await saveNow();
+  setDrawing(false);
+  overlay.setEnabled(false);
+  state.current = null;
+  document.body.dataset.view = 'list';
+  $('mTitle').textContent = 'Tali';
+  editorApi.editor.commands.blur();
+  if (!fromHistory && location.hash) history.back();
+  renderList();
+}
+window.addEventListener('popstate', () => { if (state.current) closeNote({ fromHistory: true }); });
+
+async function createNote(name) {
+  const clean = String(name || '').replace(/[\\/:*?"<>|#^[\]]/g, '').trim();
+  if (!clean) return;
+  let path = (state.folder ? state.folder + '/' : '') + clean + '.md';
+  for (let i = 1; state.files.some((f) => f.path === path); i++) path = (state.folder ? state.folder + '/' : '') + `${clean} ${i}.md`;
+  await vault.write(path, withCreated(''));
+  await loadFiles();
+  await openNote(path);
+  editorApi.editor.commands.focus('end');
+}
+
+// ===== סרגל עריכה בתחתית (מעל המקלדת) =====
+const headingCycle = () => {
+  const ed = editorApi.editor;
+  const level = [1, 2, 3].find((l) => ed.isActive('heading', { level: l }));
+  if (!level) actions.heading(2); else if (level === 2) actions.heading(3); else if (level === 3) actions.paragraph(); else actions.heading(2);
+};
+const TOOLS = [
+  ['undo', 'ביטול', () => editorApi.editor.chain().focus().undo().run()],
+  ['redo', 'חזרה', () => editorApi.editor.chain().focus().redo().run()],
+  ['bold', 'מודגש', () => actions.bold(), 'bold'],
+  ['italic', 'נטוי', () => actions.italic(), 'italic'],
+  ['underline', 'קו תחתון', () => actions.underline(), 'underline'],
+  ['paragraph', 'כותרת', headingCycle, 'heading'],
+  ['bullets', 'רשימה', () => actions.bulletList(), 'bulletList'],
+  ['tasks', 'משימות', () => actions.taskList(), 'taskList'],
+  ['highlight', 'מרקר', () => editorApi.editor.chain().focus().toggleHighlight({ color: '#fff3a3' }).run(), 'highlight'],
+  ['table', 'טבלה', () => actions.table(3, 2)],
+  ['draw', 'שרטוט', () => setDrawing(!drawWasOn)],
+];
+const toolButtons = [];
+for (const [name, label, run, active] of TOOLS) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'm-tool';
+  b.setAttribute('aria-label', label);
+  setIcon(b, name, 20);
+  // לא לוקח את הפוקוס מהעורך, אחרת המקלדת נסגרת בכל לחיצה
+  b.dataset.tool = name;
+  b.addEventListener('pointerdown', (e) => e.preventDefault());
+  b.addEventListener('click', () => { run(); refreshTools(); });
+  $('mTools').append(b);
+  toolButtons.push([b, active, name]);
+}
+function refreshTools() {
+  const ed = editorApi.editor;
+  for (const [b, active, name] of toolButtons) {
+    const on = name === 'draw' ? overlay.inSession() : active ? ed.isActive(active) : false;
+    b.classList.toggle('on', on);
+  }
+}
+editorApi.editor.on('selectionUpdate', refreshTools);
+editorApi.editor.on('transaction', refreshTools);
+
+// ===== שרטוט במגע: שכבת הדף של הדסקטופ (אותו פורמט בקובץ), עם כלים גדולים לאצבע =====
+function setDrawing(on) {
+  if (on) { editorApi.editor.commands.blur(); overlay.setMode('pen'); }
+  else if (overlay.inSession()) document.querySelector('.tali-overlay-done')?.click(); // endSession של השכבה
+  syncDrawing();
+}
+// השכבה יכולה לסיים את הסשן בעצמה (כפתור "סיום", Esc): המצב בטלפון נגזר ממנה
+function syncDrawing() {
+  document.body.classList.toggle('m-drawing', overlay.inSession());
+  refreshTools();
+}
+const overlayRoot = $('page').querySelector('.tali-page-overlay');
+if (overlayRoot) new MutationObserver(syncDrawing).observe(overlayRoot, { attributes: true, attributeFilter: ['class', 'data-mode'] });
+
+// ===== תמונות: נשמרות בכספת המקומית ונכנסות כ־![[שם]] =====
+async function addImages(files) {
+  for (const file of files) {
+    const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+    const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    const path = `attachments/Pasted image ${stamp}.${ext}`;
+    await vault.write(path, file);
+    blobUrls.set(path, URL.createObjectURL(file));
+    editorApi.editor.chain().focus().insertContent(`![[${baseName(path)}]]`).run();
+  }
+  await loadFiles();
+}
+
+// ===== ייבוא וייצוא (עד שיחובר סנכרון) =====
+async function importFiles(list) {
+  let count = 0;
+  for (const file of list) {
+    const rel = (file.webkitRelativePath || file.name).split('/');
+    if (file.webkitRelativePath) rel.shift(); // שם התיקייה שנבחרה עצמה
+    const path = rel.join('/');
+    if (!path || rel.some((s) => s.startsWith('.'))) continue; // .obsidian, .tali.json, .trash
+    const data = /\.(md|canvas|txt)$/i.test(path) ? await file.text() : file;
+    await vault.write(path, data);
+    count++;
+  }
+  await loadFiles();
+  renderList();
+  toast(`יובאו ${count} קבצים`);
+}
+async function exportCurrent() {
+  if (!state.current) return;
+  await saveNow();
+  const text = editorApi.getMarkdown();
+  const file = new File([text], baseName(state.current), { type: 'text/markdown' });
+  if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: noteName(state.current) }); return; } catch { /* בוטל */ } }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file);
+  a.download = file.name;
+  a.click();
+}
+
+// ===== סנכרון =====
+async function updateSyncBadge() {
+  const n = await vault.pending();
+  const badge = $('mSyncCount');
+  badge.textContent = n > 99 ? '99+' : String(n);
+  badge.hidden = n === 0;
+}
+let syncing = false;
+async function syncNow({ quiet = false } = {}) {
+  const remote = await connectedRemote();
+  if (!remote) { if (!quiet) openSheet(); return; }
+  if (!navigator.onLine) { if (!quiet) toast('אין חיבור. השינויים שמורים בטלפון ויסונכרנו כשיחזור החיבור'); return; }
+  if (syncing) return;
+  syncing = true;
+  $('mSync').classList.add('spin');
+  try {
+    await saveNow();
+    const r = await runSync(localForSync, remote, { hashOf: hashData });
+    await meta.set('lastSync', Date.now());
+    await loadFiles();
+    if (state.current) {
+      const rec = await vault.get(state.current);
+      if (!rec) closeNote(); // נמחק במקור
+      else if (!state.dirty && rec.data !== editorApi.getMarkdown()) editorApi.setMarkdown(rec.data);
+    } else renderList();
+    const parts = [];
+    if (r.uploaded) parts.push(`${r.uploaded} נשלחו`);
+    if (r.downloaded) parts.push(`${r.downloaded} התקבלו`);
+    if (r.conflicts.length) parts.push(`${r.conflicts.length} נשמרו כעותק (נערכו בשני המקומות)`);
+    if (r.errors.length) parts.push(`${r.errors.length} נכשלו`);
+    if (!quiet || parts.length) toast(parts.length ? 'סנכרון: ' + parts.join(', ') : 'הכול מסונכרן');
+  } catch (error) {
+    if (!quiet) toast('הסנכרון נכשל: ' + (error?.message || error));
+  } finally {
+    syncing = false;
+    $('mSync').classList.remove('spin');
+  }
+}
+let autoSyncTimer = null;
+function scheduleAutoSync() { clearTimeout(autoSyncTimer); autoSyncTimer = setTimeout(() => syncNow({ quiet: true }), 8000); }
+window.addEventListener('online', () => syncNow({ quiet: true }));
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) saveNow();
+  else syncNow({ quiet: true });
+});
+
+// ===== תפריט (גיליון תחתון) =====
+async function openSheet() {
+  const remoteName = await remoteLabel();
+  const last = await meta.get('lastSync');
+  $('mSheetSync').textContent = remoteName
+    ? `מחובר: ${remoteName}${last ? ` · סנכרון אחרון ${fmtTime(last)}` : ''}`
+    : 'הסנכרון עוד לא מחובר. בינתיים כל מה שנכתב נשמר בטלפון בלבד; אפשר לייבא קבצים מהמחשב ולשתף מסמך.';
+  $('mSheetNote').hidden = !state.current;
+  $('mSheet').showModal();
+}
+$('mSheet').addEventListener('click', (e) => { if (e.target === $('mSheet')) $('mSheet').close(); });
+
+// ===== חיווט =====
+setIcon($('mBack'), 'chevronRight', 22);
+$('mSyncIcon').innerHTML = lucide('RefreshCw', 20);
+setIcon($('mMenu'), 'more', 22);
+setIcon($('mNew'), 'plus', 26);
+setIcon($('mCrumbUp'), 'chevronRight', 18);
+setIcon($('mSearchIcon'), 'search', 18);
+for (const el of document.querySelectorAll('[data-icon]')) setIcon(el, el.dataset.icon, 18);
+
+$('mBack').addEventListener('click', () => closeNote());
+$('mSync').addEventListener('click', () => syncNow());
+$('mMenu').addEventListener('click', openSheet);
+$('mNew').addEventListener('click', async () => {
+  const name = prompt('שם המסמך החדש', 'מסמך חדש');
+  if (name) await createNote(name);
+});
+$('mCrumbUp').addEventListener('click', () => { state.folder = dirOf(state.folder); renderList(); });
+$('mSearch').addEventListener('input', (e) => { state.query = e.target.value; renderList(); });
+$('mImportFiles').addEventListener('change', (e) => { $('mSheet').close(); importFiles([...e.target.files]); e.target.value = ''; });
+$('mImportDir').addEventListener('change', (e) => { $('mSheet').close(); importFiles([...e.target.files]); e.target.value = ''; });
+$('mExport').addEventListener('click', () => { $('mSheet').close(); exportCurrent(); });
+$('mRaw').addEventListener('click', () => { $('mSheet').close(); editorApi.toggleRaw(); });
+$('mRename').addEventListener('click', async () => {
+  $('mSheet').close();
+  if (!state.current) return;
+  const name = prompt('שם חדש', noteName(state.current));
+  if (!name || name === noteName(state.current)) return;
+  await saveNow();
+  const to = (dirOf(state.current) ? dirOf(state.current) + '/' : '') + name.replace(/[\\/:*?"<>|]/g, '') + '.md';
+  if (state.files.some((f) => f.path === to)) { toast('כבר יש מסמך בשם הזה'); return; }
+  await vault.rename(state.current, to);
+  await loadFiles();
+  state.current = to;
+  $('mTitle').textContent = noteName(to);
+});
+$('mDelete').addEventListener('click', async () => {
+  $('mSheet').close();
+  if (!state.current || !confirm(`למחוק את "${noteName(state.current)}"?`)) return;
+  const path = state.current;
+  state.dirty = false;
+  await vault.trash(path);
+  await loadFiles();
+  closeNote();
+  scheduleAutoSync();
+});
+$('mSheetClose').addEventListener('click', () => $('mSheet').close());
+$('mTitle').addEventListener('click', () => { if (state.current) $('mRename').click(); });
+
+// מקלדת וירטואלית: הסרגל נצמד מעליה (visualViewport)
+const vv = window.visualViewport;
+if (vv) {
+  const place = () => {
+    const covered = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    document.documentElement.style.setProperty('--kb', covered + 'px');
+  };
+  vv.addEventListener('resize', place);
+  vv.addEventListener('scroll', place);
+}
+
+// מצב שרטוט: כלי השכבה (page-overlay.js) מקבלים גדלים לאצבע ב־mobile.css
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay.inSession()) setDrawing(false); });
+
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  navigator.serviceWorker.register('sw.js').catch(() => { /* בלי עבודה לא מקוונת */ });
+}
+
+(async function start() {
+  document.body.dataset.view = 'list';
+  await loadFiles();
+  renderList();
+  const fromHash = location.hash ? decodeURIComponent(location.hash.slice(1)) : null;
+  if (fromHash && state.files.some((f) => f.path === fromHash)) { history.replaceState(null, '', location.pathname); openNote(fromHash); }
+  syncNow({ quiet: true });
+})();
+
+// לבדיקות ולניפוי (בדפדפן): window.taliMobile
+window.taliMobile = { state, vault, openNote, closeNote, editorApi, overlay, syncNow, setRemote, memoryRemote, extractTags };

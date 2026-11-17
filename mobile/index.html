@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+  <meta name="theme-color" content="#f6f2ea" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https:" />
+  <title>Tali</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body class="m" data-view="list">
+  <header id="mHead">
+    <button id="mBack" class="m-icon-btn" type="button" aria-label="חזרה לרשימה"></button>
+    <img class="m-logo" src="icon-192.png" alt="" />
+    <button id="mTitle" type="button" class="m-title">Tali</button>
+    <span id="mSaveDot" class="m-save-dot" data-state="saved" aria-hidden="true"></span>
+    <button id="mSync" class="m-icon-btn" type="button" aria-label="סנכרון"><span id="mSyncIcon"></span><span id="mSyncCount" class="m-badge" hidden>0</span></button>
+    <button id="mMenu" class="m-icon-btn" type="button" aria-label="תפריט"></button>
+  </header>
+
+  <section id="mListView">
+    <label class="m-search"><span id="mSearchIcon"></span><input id="mSearch" type="search" placeholder="חיפוש בשם ובתוכן…" enterkeyhint="search" /></label>
+    <div id="mCrumb" class="m-crumb" hidden><button id="mCrumbUp" type="button" class="m-icon-btn" aria-label="תיקייה למעלה"></button><span id="mCrumbText"></span></div>
+    <div id="mList" class="m-list"></div>
+    <button id="mNew" type="button" class="m-fab" aria-label="מסמך חדש"></button>
+  </section>
+
+  <section id="mNoteView">
+    <div id="pageWrap">
+      <div id="page">
+        <div id="propsHost"><textarea id="props" hidden spellcheck="false"></textarea></div>
+        <div id="editor"></div>
+      </div>
+      <textarea id="raw" hidden spellcheck="false" dir="auto"></textarea>
+    </div>
+    <nav id="mTools" aria-label="עיצוב"></nav>
+  </section>
+
+  <dialog id="mSheet" class="m-sheet">
+    <div class="m-sheet-grip"></div>
+    <section>
+      <h3>סנכרון</h3>
+      <p id="mSheetSync" class="m-muted"></p>
+    </section>
+    <section id="mSheetNote">
+      <h3>המסמך הזה</h3>
+      <button id="mRename" type="button" class="m-sheet-item"><span data-icon="edit"></span>שינוי שם</button>
+      <button id="mRaw" type="button" class="m-sheet-item"><span data-icon="markdown"></span>תצוגה מעוצבת / Markdown</button>
+      <button id="mExport" type="button" class="m-sheet-item"><span data-icon="copy"></span>שיתוף הקובץ</button>
+      <button id="mDelete" type="button" class="m-sheet-item danger"><span data-icon="trash"></span>מחיקה</button>
+    </section>
+    <section>
+      <h3>קבצים</h3>
+      <label class="m-sheet-item"><span data-icon="filePlus"></span>ייבוא מסמכים ותמונות<input id="mImportFiles" type="file" multiple accept=".md,.canvas,image/*" hidden /></label>
+      <label class="m-sheet-item"><span data-icon="folder"></span>ייבוא תיקייה שלמה<input id="mImportDir" type="file" webkitdirectory multiple hidden /></label>
+    </section>
+    <button id="mSheetClose" type="button" class="m-sheet-close">סגירה</button>
+  </dialog>
+
+  <div id="mToast" class="m-toast" role="status" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>
