@@ -109,6 +109,48 @@ let symbolsOpen = false;
 try { symbolsOpen = localStorage.getItem('tali:math-symbols') === '1'; } catch { /* בלי אחסון */ }
 
 // ===== החלונית =====
+// ===== מקלדת אנגלית בחלונית הנוסחה (10.3) =====
+// דף אינטרנט לא יכול להחליף את שפת המקלדת של Windows. במקום זה, כשפריסה לא לטינית פעילה (עברית),
+// כל מקש בתיבה מתורגם לפי המקש הפיזי (e.code) למה שהוא נותן במקלדת אנגלית (US). השפה של Windows
+// לא משתנה בכלל, ולכן ביציאה מהחלונית חוזרים בדיוק למה שהיה. כבוי בהגדרות: mathEnglishKeys = false.
+const US_KEYS = {
+  Backquote: ['`', '~'], Digit1: ['1', '!'], Digit2: ['2', '@'], Digit3: ['3', '#'], Digit4: ['4', '$'], Digit5: ['5', '%'],
+  Digit6: ['6', '^'], Digit7: ['7', '&'], Digit8: ['8', '*'], Digit9: ['9', '('], Digit0: ['0', ')'], Minus: ['-', '_'],
+  Equal: ['=', '+'], BracketLeft: ['[', '{'], BracketRight: [']', '}'], Backslash: ['\\', '|'], Semicolon: [';', ':'],
+  Quote: ["'", '"'], Comma: [',', '<'], Period: ['.', '>'], Slash: ['/', '?'], IntlBackslash: ['\\', '|'],
+};
+// התו במקלדת אנגלית למקש פיזי, או null למקש שאינו תו (חצים, Enter, F1...)
+export function usKeyFor(code, shift, caps = false) {
+  const letter = /^Key([A-Z])$/.exec(code);
+  if (letter) return (shift !== caps) ? letter[1] : letter[1].toLowerCase();
+  const pair = US_KEYS[code];
+  return pair ? pair[shift ? 1 : 0] : null;
+}
+// פריסה לא לטינית: לפי האות שהמקש נתן. אות לטינית מבטלת, אות עברית (או ערבית, רוסית...) מפעילה.
+// סימני פיסוק לא משנים את ההחלטה, ולכן הם עוקבים אחרי האות האחרונה (או אחרי מפת המקלדת של הדפדפן).
+const NON_LATIN_LETTER = /[Ͱ-ϿЀ-ӿ֐-׿؀-ۿ]/;
+let nonLatinLayout = false;
+let forceEnglish = () => true;
+export function configureMathInput({ englishKeys } = {}) { if (englishKeys) forceEnglish = englishKeys; }
+function senseLayout() {
+  // Keyboard Map API של Chromium: האות שהמקש A נותן עכשיו בפריסה הפעילה
+  try {
+    navigator.keyboard?.getLayoutMap?.().then((m) => {
+      const a = m.get('KeyA');
+      if (a) nonLatinLayout = !/^[a-z]$/i.test(a);
+    }).catch(() => {});
+  } catch { /* לא נתמך: לפי האותיות שמוקלדות */ }
+}
+// מחזיר את התו האנגלי להכניס במקום, או null להשאיר את ההקלדה הרגילה
+export function englishKeyFor(e, layoutIsNonLatin) {
+  if (e.ctrlKey || e.altKey || e.metaKey || e.isComposing) return null;
+  if (typeof e.key !== 'string' || e.key.length !== 1) return null;
+  const us = usKeyFor(e.code, e.shiftKey, e.getModifierState?.('CapsLock') ?? false);
+  if (!us || us === e.key) return null;
+  if (NON_LATIN_LETTER.test(e.key) || layoutIsNonLatin) return us;
+  return null;
+}
+
 let pop = null;
 export function closeMathEditor(commit = false) {
   if (!pop) return;
@@ -214,6 +256,20 @@ export function openMathEditor({ rect, tex = '', display = false, isNew = true, 
   check.addEventListener('change', refresh);
   input.addEventListener('keydown', (e) => {
     e.stopPropagation();
+    // 10.3: מקלדת עברית פעילה: התו האנגלי של אותו מקש פיזי
+    if (forceEnglish()) {
+      if (typeof e.key === 'string' && e.key.length === 1) {
+        if (NON_LATIN_LETTER.test(e.key)) nonLatinLayout = true;
+        else if (/^[a-z]$/i.test(e.key) && /^Key[A-Z]$/.test(e.code)) nonLatinLayout = false;
+      }
+      const en = englishKeyFor(e, nonLatinLayout);
+      if (en) {
+        e.preventDefault();
+        // הכנסה מילולית (insertAtCaret מתייחס ל־| כמקום הסמן). execCommand: כדי ש־Ctrl+Z ואירוע input יעבדו כרגיל
+        if (!document.execCommand('insertText', false, en)) input.setRangeText(en, input.selectionStart, input.selectionEnd, 'end');
+        return;
+      }
+    }
     if (e.key === 'Escape') { e.preventDefault(); closeMathEditor(false); return; }
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!ok.disabled) closeMathEditor(true); }
   });
@@ -227,6 +283,7 @@ export function openMathEditor({ rect, tex = '', display = false, isNew = true, 
   window.addEventListener('resize', p.place);
   // אחרי ה־pointerdown שפתח את החלונית
   setTimeout(() => { if (pop === p) document.addEventListener('pointerdown', p.outside, true); }, 0);
+  if (forceEnglish()) senseLayout();
   input.focus();
   input.setSelectionRange(input.value.length, input.value.length);
   return el;

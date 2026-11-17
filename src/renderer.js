@@ -20,6 +20,7 @@ import { icon, lucide } from './icons.js';
 import { setupHoverPreview } from './hover-preview.js';
 import { openGraph, openGhosts, openTags, openTasks, openRecent } from './vault-views.js';
 import { exportHtml, collectFloats, EXPORT_CSS } from './export.js';
+import { configureMathInput } from './math.js';
 import { buildDocx } from './export-docx.js';
 import { openHeaderConvert } from './header-convert.js';
 import { createTabs } from './tabs.js';
@@ -209,6 +210,8 @@ const editorApi = createEditor({
   smartSymbols: () => getPrefs().smartSymbols !== false,
 });
 onPrefsChange(() => editorApi.refreshPreferences());
+// 10.3: מקלדת אנגלית בחלונית הנוסחה (math.js)
+configureMathInput({ englishKeys: () => getPrefs().mathEnglishKeys !== false });
 // 8.2: סדר והסתרה של קבוצות בסרגל הכלים (הגדרות ← סרגל הכלים)
 const applyToolbarLayout = () => { const p = getPrefs(); toolbarApi.applyLayout(normalizeToolbarLayout(p.toolbarOrder, p.toolbarHidden, p.toolbarShown)); };
 onPrefsChange(applyToolbarLayout);

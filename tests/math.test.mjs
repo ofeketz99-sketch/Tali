@@ -1,6 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findInlineMath, mathSource, isValidInlineTex, dollarOpensEditor, blockTex, blockSource, arrowShortcut } from '../src/math.js';
+import { findInlineMath, mathSource, isValidInlineTex, dollarOpensEditor, blockTex, blockSource, arrowShortcut, usKeyFor, englishKeyFor } from '../src/math.js';
+
+test('physical keys map to the US layout', () => {
+  assert.equal(usKeyFor('KeyA', false), 'a');
+  assert.equal(usKeyFor('KeyA', true), 'A');
+  assert.equal(usKeyFor('KeyA', false, true), 'A'); // caps lock
+  assert.equal(usKeyFor('Digit9', true), '(');
+  assert.equal(usKeyFor('Backslash', false), '\\');
+  assert.equal(usKeyFor('Slash', false), '/');
+  assert.equal(usKeyFor('ArrowLeft', false), null);
+});
+
+test('Hebrew keystrokes in the formula box become the English character of the same key', () => {
+  const ev = (key, code, extra = {}) => ({ key, code, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, ...extra });
+  assert.equal(englishKeyFor(ev('ש', 'KeyA'), false), 'a'); // a Hebrew letter alone proves the layout
+  assert.equal(englishKeyFor(ev('.', 'Slash'), true), '/'); // Hebrew layout: the / key types "."
+  assert.equal(englishKeyFor(ev('ת', 'Comma'), true), ',');
+  assert.equal(englishKeyFor(ev(')', 'Digit9', { shiftKey: true }), true), '('); // RTL-mirrored parenthesis
+  assert.equal(englishKeyFor(ev('a', 'KeyA'), false), null); // English keyboard: untouched
+  assert.equal(englishKeyFor(ev('.', 'Slash'), false), null); // punctuation on an English keyboard: untouched
+  assert.equal(englishKeyFor(ev('ש', 'KeyA', { ctrlKey: true }), true), null); // shortcuts pass through
+  assert.equal(englishKeyFor(ev('Enter', 'Enter'), true), null);
+});
 import { SYMBOL_GROUPS, searchSymbols, textForContext, usable } from '../src/symbols.js';
 
 test('symbol search finds by English, Hebrew, LaTeX or the character itself', () => {
