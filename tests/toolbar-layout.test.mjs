@@ -96,3 +96,13 @@ test('groups split, merge, move and are removed', () => {
   assert.deepEqual(saved.sections, [{ items: ['bold'] }]);
   assert.deepEqual(saved.known, tb.ITEM_IDS);
 });
+
+test('groups are dragged to a new place or onto another group (10.8)', () => {
+  const start = [{ items: ['undo'] }, { items: ['bold'] }, { items: ['raw'] }];
+  assert.deepEqual(ids(tb.moveSectionTo(start, 0, 2)), [['bold'], ['raw'], ['undo']]);
+  assert.deepEqual(ids(tb.moveSectionTo(start, 2, 0)), [['raw'], ['undo'], ['bold']]);
+  assert.deepEqual(ids(tb.moveSectionTo(start, 1, 1)), ids(start));
+  assert.deepEqual(ids(tb.mergeSectionInto(start, 0, 2)), [['bold'], ['raw', 'undo']]);
+  assert.deepEqual(ids(tb.mergeSectionInto(start, 2, 0)), [['undo', 'raw'], ['bold']]);
+  assert.deepEqual(ids(tb.mergeSectionInto(start, 1, 1)), ids(start));
+});

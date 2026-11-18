@@ -170,3 +170,19 @@ export function moveSection(sections, i, delta) {
   return out;
 }
 export const removeSection = (sections, i) => copy(sections).filter((_, j) => j !== i);
+// 10.8 (גרירת קבוצה שלמה): העברת קבוצה from למקום to ברשימה שאחרי ההוצאה שלה
+export function moveSectionTo(sections, from, to) {
+  const out = copy(sections);
+  if (from < 0 || from >= out.length) return out;
+  const [sec] = out.splice(from, 1);
+  out.splice(Math.max(0, Math.min(to, out.length)), 0, sec);
+  return out;
+}
+// 10.8: קבוצה from שנגררה ושוחררה על קבוצה into: הכפתורים שלה נכנסים לסוף into
+export function mergeSectionInto(sections, from, into) {
+  const out = copy(sections);
+  if (from === into || !out[from] || !out[into]) return out;
+  out[into].items.push(...out[from].items);
+  out.splice(from, 1);
+  return out;
+}

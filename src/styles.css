@@ -2189,23 +2189,6 @@ body.page-drawing-session .block-handle { display: none !important; }
 
 /* 8.2: הגדרות ← סרגל הכלים */
 /* 10.4: עורך הסרגל: כרטיס לכל קבוצה, כפתורים שאפשר לגרור, ופסים בין הקבוצות לקבוצה חדשה */
-#settings .set-tb-list { display: flex; flex-direction: column; margin: 6px 0 10px; }
-#settings .set-tb-card { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-bg); }
-#settings .set-tb-items { flex: 1; display: flex; flex-wrap: wrap; gap: 5px; min-height: 30px; align-items: center; border-radius: 8px; padding: 2px; }
-#settings .set-tb-items.drop { background: var(--accent-soft); outline: 1px dashed var(--accent); }
-#settings .set-tb-tools { display: flex; gap: 1px; flex: none; }
-#settings .set-tb-tools .icon-btn:disabled { opacity: .3; }
-#settings .set-tb-gap { height: 8px; border-radius: 6px; transition: height .12s var(--ease), background .12s var(--ease); }
-#settings .set-tb-gap.drop { height: 26px; background: var(--accent-soft); outline: 1px dashed var(--accent); }
-#settings .set-tb-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; border: 1px solid var(--border); border-radius: 8px; background: var(--page-bg); font-size: 12px; cursor: grab; user-select: none; }
-#settings .set-tb-chip:hover { border-color: var(--accent-line); }
-#settings .set-tb-chip.dragging { opacity: .4; }
-#settings .set-tb-chip svg { flex: none; }
-#settings .set-tb-chip-x { display: inline-grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: pointer; }
-#settings .set-tb-chip-x:hover { background: var(--accent-hover); color: var(--text); }
-#settings .set-tb-pool { display: flex; flex-wrap: wrap; gap: 5px; min-height: 38px; padding: 6px; margin-bottom: 12px; border: 1px dashed var(--border); border-radius: 10px; }
-#settings .set-tb-pool.drop { background: var(--accent-soft); border-color: var(--accent); }
-#settings .set-tb-pool .set-tb-chip { cursor: pointer; opacity: .85; }
 #settings .set-sub { margin: 8px 0 4px; font-size: 13px; font-weight: 600; }
 
 /* ===== 8.3: שכבת הדף: שמונה ידיות לתיבות ולתמונות, מלבן בחירה, וכפתור "צבע אחר" ===== */
@@ -2490,23 +2473,6 @@ dialog[open]::backdrop { animation: fade .24s ease; }
 #settings .theme-dirty { flex: 1; font-size: 13px; color: var(--text); }
 
 /* ----- סרגל הכלים (בהגדרות) ----- */
-#settings .set-tb-list { margin: 4px 0 12px; }
-#settings .set-tb-card { gap: 10px; padding: 6px 8px 6px 10px; border-radius: 10px; background: var(--input-bg); transition: border-color .16s var(--ease), box-shadow .16s var(--ease); }
-#settings .set-tb-card:hover, #settings .set-tb-card:focus-within { border-color: var(--accent-line); box-shadow: 0 2px 8px -4px rgba(0, 0, 0, .15); }
-#settings .set-tb-num { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--muted); font-size: 11px; font-weight: 600; }
-#settings .set-tb-tools { opacity: 0; transition: opacity .16s var(--ease); }
-#settings .set-tb-card:hover .set-tb-tools, #settings .set-tb-card:focus-within .set-tb-tools { opacity: 1; }
-#settings .set-tb-tools .icon-btn { width: 26px; height: 26px; border-radius: 7px; }
-#settings .set-tb-gap { height: 6px; }
-#settings .set-tb-list.is-dragging .set-tb-gap { height: 12px; margin-block: 2px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 8%, transparent); }
-#settings .set-tb-list.is-dragging .set-tb-gap.drop { height: 30px; background: var(--accent-soft); outline: 1px dashed var(--accent); }
-#settings .set-tb-chip { padding: 4px 6px 4px 9px; border-radius: 8px; background: var(--page-bg); transition: border-color .14s var(--ease), box-shadow .14s var(--ease); }
-#settings .set-tb-chip:hover { border-color: var(--accent-line); box-shadow: 0 2px 6px -3px rgba(0, 0, 0, .2); }
-#settings .set-tb-chip svg { color: var(--accent-strong); }
-#settings .set-tb-chip-x { opacity: .35; transition: opacity .14s var(--ease); }
-#settings .set-tb-chip:hover .set-tb-chip-x { opacity: 1; }
-#settings .set-tb-pool { margin: 0 0 14px; padding: 8px; background: color-mix(in srgb, var(--bg) 35%, transparent); }
-#settings .set-tb-pool .set-tb-chip { opacity: 1; }
 @media (max-width: 760px) {
   #settings .set-body { grid-template-columns: 1fr; }
   #settings .set-nav .set-nav-spacer, #settings .set-nav button.on::before { display: none; }
@@ -2609,3 +2575,65 @@ dialog[open]::backdrop { animation: fade .24s ease; }
 .cv-style-reset { width: 100%; margin-top: 12px; padding: 6px; border: 1px dashed var(--border); border-radius: 8px; background: none; color: var(--muted); font-size: 12.5px; cursor: pointer; }
 .cv-style-reset:hover:not(:disabled) { color: var(--text); border-style: solid; }
 .cv-style-reset:disabled { opacity: .45; cursor: default; }
+
+/* ===== 10.8: עורך סרגל הכלים בהגדרות, בגרירה (toolbar-editor.js) ===== */
+#settings .set-tb-preview { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; min-height: 40px; margin: 8px 0 4px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--accent-tint, var(--panel-bg)); }
+#settings .set-tb-pv-group { display: inline-flex; align-items: center; gap: 1px; padding-inline: 4px; }
+#settings .set-tb-pv-group + .set-tb-pv-group { border-inline-start: 1px solid var(--accent-line, var(--border)); padding-inline-start: 8px; }
+#settings .set-tb-pv-group:last-child:not(:first-child) { margin-inline-start: auto; }
+#settings .set-tb-pv-btn { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; color: var(--text); }
+#settings .set-tb-pv-btn:hover { background: var(--accent-hover); }
+
+#settings .set-tb-list { display: flex; flex-direction: column; margin: 4px 0 6px; }
+#settings .set-tb-card { position: relative; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--input-bg); transition: border-color .16s var(--ease), box-shadow .16s var(--ease), background .16s var(--ease); }
+#settings .set-tb-card:hover { border-color: var(--accent-line); box-shadow: 0 3px 10px -6px rgba(0, 0, 0, .25); }
+#settings .set-tb-grip { flex: none; display: grid; place-items: center; width: 24px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: none; color: var(--muted); cursor: grab; touch-action: none; }
+#settings .set-tb-grip:hover, #settings .set-tb-grip:focus-visible { background: var(--accent-hover); color: var(--accent-strong); }
+#settings .set-tb-items { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 32px; padding: 2px; }
+#settings .set-tb-tools { flex: none; display: flex; gap: 2px; opacity: .45; transition: opacity .16s var(--ease); }
+#settings .set-tb-card:hover .set-tb-tools, #settings .set-tb-card:focus-within .set-tb-tools { opacity: 1; }
+#settings .set-tb-tools .icon-btn { width: 26px; height: 26px; border-radius: 7px; }
+
+#settings .set-tb-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--page-bg); font-size: 12px; cursor: grab; user-select: none; touch-action: none; transition: border-color .14s var(--ease), box-shadow .14s var(--ease), opacity .14s var(--ease); }
+#settings .set-tb-chip:hover { border-color: var(--accent-line); box-shadow: 0 2px 7px -3px rgba(0, 0, 0, .22); }
+#settings .set-tb-chip svg { flex: none; color: var(--accent-strong); }
+#settings .set-tb-chip-x { display: inline-grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: pointer; opacity: .35; transition: opacity .14s var(--ease); }
+#settings .set-tb-chip:hover .set-tb-chip-x { opacity: 1; }
+#settings .set-tb-chip-x:hover { background: var(--accent-hover); color: var(--text); }
+/* המקום שבו הכפתור ינחת: מסגרת מקווקוות בגודל שלו */
+#settings .set-tb-chip.is-placeholder { border: 1.5px dashed var(--accent); background: var(--accent-soft); box-shadow: none; }
+#settings .set-tb-chip.is-placeholder > * { visibility: hidden; }
+
+/* הפס שבין הקבוצות: גובה קבוע, כדי ששום דבר לא יקפוץ מתחת לעכבר. כשהכפתור מונח בו: קו בצבע המודגש ו"קבוצה חדשה" */
+#settings .set-tb-gap { position: relative; height: 10px; }
+#settings .set-tb-gap > .set-tb-chip { display: none; }
+#settings .set-tb-gap.open::before { content: ''; position: absolute; inset-inline: 6px; top: 50%; height: 3px; margin-top: -1.5px; border-radius: 3px; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); animation: set-tb-line .2s var(--ease) both; }
+#settings .set-tb-gap.open::after { content: 'קבוצה חדשה'; position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 1px 10px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 600; white-space: nowrap; animation: set-tb-pill .22s var(--ease) both; }
+@keyframes set-tb-line { from { transform: scaleX(.2); opacity: 0; } }
+@keyframes set-tb-pill { from { transform: translate(-50%, -50%) scale(.6); opacity: 0; } }
+/* קבוצה שהתרוקנה בזמן גרירה (תיעלם בשחרור) */
+#settings .set-tb-card:has(.set-tb-items:empty) { opacity: .5; border-style: dashed; }
+
+/* גרירת קבוצה: מקום הקבוצה מקווקו, ויעד לאיחוד מואר */
+#settings .set-tb-card.is-placeholder { border: 1.5px dashed var(--accent); background: var(--accent-soft); box-shadow: none; }
+#settings .set-tb-card.is-placeholder > * { visibility: hidden; }
+#settings .set-tb-card.merge-target { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--input-bg)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+#settings .set-tb-card.merge-target::after { content: 'איחוד לקבוצה אחת'; position: absolute; inset-block-start: -10px; inset-inline-start: 40px; padding: 1px 8px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 600; animation: pop-spring .22s var(--spring, ease) both; }
+
+#settings .set-tb-pool { display: flex; flex-wrap: wrap; gap: 6px; min-height: 42px; margin: 0 0 14px; padding: 8px; border: 1.5px dashed var(--border); border-radius: 12px; background: color-mix(in srgb, var(--bg) 35%, transparent); transition: background .16s var(--ease), border-color .16s var(--ease); }
+#settings .set-tb-pool.drop { border-color: var(--accent); background: var(--accent-soft); }
+#settings .set-tb-pool .set-tb-chip { cursor: grab; }
+#settings .set-tb-pool-empty { align-self: center; }
+
+/* הכפיל שנע עם העכבר (בתוך חלון ההגדרות) */
+.set-tb-ghost, #settings .set-tb-ghost { position: fixed !important; left: 0; top: 0; z-index: 1000; margin: 0; pointer-events: none; box-sizing: border-box; box-shadow: 0 14px 30px -10px rgba(0, 0, 0, .35), 0 0 0 1px var(--accent) !important; border-color: var(--accent) !important; will-change: transform; }
+.set-tb-ghost.set-tb-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border: 1px solid; border-radius: 9px; background: var(--page-bg); font-size: 12px; }
+.set-tb-ghost.set-tb-chip svg { color: var(--accent-strong); }
+.set-tb-ghost .set-tb-chip-x, .set-tb-ghost .set-tb-tools { visibility: hidden; }
+.set-tb-ghost.set-tb-card { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid; border-radius: 12px; background: var(--input-bg); }
+.set-tb-ghost.set-tb-card .set-tb-items { flex: 1; display: flex; flex-wrap: wrap; gap: 6px; }
+.set-tb-ghost.set-tb-card .set-tb-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--page-bg); font-size: 12px; }
+.set-tb-ghost.set-tb-card .set-tb-grip { display: grid; place-items: center; width: 24px; border: 0; background: none; color: var(--accent-strong); }
+html.set-tb-grabbing, html.set-tb-grabbing * { cursor: grabbing !important; }
+.set-tb-ghost { transition: opacity .16s var(--ease); }
+.set-tb-ghost.merging { opacity: .55; }

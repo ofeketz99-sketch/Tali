@@ -6,7 +6,8 @@ import { updateTheme } from './theme.js';
 import { buildThemeSection } from './theme-editor.js';
 import { DEFAULT_THEMES, DEFAULT_SCHEDULE, migratePrefs } from './theme-core.js';
 import { commandHotkey, eventToHotkey } from './hotkeys.js';
-import { normalizeToolbar, toolbarLayoutValue, unusedItems, moveItem, removeItem, splitSection, mergeWithNext, moveSection, removeSection, itemLabel, itemIcon } from './toolbar-layout.js';
+import { normalizeToolbar, toolbarLayoutValue } from './toolbar-layout.js';
+import { createToolbarEditor } from './toolbar-editor.js';
 
 export const DEFAULTS = {
   version: 4,
@@ -360,92 +361,17 @@ function buildDialog() {
     shortcutList.append(row(command.title, null, control));
   }
 
-  // 10.4: עורך הסרגל, כפתור אחד בכל פעם. כל קבוצה היא כרטיס עם הכפתורים שבה; גוררים כפתור לקבוצה אחרת,
-  // לפס שבין הקבוצות (קבוצה חדשה משלו) או לרשימת "לא בסרגל". כל שינוי מוחל מיד (renderer.js → toolbarApi.applyLayout)
-  const toolbarList = el('div', { class: 'set-tb-list' });
-  const toolbarPool = el('div', { class: 'set-tb-pool' });
-  const sectionsNow = () => normalizeToolbar(prefs);
-  const saveSections = (sections) => { setPref('toolbarLayout', toolbarLayoutValue(sections)); drawToolbarList(); };
-  const DRAG = 'text/x-tali-toolbar-item';
-  let dragging = null;
-  const chip = (id, onRemove) => {
-    const c = el('span', { class: 'set-tb-chip', draggable: 'true', 'data-item': id, title: itemLabel(id) });
-    c.innerHTML = icon(itemIcon(id), 15);
-    c.append(el('span', { class: 'set-tb-chip-name' }, itemLabel(id)));
-    if (onRemove) {
-      const x = el('button', { type: 'button', class: 'set-tb-chip-x', 'aria-label': `הוצאה מהסרגל: ${itemLabel(id)}`, 'data-tip': 'הוצאה מהסרגל' });
-      x.innerHTML = icon('close', 12);
-      x.addEventListener('click', onRemove);
-      c.append(x);
-    }
-    // בזמן גרירה (is-dragging) הפסים שבין הקבוצות נפתחים; אחרת הם נסתרים, כדי שהרשימה תהיה נקייה
-    c.addEventListener('dragstart', (e) => { dragging = id; e.dataTransfer.setData(DRAG, id); e.dataTransfer.effectAllowed = 'move'; c.classList.add('dragging'); toolbarList.classList.add('is-dragging'); });
-    c.addEventListener('dragend', () => { dragging = null; c.classList.remove('dragging'); toolbarList.classList.remove('is-dragging'); toolbarList.querySelectorAll('.drop').forEach((n) => n.classList.remove('drop')); toolbarPool.classList.remove('drop'); });
-    return c;
-  };
-  // מקום ההכנסה בתוך קבוצה לפי העכבר: מספר הכפתורים שלפני הנקודה בכיוון הכתיבה של הרשימה
-  const indexAt = (body, x) => {
-    const rtl = getComputedStyle(body).direction === 'rtl';
-    const chips = [...body.querySelectorAll('.set-tb-chip:not(.dragging)')];
-    return chips.filter((c) => { const r = c.getBoundingClientRect(); const mid = (r.left + r.right) / 2; return rtl ? mid > x : mid < x; }).length;
-  };
-  const dropTarget = (node, onDrop) => {
-    node.addEventListener('dragover', (e) => { if (!dragging) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; node.classList.add('drop'); });
-    node.addEventListener('dragleave', (e) => { if (!node.contains(e.relatedTarget)) node.classList.remove('drop'); });
-    node.addEventListener('drop', (e) => { if (!dragging) return; e.preventDefault(); e.stopPropagation(); const id = dragging; dragging = null; node.classList.remove('drop'); onDrop(id, e); });
-  };
-  const gap = (at) => {
-    const g = el('div', { class: 'set-tb-gap', 'aria-hidden': 'true' });
-    dropTarget(g, (id) => saveSections(moveItem(sectionsNow(), id, at, 0, { asNew: true })));
-    return g;
-  };
-  const drawToolbarList = () => {
-    const sections = sectionsNow();
-    const nodes = [gap(0)];
-    sections.forEach((sec, i) => {
-      const tool = (iconName, label, run, disabled = false) => {
-        const b = el('button', { type: 'button', class: 'icon-btn', 'aria-label': label, 'data-tip': label });
-        b.innerHTML = icon(iconName, 15);
-        b.disabled = disabled;
-        b.addEventListener('click', run);
-        return b;
-      };
-      const body = el('div', { class: 'set-tb-items' }, ...sec.items.map((id) => chip(id, () => saveSections(removeItem(sections, id)))));
-      dropTarget(body, (id, e) => saveSections(moveItem(sections, id, i, indexAt(body, e.clientX))));
-      const card = el('div', { class: 'set-tb-card' },
-        el('span', { class: 'set-tb-num', 'aria-hidden': 'true' }, String(i + 1)),
-        body,
-        el('span', { class: 'set-tb-tools' },
-          tool('chevronUp', 'הזזת הקבוצה ימינה בסרגל', () => saveSections(moveSection(sections, i, -1)), i === 0),
-          tool('chevronDown', 'הזזת הקבוצה שמאלה בסרגל', () => saveSections(moveSection(sections, i, 1)), i === sections.length - 1),
-          tool('split', 'פירוק: כל כפתור בקבוצה משלו', () => saveSections(splitSection(sections, i)), sec.items.length < 2),
-          tool('merge', 'איחוד עם הקבוצה הבאה', () => saveSections(mergeWithNext(sections, i)), i === sections.length - 1),
-          tool('trash', 'הוצאת כל הקבוצה מהסרגל', () => saveSections(removeSection(sections, i)))));
-      nodes.push(card, gap(i + 1));
-    });
-    toolbarList.replaceChildren(...nodes);
-    const unused = unusedItems(sections);
-    // לחיצה על כפתור שלא בסרגל: נכנס בקבוצה משלו בסוף (לפני הקבוצה האחרונה, שנדחקת לקצה)
-    toolbarPool.replaceChildren(...(unused.length ? unused.map((id) => {
-      const c = chip(id);
-      c.tabIndex = 0;
-      c.setAttribute('role', 'button');
-      c.dataset.tip = 'גרירה לסרגל, או לחיצה להוספה בסוף';
-      const add = () => saveSections(moveItem(sections, id, Math.max(0, sections.length - 1), 0, { asNew: true }));
-      c.addEventListener('click', add);
-      c.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); add(); } });
-      return c;
-    }) : [el('span', { class: 'set-note' }, 'כל הכפתורים כבר בסרגל.')]));
-  };
-  dropTarget(toolbarPool, (id) => saveSections(removeItem(sectionsNow(), id)));
-  bind(drawToolbarList);
+  // 10.8: עורך הסרגל בגרירה עם תנועה (toolbar-editor.js). כל שינוי מוחל מיד (renderer.js → toolbarApi.applyLayout)
+  const toolbarEditor = createToolbarEditor({ icon, getSections: () => normalizeToolbar(prefs), save: (sections) => setPref('toolbarLayout', toolbarLayoutValue(sections)) });
+  const drawToolbarList = bind(toolbarEditor.draw);
   const toolbarReset = el('button', { type: 'button', class: 'set-link-btn', on: { click: () => {
-    setPref('toolbarOrder', []); setPref('toolbarHidden', []); setPref('toolbarShown', []); setPref('toolbarLayout', null); drawToolbarList();
+    setPref('toolbarOrder', []); setPref('toolbarHidden', []); setPref('toolbarShown', []); setPref('toolbarLayout', null); toolbarEditor.redraw();
   } } }, 'החזרה לברירת המחדל');
   const toolbarPage = el('section', { class: 'set-page', 'data-page': 'toolbar', hidden: '' },
-    pageHead('סרגל הכלים', 'כל שורה היא קבוצה בסרגל, לפי הסדר מימין לשמאל. גוררים כפתור לקבוצה אחרת, או בין שתי קבוצות כדי ליצור קבוצה חדשה. הכלים של כל קבוצה מופיעים בריחוף.'),
-    card(null, el('div', { class: 'set-card-head' }, el('h4', { class: 'set-card-title' }, 'בסרגל'), toolbarReset), toolbarList),
-    card('כפתורים שלא בסרגל', el('p', { class: 'set-note' }, 'לחיצה מוסיפה לסוף הסרגל. אפשר גם לגרור לקבוצה מסוימת, או לגרור לכאן כדי להוציא.'), toolbarPool));
+    pageHead('סרגל הכלים', 'הכול בגרירה. כפתור: לתוך קבוצה, או בין שתי קבוצות כדי לפתוח קבוצה חדשה. קבוצה (בידית ⋮⋮): לקצה של קבוצה אחרת כדי להזיז, או לאמצע שלה כדי לאחד.'),
+    card(null, el('div', { class: 'set-card-head' }, el('h4', { class: 'set-card-title' }, 'כך ייראה הסרגל'), toolbarReset), toolbarEditor.preview),
+    card('הקבוצות בסרגל, מימין לשמאל', toolbarEditor.list),
+    card('כפתורים שלא בסרגל', el('p', { class: 'set-note' }, 'גוררים לסרגל, או לוחצים כדי להוסיף בסוף. גרירה לכאן מוציאה כפתור מהסרגל.'), toolbarEditor.pool));
 
   const pages = [appearance, writing, files, toolbarPage, shortcuts];
   const nav = el('nav', { class: 'set-nav', 'aria-label': 'נושאי הגדרות' });
