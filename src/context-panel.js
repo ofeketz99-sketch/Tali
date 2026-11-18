@@ -4,7 +4,8 @@
 // של המסמך (FOLLOW_UP ב־vault-data.js), וכל השאר הן תיבות סימון רגילות.
 // סגור: רק הפס. פתוח: עמודה לצד הדף. בחלון צר הלוח נפתח מעל הדף. בחלון רחב (dc-roomy) הלוח נפתח לבד
 // בלשונית האחרונה, והדף נשאר במרכז; אם המשתמש סגר אותו שם, הוא נשאר סגור.
-// תצוגה בלבד: הלוח לא כותב לקובץ, חוץ מסימון משימה (דרך העורך, כמו לחיצה על התיבה) והסרת קישור מהמאפיינים.
+// תצוגה בלבד: הלוח לא כותב לקובץ, חוץ מסימון משימה ו(10.7) הסרת קישור, שניהם דרך העורך,
+// ו"קישור" של אזכור, שכותב [[קישור]] במסמך האחר (linkMention ב־renderer.js, עם בדיקת זמן שינוי).
 import { extractTargets, extractTags, extractTasks, FOLLOW_UP, isFollowUpHeading } from '../vault-data.js';
 import { FLAG_LIST } from './flags.js';
 import { getFrontmatterLinks } from '../links.js';
@@ -37,7 +38,8 @@ export function countWords(text) {
 }
 
 // api: getPath, getMarkdown, isRaw, getEditor, resolve(target) → נתיב או null, openLink(target), openNote(path),
-// backlinks(path) → Promise<[{path, name, count, snippet}]>, pickLinks(), removeFrontLink(target), showTag(tag),
+// backlinks(path) → Promise<[{path, name, count, snippet}]>, pickLinks(), removeFrontLink(target), unlinkText(target),
+// makeLinkHub(anchor), findMentions(path) → Promise<[{path, name, snippet}]>, linkMention(path), showTag(tag),
 // addFollowUp(text), getMtime(), prettyPath(path), getFlag(), setFlag(color|null), addProperties()
 // propsHost: המיכל של טופס המאפיינים (props-editor.js). הלוח מעביר אותו ללשונית "מאפיינים" (אותו אלמנט,
 // עם המאזינים שלו), כך שהעורך ממשיך לכתוב ולקרוא ממנו כרגיל גם כשהלשונית סגורה.
@@ -53,6 +55,7 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
   let tab = null; // הלשונית שמוצגת בפועל
   const shownTab = () => chosen || (roomy && !roomyClosed ? lastTab : null);
   let backList = [];
+  let mentions = { path: null, list: null };
   let backToken = 0;
   let refreshTimer = null;
 
@@ -200,7 +203,7 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
     r.append(txt);
     if (extra) r.append(extra);
     if (onClick) {
-      r.addEventListener('click', (e) => { if (!e.target.closest('.dc-x')) onClick(); });
+      r.addEventListener('click', (e) => { if (!e.target.closest('.dc-x, .dc-link-mention')) onClick(); });
       r.addEventListener('keydown', (e) => { if (e.key === 'Enter') onClick(); });
     }
     return r;
@@ -221,35 +224,72 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
     list.forEach((l, i) => {
       const name = baseName(l.target);
       const heading = l.target.includes('#') ? l.target.split('#')[1].split('|')[0] : '';
-      let extra = null;
-      if (l.front) {
-        extra = el('button', 'dc-x');
-        extra.type = 'button';
-        extra.innerHTML = icon('close', 13);
-        extra.dataset.tip = 'הסרת הקישור מהמאפיינים';
-        extra.setAttribute('aria-label', 'הסרת הקישור');
-        extra.addEventListener('click', () => api.removeFrontLink(l.target));
-      }
+      // 10.7: לכל קישור יש ✕. קשור (מהמאפיינים): יוצא מהקשורים. בטקסט: הקישור הופך לטקסט רגיל.
+      const extra = el('button', 'dc-x');
+      extra.type = 'button';
+      extra.innerHTML = icon('close', 13);
+      extra.dataset.tip = l.front ? 'הסרה מהקשורים' : 'ביטול הקישור (הטקסט נשאר)';
+      extra.setAttribute('aria-label', 'הסרת הקישור');
+      extra.addEventListener('click', () => (l.front ? api.removeFrontLink(l.target) : api.unlinkText(l.target)));
       body.append(row({
         iconName: l.path ? 'file' : 'ghost', name, i,
-        sub: [heading && '# ' + heading, !l.path && 'עוד לא נוצר', l.front && 'במאפיינים'].filter(Boolean).join(' · '),
+        sub: [heading && '# ' + heading, !l.path && 'עוד לא נוצר', l.front && 'קשור'].filter(Boolean).join(' · '),
         cls: l.path ? '' : 'missing', extra, onClick: () => api.openLink(l.target),
       }));
     });
+    const actions = el('div', 'dc-actions');
     const add = el('button', 'dc-add');
     add.type = 'button';
-    add.innerHTML = `${icon('plus', 15)}<span>קישור למסמכים…</span>`;
+    add.innerHTML = `${icon('plus', 15)}<span>מסמך קשור…</span>`;
+    add.dataset.tip = 'מוסיף לשורת "קשורים" בראש הדף (Ctrl+Shift+K)';
     add.addEventListener('click', () => api.pickLinks());
-    body.append(add);
+    const hub = el('button', 'dc-add');
+    hub.type = 'button';
+    hub.innerHTML = `${icon('link', 15)}<span>פתק קישור…</span>`;
+    hub.dataset.tip = 'פתק חדש שמקשר כמה מסמכים בנושא אחד';
+    hub.addEventListener('click', () => api.makeLinkHub(hub));
+    actions.append(add, hub);
+    body.append(actions);
   }
 
   function renderBack() {
     section('backlinks', 'פנימה', backList.length, true);
-    if (!backList.length) { empty('אין מסמכים שמקשרים לכאן.'); return; }
+    if (!backList.length) empty('אין מסמכים שמקשרים לכאן.');
     backList.forEach((b, i) => body.append(row({
       iconName: 'file', i, name: b.count > 1 ? `${b.name} (${b.count})` : b.name, sub: b.snippet, cls: 'back',
       onClick: () => api.openNote(b.path),
     })));
+    renderMentions();
+  }
+
+  // 10.7: "מוזכר בלי קישור": מסמכים שכתוב בהם שם המסמך הזה. "קישור" הופך את האזכור הראשון ל־[[קישור]].
+  // נטען פעם אחת לכל מסמך (חיפוש בכל הכספת), ומתרענן אחרי קישור.
+  function renderMentions() {
+    const p = api.getPath();
+    if (!api.findMentions || !p) return;
+    if (mentions.path !== p) loadMentions(p);
+    if (mentions.list === null) return; // עוד נטען: לא מציגים כותרת ריקה
+    if (!mentions.list.length) return;
+    section('search', 'מוזכר בלי קישור', mentions.list.length, true);
+    mentions.list.forEach((m, i) => {
+      const btn = el('button', 'dc-link-mention', 'קישור');
+      btn.type = 'button';
+      btn.dataset.tip = 'הופך את האזכור הראשון שם ל־[[קישור]] לכאן';
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        await api.linkMention(m.path);
+        mentions.path = null; // לטעון מחדש
+        refreshBacklinks();
+      });
+      body.append(row({ iconName: 'file', i, name: m.name, sub: m.snippet, cls: 'back mention', extra: btn, onClick: () => api.openNote(m.path) }));
+    });
+  }
+  async function loadMentions(p) {
+    mentions = { path: p, list: null };
+    const list = await api.findMentions(p).catch(() => []);
+    if (mentions.path !== p) return;
+    mentions.list = list;
+    if (tab === 'links' && api.getPath() === p) renderBody(true);
   }
 
   function renderOutline() {
@@ -461,6 +501,11 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
     const list = await api.backlinks(p).catch(() => []);
     if (token !== backToken || p !== api.getPath()) return;
     backList = list;
+    if (mentions.path === p && mentions.list) {
+      // מסמך שכבר מקשר לכאן כבר לא "מוזכר בלי קישור"
+      const linking = new Set(list.map((b) => b.path));
+      mentions.list = mentions.list.filter((m) => !linking.has(m.path));
+    }
     badge('links', linkTargets(api.getMarkdown()).length + backList.length);
     if (tab === 'links' || tab === 'info') renderBody(true);
   }

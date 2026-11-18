@@ -38,7 +38,7 @@ import {
 // links: { getNotes, resolve, onOpen, localSrc } — ראו wikilink.js ו־embed.js
 // propsElement: textarea של המאפיינים (frontmatter)
 // onImageFiles: (files) => void — תמונות שהודבקו או נגררו לעורך
-export function createEditor({ element, rawElement, propsElement, onChange, links, onImageFiles, shouldSortCompleted = () => false, smartSymbols = () => true }) {
+export function createEditor({ element, rawElement, propsElement, onChange, links, onImageFiles, shouldSortCompleted = () => false, smartSymbols = () => true, onRawChange = () => {} }) {
   let raw = false;
   let loading = false;
   let frontmatter = null;
@@ -197,6 +197,40 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
     // "הוספת מאפיינים" בהערה שאין בה: טופס עם שורה ריקה
     addProperties() { if (!raw) propsForm.addFirst(); },
     getMarkdown: () => (raw ? rawElement.value : richMarkdown()),
+    // 10.7: רק המאפיינים (בלי לבנות את כל ה־Markdown), לשורת "קשורים"
+    getFrontmatter: () => (raw ? splitFrontmatter(rawElement.value).frontmatter : frontmatter),
+    // 10.7: "ביטול קישור" מלוח הקישורים: כל [[target]] בגוף הטקסט הופך לטקסט רגיל (הכינוי, או השם).
+    // הטמעות (![[...]]) והמאפיינים לא משתנים. מחזיר כמה קישורים הוסרו.
+    unlinkTarget(target) {
+      const norm = (t) => String(t || '').split('#')[0].trim().toLowerCase();
+      const want = norm(target);
+      if (raw) {
+        const parts = splitFrontmatter(rawElement.value);
+        let n = 0;
+        const body = parts.body.replace(/(!?)\[\[([^[\]|\n#]+)(#[^[\]|\n]*)?(?:\|([^[\]\n]*))?\]\]/g, (whole, bang, t, h, alias) => {
+          if (bang || norm(t) !== want) return whole;
+          n++;
+          return alias != null && alias !== '' ? alias : t.trim();
+        });
+        if (n) {
+          rawElement.value = joinFrontmatter(parts.frontmatter, body);
+          rawElement.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        return n;
+      }
+      const hits = [];
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'wikiLink' && norm(node.attrs.target) === want) hits.push({ node, pos });
+      });
+      if (!hits.length) return 0;
+      const tr = editor.state.tr;
+      for (const { node, pos } of hits.reverse()) {
+        const text = node.attrs.alias || String(node.attrs.target).trim();
+        tr.replaceWith(pos, pos + node.nodeSize, editor.schema.text(text, node.marks));
+      }
+      editor.view.dispatch(tr);
+      return hits.length;
+    },
     // שינוי של המאפיינים בלבד (למשל דגל) בלי לטעון מחדש את גוף המסמך: הסמן וההיסטוריה נשמרים.
     // fn מקבל ומחזיר את הקובץ כולו; כאן מוחל רק החלק של המאפיינים.
     updateFrontmatter(fn) {
@@ -263,6 +297,7 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       element.hidden = raw;
       rawElement.hidden = !raw;
       showProps();
+      onRawChange(raw);
       if (raw) {
         fitRaw(rawElement, scroller);
         const at = showRichAnchorInRaw(richTop, editor, rawElement, scroller, head());

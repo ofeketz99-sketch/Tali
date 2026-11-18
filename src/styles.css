@@ -2512,3 +2512,62 @@ dialog[open]::backdrop { animation: fade .24s ease; }
   #settings .set-nav .set-nav-spacer, #settings .set-nav button.on::before { display: none; }
   #settings .theme-grid { grid-template-columns: 1fr; }
 }
+
+/* ===== 10.7: קישורים פשוטים יותר ===== */
+/* שורת "קשורים" בראש הדף (related.js): הקישורים מ־links: במאפיינים, כצ'יפים */
+.rel-row { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px dashed var(--border); font-size: 13px; }
+.rel-row[hidden] { display: none; }
+.rel-label { flex: none; display: inline-flex; align-items: center; gap: 5px; padding-top: 4px; color: var(--muted); font-size: 12.5px; }
+.rel-label svg { color: var(--faint); }
+.rel-chips { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.rel-chip { display: inline-flex; align-items: center; max-width: 100%; border: 1px solid var(--accent-line); border-radius: 999px; background: var(--accent-tint); }
+.rel-chip .rel-name { min-width: 0; max-width: 22em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-block: 3px; padding-inline: 10px 4px; border: none; background: none; color: var(--accent-strong); font-size: 13px; }
+.rel-chip .rel-name:hover { text-decoration: underline; }
+.rel-chip .rel-x { display: grid; place-items: center; width: 20px; height: 20px; min-width: 0; margin-inline-end: 3px; padding: 0; border: none; border-radius: 50%; background: none; color: var(--muted); opacity: .55; }
+.rel-chip:hover .rel-x, .rel-x:focus-visible { opacity: 1; }
+.rel-chip .rel-x:hover { background: var(--accent-soft); color: var(--accent-strong); }
+.rel-chip.missing { border-style: dashed; background: none; }
+.rel-chip.missing .rel-name { color: var(--muted); }
+.rel-add { display: grid; place-items: center; width: 26px; height: 26px; min-width: 0; padding: 0; border: 1px dashed var(--accent-line); border-radius: 50%; background: none; color: var(--accent-strong); }
+.rel-add:hover { background: var(--accent-hover); border-style: solid; }
+.rel-add[hidden], .rel-field[hidden] { display: none; }
+.rel-field input { width: 13em; padding: 3px 10px; border: 1px solid var(--accent); border-radius: 999px; background: var(--input-bg); color: var(--text); font: inherit; font-size: 13px; outline: none; }
+.rel-suggest { position: fixed; z-index: 60; min-width: 220px; }
+.rel-suggest[hidden] { display: none; }
+.rel-suggest .item.new span { color: var(--accent-strong); }
+/* לוח הקישורים: שני כפתורי פעולה זה לצד זה, וכפתור "קישור" לאזכור */
+.dc-actions { display: flex; gap: 6px; }
+.dc-actions .dc-add { flex: 1; min-width: 0; }
+.dc-link-mention { flex: none; min-width: 0; padding: 2px 9px; border: 1px solid var(--accent-line); border-radius: 999px; background: none; color: var(--accent-strong); font-size: 12px; opacity: 0; }
+.dc-row:hover .dc-link-mention, .dc-link-mention:focus-visible { opacity: 1; }
+.dc-link-mention:hover { background: var(--accent-soft); }
+
+/* ----- 10.7: כרטיסיות "צפות" (לבקשת המשתמש). עד 10.6 הכרטיסייה הפעילה ירדה ונדבקה לסרגל העיצוב,
+   והפלוס היה חצי כרטיסייה; שניהם לא התיישרו עם כפתורי הבית והניווט. עכשיו כל הסרגל ממורכז לגובה:
+   כרטיסיות בגלולה מעוגלת בגובה 28px כמו הכפתורים, הפעילה מורמת בצל עדין ובנקודה בצבע המודגש. ----- */
+#tabBar { align-items: center; }
+#tabBar .tab-home, #tabBar .tab-split, #tabBar .tab-navbtn, .tab-nav { margin-bottom: 0; }
+.tab-nav { align-self: stretch; }
+.tab-strip { align-items: center; gap: 4px; padding-block: 4px; padding-inline: 2px; }
+.tab {
+  height: 28px; padding: 0 8px 0 6px; border: 1px solid transparent; border-radius: 9px; margin: 0;
+  background: none; box-shadow: none;
+}
+.tab:not(.active):not(.tab-add) { background: color-mix(in srgb, var(--panel-bg) 50%, transparent); border-color: color-mix(in srgb, var(--accent) 10%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: none; }
+.tab:not(.active):not(.tab-add):hover { background: color-mix(in srgb, var(--panel-bg) 80%, transparent); border-color: color-mix(in srgb, var(--accent) 16%, transparent); box-shadow: none; }
+.tab.active {
+  height: 28px; margin-bottom: 0; font-weight: 600;
+  background: var(--page-bg); border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 8%, transparent), 0 3px 10px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.tab.active::before { inset-inline: auto; left: 50%; top: auto; bottom: 2px; width: 14px; height: 2px; border-radius: 2px; transform: translateX(-50%); opacity: .9; }
+.tab.side:not(.active)::after { bottom: 2px; }
+/* הפלוס: כפתור עגול בגודל כפתורי הסרגל, שמתרחב ל"מסמך חדש" בריחוף */
+.tab-add {
+  height: 28px; min-width: 28px; padding-inline: 6px; border-radius: 9px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent); background: none; color: var(--accent-strong);
+}
+.tab-add:hover, .tab-add:focus-visible {
+  border-style: solid; background: color-mix(in srgb, var(--page-bg) 70%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 12%, transparent);
+}

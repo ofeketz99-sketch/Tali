@@ -8,7 +8,8 @@ import { FLAG_LIST, flagName } from './flags.js';
 import { getFlag, setFlag, getCreatedDate, fillTemplate, headerToProps, isFollowUpHeading } from '../vault-data.js';
 import { resolveLink, extractLinks, getFrontmatterLinks, setFrontmatterLinks } from '../links.js';
 import { openLinkPicker } from './linkpicker.js';
-import { showLinkHubOffer } from './linkhub.js';
+import { openLinkHubName } from './linkhub.js';
+import { createRelatedRow } from './related.js';
 import { fileUrl, bumpImage, returnImageToText } from './embed.js';
 import { imageFilesFrom, lonelyImageSrc, fileFromDataUrl } from './paste-images.js';
 import { convertToPlainMarkdown } from './plain-md.js';
@@ -202,7 +203,6 @@ const editorApi = createEditor({
     getNotes: () => allNotes().filter((n) => n.path !== state.currentPath),
     resolve: resolveTarget,
     onOpen: openLink,
-    onLinked: offerLinkHub,
     onEditDrawing: editDrawing,
     localSrc,
     onFreeImage: (info) => freeImage(info),
@@ -212,6 +212,7 @@ const editorApi = createEditor({
   onImageFiles: saveDroppedImages,
   shouldSortCompleted: () => getPrefs().completedTasksAtBottom,
   smartSymbols: () => getPrefs().smartSymbols !== false,
+  onRawChange: () => renderRelated(),
 });
 onPrefsChange(() => editorApi.refreshPreferences());
 // 10.3: מקלדת אנגלית בחלונית הנוסחה (math.js)
@@ -653,22 +654,31 @@ function linkTextFor(p) {
 }
 const noteName = (p) => p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1).replace(/\.(md|canvas)$/i, '');
 
-// אחרי שנוצר קישור מההערה הפתוחה להערה קיימת אחרת: מציעים פתק קישור לשתיהן
-function offerLinkHub(target, coords) {
+// 10.7: פתק קישור רק לפי בקשה (לוח הקישורים / לוח הפקודות). עד 10.6 הצעה קפצה אחרי כל קישור.
+// קודם בוחרים אילו מסמכים לאסוף (המסמך הפתוח והקשורים שלו מסומנים מראש), ואז שם לפתק.
+function makeLinkHub(anchor) {
   const from = state.currentPath;
-  const to = resolveTarget(target);
-  if (!from || !to || to === from || !isNote(to)) return;
-  showLinkHubOffer({
-    coords,
-    from: noteName(from),
-    to: noteName(to),
-    notes: allNotes().filter((n) => n.path !== from && n.path !== to),
-    onApply: (pick) => applyLinkHub(pick, [from, to]),
-    refocus: () => editorApi.editor.commands.focus(),
+  if (!from || !isNote(from)) return;
+  const files = allNotes().map((n) => n.path);
+  const related = getFrontmatterLinks(editorApi.getMarkdown()).map((t) => resolveLink(t, files, state.root)).filter(Boolean);
+  openLinkPicker({
+    title: 'פתק קישור: אילו מסמכים לאסוף?',
+    notes: allNotes(),
+    selected: [from, ...related.filter((p) => p !== from)],
+    onSave: (paths) => {
+      if (paths.length < 2) { showToast('צריך לפחות שני מסמכים לפתק קישור.'); return; }
+      const r = anchor?.getBoundingClientRect?.() || { bottom: window.innerHeight / 3, right: window.innerWidth / 2 + 140 };
+      openLinkHubName({
+        coords: { bottom: r.bottom, right: r.right },
+        title: `שם לפתק שמקשר ${paths.length} מסמכים`,
+        notes: allNotes().filter((n) => !paths.includes(n.path)),
+        onApply: (pick) => applyLinkHub(pick, paths),
+      });
+    },
   });
 }
 
-// יוצר את פתק הקישור (או משתמש בקיים) ומוסיף לו קישורים לשתי ההערות, בלי כפילויות
+// יוצר את פתק הקישור (או משתמש בקיים) ומוסיף לו קישורים למסמכים, בלי כפילויות
 async function applyLinkHub(pick, paths) {
   try {
     await flushSave();
@@ -688,9 +698,10 @@ async function applyLinkHub(pick, paths) {
       await window.api.write(hub, next, null);
     }
     refreshBacklinks();
-    showToast(`פתק הקישור ״${noteName(hub)}״ מקשר עכשיו את ״${noteName(paths[0])}״ ו״${noteName(paths[1])}״.`,
-      'פתיחה', () => openNote(hub));
-    editorApi.editor.commands.focus();
+    showToast(paths.length === 2
+      ? `פתק הקישור ״${noteName(hub)}״ מקשר עכשיו את ״${noteName(paths[0])}״ ו״${noteName(paths[1])}״.`
+      : `פתק הקישור ״${noteName(hub)}״ מקשר עכשיו ${paths.length} מסמכים.`,
+    'פתיחה', () => openNote(hub));
   } catch (err) { setStatus('שגיאה ביצירת פתק הקישור: ' + err.message); }
 }
 
@@ -1865,7 +1876,7 @@ function fileItems(node) {
     { label: 'שינוי שם', icon: 'edit', keys: 'F2', run: () => renameNode(node) },
     { label: 'שכפול', icon: 'copy', run: () => duplicateNode(node) },
     { label: meta.ownBackground(node.path) ? 'שינוי צבע המסמך…' : 'צבע למסמך…', icon: 'palette', run: () => pickBackground(node) },
-    { label: 'קישור לפתקים אחרים…', icon: 'link', run: () => pickLinksFor(node.path) },
+    { label: 'מסמך קשור…', icon: 'link', run: () => pickLinksFor(node.path) },
     { label: 'דגל', icon: 'flag', sub: [
       ...FLAG_LIST.map((fl) => ({ label: fl.name, dot: fl.id, active: () => flag === fl.id, run: () => setNoteFlag(node.path, fl.id) })),
       { label: 'ללא דגל', dot: null, disabled: !flag, run: () => setNoteFlag(node.path, null) },
@@ -1973,39 +1984,95 @@ async function duplicateNode(node) {
   } catch (err) { setStatus('שגיאה בשכפול: ' + err.message); }
 }
 
-// ===== קישור לפתקים אחרים: בורר עם בחירה מרובה, נשמר במאפייני ההערה (links:) =====
+// ===== מסמכים קשורים (10.7): שורת "קשורים" בראש הדף, נשמרת במאפייני המסמך (links:) =====
+// עד 10.6: בורר מודאלי עם בחירה מרובה ושמירה, ושורות links: לא נראו בדף בכלל.
+const relatedLinks = () => {
+  const fm = editorApi.getFrontmatter();
+  return fm == null ? [] : getFrontmatterLinks(`---\n${fm}\n---\n`);
+};
+function setRelated(targets) {
+  // דרך העורך: בלי טעינה מחדש, הסמן וההיסטוריה של הטקסט נשמרים, והשמירה כמו כל עריכה
+  editorApi.updateFrontmatter((text) => setFrontmatterLinks(text, targets));
+  renderRelated();
+  refreshLinksPanel();
+}
+// eslint-disable-next-line prefer-const
+var relatedRow = createRelatedRow({
+  host: $('related'), icon,
+  getNotes: () => allNotes().filter((n) => n.path !== state.currentPath),
+  resolve: (t) => resolveTarget(t),
+  getLinks: relatedLinks,
+  setLinks: setRelated,
+  linkTextFor,
+  open: (t, opts) => openLink(t, opts),
+  isActive: () => !!state.currentPath && !state.canvas && !editorApi.isRaw(),
+});
+function renderRelated() { relatedRow?.render(); }
+
+// "מסמך קשור…" מהעץ, מהלוח או מלוח הפקודות: פותחים את המסמך (אם צריך) ואת השדה בשורת "קשורים"
 async function pickLinksFor(target) {
   try {
-    if (target === state.currentPath) await flushSave();
-    const text = target === state.currentPath ? editorApi.getMarkdown() : await window.api.read(target);
-    const files = allNotes().map((n) => n.path);
-    const current = getFrontmatterLinks(text).map((t) => resolveLink(t, files, state.root)).filter(Boolean);
-    openLinkPicker({
-      title: `קישור ״${noteName(target)}״ לפתקים אחרים`,
-      notes: allNotes().filter((n) => n.path !== target),
-      selected: current,
-      onSave: (paths) => applyNoteLinks(target, paths),
-    });
+    if (!target || !isNote(target)) return;
+    if (target !== state.currentPath) await openNote(target);
+    if (state.currentPath !== target) return;
+    if (editorApi.isRaw()) { setStatus('מסמכים קשורים נערכים בתצוגה המעוצבת'); return; }
+    relatedRow.startAdd();
   } catch (err) { setStatus(err.message); }
 }
 
-async function applyNoteLinks(target, paths) {
+// ===== אזכורים בלי קישור (10.7): מסמכים שכתוב בהם שם המסמך הפתוח, בלי [[קישור]] אליו =====
+async function findMentions(p) {
+  const name = noteName(p);
+  if (name.trim().length < 2) return [];
+  const linking = new Set((await window.api.backlinks(p).catch(() => [])).map((b) => b.path));
+  const results = await window.api.search(name).catch(() => []);
+  const out = [];
+  for (const r of results) {
+    if (r.path === p || linking.has(r.path) || !isNote(r.path) || !r.snippet) continue;
+    if (!r.snippet.toLowerCase().includes(name.toLowerCase())) continue;
+    out.push({ path: r.path, name: r.name, snippet: r.snippet.trim() });
+    if (out.length >= 15) break;
+  }
+  return out;
+}
+
+// הופך את האזכור הראשון של השם במסמך האחר ל־[[קישור]]. לא בתוך מאפיינים, קוד או קישור קיים.
+async function linkMention(other) {
+  const p = state.currentPath;
+  if (!p) return;
+  const name = noteName(p);
   try {
-    if (target === state.currentPath) await flushSave();
-    const text = await window.api.read(target);
-    const files = allNotes().map((n) => n.path);
-    // שומרים את הסדר הקיים, ומוסיפים חדשים בסוף. קישורים לפתקים שלא קיימים נשארים כמו שהם.
-    const existing = getFrontmatterLinks(text);
-    const keep = existing.filter((t) => { const p = resolveLink(t, files, state.root); return !p || paths.includes(p); });
-    const keptPaths = new Set(keep.map((t) => resolveLink(t, files, state.root)).filter(Boolean));
-    const targets = [...keep, ...paths.filter((p) => !keptPaths.has(p)).map(linkTextFor)];
-    const next = setFrontmatterLinks(text, targets);
-    if (next !== text) await window.api.write(target, next, null);
-    if (target === state.currentPath) await reloadFromDisk();
-    refreshLinksPanel();
+    if (other === state.currentPath) return;
+    const text = await window.api.read(other);
+    const mtime = await window.api.mtime(other);
+    const fm = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/.exec(text);
+    const start = fm ? fm[0].length : 0;
+    const lower = text.toLowerCase();
+    const want = name.toLowerCase();
+    // אזורים שלא נוגעים בהם: קוד, [[קישורים]], ![[הטמעות]], [טקסט](כתובת)
+    const blocked = [];
+    for (const re of [/```[\s\S]*?```/g, /`[^`\n]*`/g, /!?\[\[[^\]\n]*\]\]/g, /\[[^\]\n]*\]\([^)\n]*\)/g]) {
+      let m;
+      while ((m = re.exec(text))) blocked.push([m.index, m.index + m[0].length]);
+    }
+    const isWordChar = (ch) => !!ch && /[\p{L}\p{N}_]/u.test(ch);
+    // אות שימוש אחת בעברית לפני השם ("ושינה", "בשינה") עדיין נחשבת אזכור; הקישור עוטף רק את השם
+    const startsWord = (i) => !isWordChar(text[i - 1]) || ('ובהלמשכ'.includes(text[i - 1]) && !isWordChar(text[i - 2]));
+    let at = lower.indexOf(want, start);
+    while (at >= 0) {
+      const end = at + want.length;
+      const free = !blocked.some(([a, b]) => at < b && end > a);
+      if (free && startsWord(at) && !isWordChar(text[end])) break;
+      at = lower.indexOf(want, at + 1);
+    }
+    if (at < 0) { showToast(`לא נמצא אזכור פשוט של ״${name}״ ב״${noteName(other)}״.`); return; }
+    const found = text.slice(at, at + want.length);
+    const target = linkTextFor(p);
+    const link = found === target ? `[[${target}]]` : `[[${target}|${found}]]`;
+    await window.api.write(other, text.slice(0, at) + link + text.slice(at + want.length), mtime);
     refreshBacklinks();
-    showToast(paths.length ? `״${noteName(target)}״ מקושר עכשיו ל־${paths.length} פתקים.` : `הקישורים של ״${noteName(target)}״ הוסרו.`);
-  } catch (err) { setStatus('שגיאה בשמירת הקישורים: ' + err.message); }
+    showToast(`״${noteName(other)}״ מקשר עכשיו לכאן.`, 'פתיחה', () => openNote(other));
+  } catch (err) { setStatus('שגיאה בקישור האזכור: ' + err.message); }
 }
 
 // ===== לוח ההקשר (src/context-panel.js): קישורים, קישורים חוזרים, ראשי פרקים, משימות, מידע =====
@@ -2023,12 +2090,17 @@ var docPanel = createContextPanel({
     openNote: (p) => openNote(p),
     backlinks: (p) => window.api.backlinks(p),
     pickLinks: () => pickLinksFor(state.currentPath),
-    removeFrontLink: (t) => {
-      const files = allNotes().map((n) => n.path);
-      const remaining = getFrontmatterLinks(editorApi.getMarkdown()).filter((x) => x !== t)
-        .map((x) => resolveLink(x, files, state.root)).filter(Boolean);
-      applyNoteLinks(state.currentPath, remaining);
+    removeFrontLink: (t) => setRelated(relatedLinks().filter((x) => x !== t)),
+    unlinkText: (t) => {
+      const n = editorApi.unlinkTarget(t);
+      if (!n) return;
+      const msg = n > 1 ? `${n} קישורים ל״${t}״ הפכו לטקסט רגיל.` : `הקישור ל״${t}״ הפך לטקסט רגיל.`;
+      if (editorApi.isRaw()) showToast(msg);
+      else showToast(msg, 'ביטול', () => editorApi.editor.commands.undo());
     },
+    makeLinkHub: (anchor) => makeLinkHub(anchor),
+    findMentions: (p) => findMentions(p),
+    linkMention: (p) => linkMention(p),
     showTag: (t) => showTags(t),
     addTaskSection: () => insertTaskSection(),
     addFollowUp: (t) => toolbarApi.edit.addFollowUp(t),
@@ -2038,7 +2110,7 @@ var docPanel = createContextPanel({
     prettyPath: (p) => prettyPath(p),
   },
 });
-function refreshLinksPanel() { docPanel.refresh(); }
+function refreshLinksPanel() { docPanel.refresh(); renderRelated(); }
 
 // ===== כפתורים =====
 $('btnPick').addEventListener('click', pickRoot);
@@ -2445,7 +2517,9 @@ const COMMANDS = [
   { title: 'מעבר בין תצוגה מעוצבת ל־Markdown', keys: 'Ctrl+E', run: () => rawButton()?.click(), needs: 'note' },
   { title: 'שינוי שם המסמך', keys: 'F2', run: () => renameNode(currentNode()), needs: 'note' },
   { title: 'מחיקת המסמך (לסל המחזור)', run: () => deleteNode(currentNode()), needs: 'note' },
-  { title: 'קישור לפתקים אחרים…', run: () => pickLinksFor(state.currentPath), needs: 'note' },
+  { title: 'מסמך קשור… (בשורת "קשורים")', keys: 'Ctrl+Shift+K', run: () => pickLinksFor(state.currentPath), needs: 'note' },
+  { title: 'קישור למסמך בתוך הטקסט', keys: 'Ctrl+K', run: () => { if (!editorApi.isRaw()) toolbarApi.edit.link(); }, needs: 'note' },
+  { title: 'פתק קישור… (פתק שמקשר כמה מסמכים)', run: () => makeLinkHub(null), needs: 'note' },
   { title: 'שכפול המסמך', run: () => duplicateNode(currentNode()), needs: 'note' },
   { title: 'ייבוא תמונה', run: importImages, needs: 'note' },
   { title: 'ציור חדש', run: newDrawing, needs: 'note' },
