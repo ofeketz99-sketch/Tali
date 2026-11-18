@@ -2571,3 +2571,41 @@ dialog[open]::backdrop { animation: fade .24s ease; }
   border-style: solid; background: color-mix(in srgb, var(--page-bg) 70%, transparent);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 12%, transparent);
 }
+
+/* ----- 10.7: עיצוב הקנבס מתוך הקנבס (canvas-view.js, taliStyle בקובץ) ----- */
+.cv[data-pattern="lines"] .cv-viewport {
+  background-image:
+    linear-gradient(var(--canvas-dot-major) 1px, transparent 1px), linear-gradient(90deg, var(--canvas-dot-major) 1px, transparent 1px),
+    linear-gradient(var(--canvas-dot) 1px, transparent 1px), linear-gradient(90deg, var(--canvas-dot) 1px, transparent 1px);
+}
+.cv[data-pattern="none"] .cv-viewport { background-image: none; }
+/* רקע כהה שנבחר בקנבס: תוויות מחוץ לכרטיסים בהירות (הכרטיסים עצמם נשארים בצבע הדף) */
+.cv.cv-dark-bg { --cv-edge: rgba(255, 255, 255, .55); }
+.cv.cv-dark-bg .cv-group-label, .cv.cv-dark-bg .cv-hint { color: rgba(255, 255, 255, .7); }
+.cv.cv-dark-bg .cv-edge-label { fill: #f2f2f2; }
+.cv-style {
+  position: absolute; z-index: 8; width: 280px; box-sizing: border-box; padding: 12px;
+  background: var(--panel-bg); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-soft);
+  font-size: 13px; color: var(--text); animation: pop .16s var(--ease);
+}
+.cv-style[hidden] { display: none; }
+.cv-style-sec + .cv-style-sec { margin-top: 12px; }
+.cv-style-title { margin-bottom: 7px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.cv-style-colors { display: flex; flex-wrap: wrap; gap: 6px; }
+.cv-style-swatch {
+  position: relative; width: 24px; height: 24px; min-width: 0; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 2px solid var(--panel-bg); box-shadow: 0 0 0 1px var(--border); background: var(--canvas-bg);
+}
+.cv-style-swatch.auto { background: linear-gradient(135deg, #ebe3d4 50%, #3a332a 50%); }
+.cv-style-swatch.custom { background: conic-gradient(#f87171, #fbbf24, #4ade80, #60a5fa, #c084fc, #f87171); overflow: hidden; }
+.cv-style-swatch.custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.cv-style-swatch:hover { transform: scale(1.08); }
+.cv-style-swatch.on { box-shadow: 0 0 0 2px var(--accent); }
+.cv-style-seg { display: flex; gap: 2px; padding: 2px; border-radius: 9px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.cv-style-seg + .cv-style-seg { margin-top: 6px; }
+.cv-style-seg button { flex: 1; min-width: 0; height: 28px; padding: 0 6px; border: 0; border-radius: 7px; background: none; color: var(--muted); font-size: 12.5px; cursor: pointer; }
+.cv-style-seg button:hover { color: var(--text); }
+.cv-style-seg button.on { background: var(--page-bg); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 12%, transparent); }
+.cv-style-reset { width: 100%; margin-top: 12px; padding: 6px; border: 1px dashed var(--border); border-radius: 8px; background: none; color: var(--muted); font-size: 12.5px; cursor: pointer; }
+.cv-style-reset:hover:not(:disabled) { color: var(--text); border-style: solid; }
+.cv-style-reset:disabled { opacity: .45; cursor: default; }

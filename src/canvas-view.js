@@ -22,6 +22,19 @@ const TOOLS = [
   ['ellipse', 'ellipse', 'עיגול (O)', 'KeyO'],
 ];
 const MIN_ZOOM = 0.1, MAX_ZOOM = 4;
+const CANVAS_GRID = 11; // הרווח בין נקודות הרשת הקטנה, ביחידות הקנבס
+// 10.7: עיצוב הקנבס, נשמר בקובץ כשדה taliStyle (אובסידיאן מתעלם ממנו): רקע, דוגמה, צבע רשת וצפיפות
+const BG_PRESETS = [
+  [null, 'ברירת מחדל (לפי הערכה)'], ['#ffffff', 'לבן'], ['#f4f1ea', 'שמנת'], ['#eef1f5', 'אפור קריר'],
+  ['#e6f1fa', 'תכלת'], ['#e7f4ec', 'מנטה'], ['#f8e9ee', 'ורוד'], ['#fff6d8', 'צהוב רך'], ['#2b2d31', 'כהה'], ['#1e2a3a', 'לילה כחול'],
+];
+const GRID_PRESETS = [[null, 'אוטומטי (לפי הרקע)'], ['#6cb8e6', 'תכלת'], ['#8a7a60', 'חום'], ['#7c8594', 'אפור'], ['#b58bd6', 'סגול']];
+const PATTERNS = [['dots', 'נקודות'], ['lines', 'משבצות'], ['none', 'חלק']];
+const isHex = (c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
+const isDarkHex = (c) => {
+  const v = parseInt(c.slice(1), 16);
+  return (0.2126 * (v >> 16) + 0.7152 * ((v >> 8) & 255) + 0.0722 * (v & 255)) / 255 < 0.5;
+};
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const svg = (tag, attrs = {}) => { const e = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 
@@ -91,7 +104,10 @@ export function createCanvasView({ host, api, readOnly = false }) {
       swatches.append(s);
       swatchBtns.push(s);
     }
-    bar.append(swatches, sep(),
+    // 10.7: עיצוב הקנבס (רקע, דוגמה, רשת), בחלונית שנפתחת מהסרגל
+    const styleBtn = btn('palette', 'עיצוב הקנבס: רקע ורשת', (b) => toggleStylePanel(b));
+    styleBtn.dataset.style = '1';
+    bar.append(swatches, sep(), styleBtn, sep(),
       btn('trash', 'מחיקת הנבחר (Delete)', () => deleteSelection()),
       sep(),
       btn('undo', 'ביטול (Ctrl+Z)', () => undo()),
@@ -108,6 +124,114 @@ export function createCanvasView({ host, api, readOnly = false }) {
     const hint = el('div', 'cv-hint');
     hint.textContent = 'לחיצה כפולה ברקע: כרטיס טקסט · גרירה מהנקודה שבצד כרטיס: קו לכרטיס אחר · Ctrl+גלגלת: זום';
     host.append(hint);
+  }
+
+  // ===== עיצוב הקנבס (10.7) =====
+  function style() {
+    const st = doc?.taliStyle && typeof doc.taliStyle === 'object' ? doc.taliStyle : {};
+    return {
+      bg: isHex(st.bg) ? st.bg : null,
+      pattern: PATTERNS.some(([k]) => k === st.pattern) ? st.pattern : 'dots',
+      grid: isHex(st.grid) ? st.grid : null,
+      density: st.density === 'sparse' ? 'sparse' : 'normal',
+    };
+  }
+  function applyStyle() {
+    const st = style();
+    host.dataset.pattern = st.pattern;
+    const set = (k, v) => (v ? host.style.setProperty(k, v) : host.style.removeProperty(k));
+    set('--canvas-bg', st.bg);
+    // צבע הרשת: מה שנבחר, או נגזר מהרקע (כהה על בהיר, בהיר על כהה). בלי שניהם: משתני הערכה
+    const grid = st.grid || (st.bg ? (isDarkHex(st.bg) ? '#ffffff' : '#3a3f4a') : null);
+    set('--canvas-dot', grid && `color-mix(in srgb, ${grid} ${st.grid ? 35 : 16}%, transparent)`);
+    set('--canvas-dot-major', grid && `color-mix(in srgb, ${grid} ${st.grid ? 75 : 40}%, transparent)`);
+    host.classList.toggle('cv-dark-bg', !!st.bg && isDarkHex(st.bg));
+    if (stylePanel && !stylePanel.hidden) drawStylePanel();
+  }
+  function saveStyle(next) {
+    const clean = {};
+    if (next.bg) clean.bg = next.bg;
+    if (next.pattern !== 'dots') clean.pattern = next.pattern;
+    if (next.grid) clean.grid = next.grid;
+    if (next.density !== 'normal') clean.density = next.density;
+    if (Object.keys(clean).length) doc.taliStyle = clean; else delete doc.taliStyle;
+    applyStyle();
+    applyView();
+    changed();
+  }
+  const setStyle = (patch) => { if (!readOnly) saveStyle({ ...style(), ...patch }); };
+  let stylePanel = null;
+  function toggleStylePanel(anchor) {
+    if (!stylePanel) {
+      stylePanel = el('div', 'cv-style');
+      stylePanel.hidden = true;
+      stylePanel.addEventListener('pointerdown', (e) => e.stopPropagation());
+      stylePanel.addEventListener('mousedown', (e) => e.stopPropagation());
+      stylePanel.addEventListener('dblclick', (e) => e.stopPropagation());
+      host.append(stylePanel);
+      // לחיצה מחוץ לחלונית סוגרת אותה (הכלל של כל חלון משני)
+      document.addEventListener('pointerdown', (e) => {
+        if (stylePanel.hidden || stylePanel.contains(e.target) || e.target.closest?.('[data-style]')) return;
+        stylePanel.hidden = true;
+      }, true);
+    }
+    stylePanel.hidden = !stylePanel.hidden;
+    if (!stylePanel.hidden) {
+      drawStylePanel();
+      const r = anchor.getBoundingClientRect(), h = host.getBoundingClientRect();
+      stylePanel.style.top = r.bottom - h.top + 8 + 'px';
+      stylePanel.style.left = Math.max(8, Math.min(r.left - h.left + r.width / 2 - 140, h.width - 288)) + 'px';
+    }
+  }
+  function drawStylePanel() {
+    const st = style();
+    stylePanel.innerHTML = '';
+    const section = (title) => { const s = el('div', 'cv-style-sec'); s.append(el('div', 'cv-style-title', title)); stylePanel.append(s); return s; };
+    const colorRow = (sec, presets, current, onPick, fallback) => {
+      const row = el('div', 'cv-style-colors');
+      for (const [c, name] of presets) {
+        const b = el('button', 'cv-style-swatch' + (c ? '' : ' auto') + (c === current ? ' on' : ''));
+        b.type = 'button';
+        b.dataset.tip = name;
+        b.setAttribute('aria-label', name);
+        if (c) b.style.background = c;
+        b.addEventListener('click', () => onPick(c));
+        row.append(b);
+      }
+      const isCustom = !!current && !presets.some(([c]) => c === current);
+      const custom = el('label', 'cv-style-swatch custom' + (isCustom ? ' on' : ''));
+      custom.dataset.tip = 'צבע אחר…';
+      if (isCustom) custom.style.background = current;
+      const input = el('input');
+      input.type = 'color';
+      input.value = current || fallback;
+      input.addEventListener('change', () => onPick(input.value));
+      custom.append(input);
+      row.append(custom);
+      sec.append(row);
+    };
+    const segment = (sec, options, current, onPick) => {
+      const seg = el('div', 'cv-style-seg');
+      for (const [k, name] of options) {
+        const b = el('button', k === current ? 'on' : '', name);
+        b.type = 'button';
+        b.addEventListener('click', () => onPick(k));
+        seg.append(b);
+      }
+      sec.append(seg);
+    };
+    colorRow(section('רקע'), BG_PRESETS, st.bg, (c) => setStyle({ bg: c }), '#ebe3d4');
+    const pat = section('דוגמה');
+    segment(pat, PATTERNS, st.pattern, (k) => setStyle({ pattern: k }));
+    if (st.pattern !== 'none') {
+      segment(pat, [['normal', 'רשת צפופה'], ['sparse', 'רשת מרווחת']], st.density, (k) => setStyle({ density: k }));
+      colorRow(section('צבע הרשת'), GRID_PRESETS, st.grid, (c) => setStyle({ grid: c }), '#6cb8e6');
+    }
+    const reset = el('button', 'cv-style-reset', 'חזרה לעיצוב ברירת המחדל');
+    reset.type = 'button';
+    reset.disabled = !doc.taliStyle;
+    reset.addEventListener('click', () => saveStyle({ bg: null, pattern: 'dots', grid: null, density: 'normal' }));
+    stylePanel.append(reset);
   }
 
   // ===== מצב =====
@@ -161,9 +285,15 @@ export function createCanvasView({ host, api, readOnly = false }) {
     world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.z})`;
     host.style.setProperty('--cv-z', view.z);
     zoomLabel.textContent = Math.round(view.z * 100) + '%';
-    // 10.6: שתי רשתות נקודות (styles.css, .cv-viewport): הגדולה (תכלת) כל 44, הקטנה כל 11, ביחידות הקנבס
-    const major = 44 * view.z, minor = 11 * view.z;
-    viewport.style.backgroundSize = `${major}px ${major}px, ${minor}px ${minor}px`;
+    // 10.6: שתי רשתות (styles.css, .cv-viewport): הגדולה כל 4 קטנות. 10.7: הרשת "קופצת" פי 4 כשהנקודות
+    // מתקרבות מדי על המסך (פחות מ־8px), כמו בכלי עיצוב. עד 10.6 בזום קטן הן התמזגו למשטח כהה.
+    const base = CANVAS_GRID * (style().density === 'sparse' ? 2 : 1);
+    let step = base;
+    while (step * view.z < 8) step *= 4;
+    const minor = step * view.z, major = step * 4 * view.z;
+    const M = `${major}px ${major}px`, m = `${minor}px ${minor}px`;
+    // נקודות: שתי שכבות (גדולה, קטנה). משבצות: ארבע (אופקי וטור לגדולה, ואז לקטנה)
+    viewport.style.backgroundSize = style().pattern === 'lines' ? `${M}, ${M}, ${m}, ${m}` : `${M}, ${m}`;
     viewport.style.backgroundPosition = `${view.x}px ${view.y}px`;
   };
   const saveView = () => { if (path && !readOnly) { try { localStorage.setItem('tali:canvas-view:' + path, JSON.stringify(view)); } catch {} } };
@@ -294,6 +424,8 @@ export function createCanvasView({ host, api, readOnly = false }) {
     }
   }
   function render() {
+    applyStyle();
+    applyView();
     const keep = new Set(doc.nodes.map((n) => n.id));
     for (const [id, box] of nodeEls) if (!keep.has(id)) { box.remove(); nodeEls.delete(id); }
     for (const n of doc.nodes) {
