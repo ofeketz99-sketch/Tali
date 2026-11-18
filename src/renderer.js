@@ -244,6 +244,7 @@ const tabs = createTabs({
   onContext: (p, x, y) => showTabMenu(p, x, y),
   onHome: () => goHome(),
   onNewNote: () => newNote(),
+  onNewCanvas: () => newCanvas(), // 11.0: מכחול ליד הפלוס
   fileIcon: (p) => fileIconHtml(p),
   flagOf: (p) => state.flags.get(p) || null, // 8.2: דגל גם בכרטיסייה
   backgroundOf: (p) => meta.backgroundOf(p),
@@ -1234,10 +1235,13 @@ function refreshTemplates() {
   window.api.templates().then((c) => { hasTemplates = !!c?.list?.length; }, () => { hasTemplates = false; });
 }
 const templateItem = (dir) => (hasTemplates
-  ? [{ label: 'מסמך חדש מתבנית', icon: 'template', run: () => { state.selectedDir = dir; newNoteFromTemplate(); } }]
+  ? [{ label: 'מסמך חדש מתבנית', icon: 'template', run: () => newNoteFromTemplate({ dir }) }]
   : []);
 
-async function noteTargetDir() {
+// 11.0: dir = תיקייה שנבחרה במפורש (לחיצה ימנית על תיקייה ← "מסמך חדש בתיקייה"), תמיד גוברת על ההגדרה.
+// בלי dir: לפי ההגדרה "מסמך חדש נוצר" (ברירת המחדל מ־11.0: התיקייה הראשית; עד 10.9 התיקייה שנבחרה בעץ).
+async function noteTargetDir(dir) {
+  if (dir) return dir;
   const prefs = getPrefs();
   if (prefs.newNoteLocation === 'root') return state.root;
   if (prefs.newNoteLocation === 'folder') return window.api.prepareNewNoteFolder(prefs.newNoteFolder);
@@ -1401,12 +1405,13 @@ async function renderCanvasPreview(el, p) {
   v.load(text, p);
   requestAnimationFrame(() => v.zoomToFit());
 }
-async function newCanvas() {
+// 11.0: כמו מסמך רגיל, נפתח מיד בשם "ללא שם" והשם נקבע ביציאה ממנו (nameOnLeave)
+async function newCanvas({ dir: chosen } = {}) {
   if (!state.root) return;
-  const name = await ask('שם המסמך הגרפי:');
-  if (!name) return;
   try {
-    const file = await window.api.createCanvas(await noteTargetDir(), name);
+    const dir = await noteTargetDir(chosen);
+    const file = await createUntitled((name) => window.api.createCanvas(dir, name));
+    if (!file) return;
     await refreshTree();
     await openNote(file);
   } catch (err) { setStatus(err.message); }
@@ -1911,9 +1916,9 @@ function showContextMenu(node, x, y, before = []) {
   const items = [...before];
   if (node.type === 'file') items.push(...fileItems(node));
   else items.push(
-    { label: 'מסמך חדש בתיקייה', icon: 'filePlus', run: () => { state.selectedDir = node.path; newNote(); } },
+    { label: 'מסמך חדש בתיקייה', icon: 'filePlus', run: () => newNote(undefined, { dir: node.path }) },
     ...templateItem(node.path),
-    { label: 'מסמך גרפי חדש (קנבס)', icon: 'canvas', run: () => { state.selectedDir = node.path; newCanvas(); } },
+    { label: 'מסמך גרפי חדש (קנבס)', icon: 'canvas', run: () => newCanvas({ dir: node.path }) },
     'sep',
     { label: 'שינוי שם', icon: 'edit', keys: 'F2', run: () => renameNode(node) },
     { label: meta.ownBackground(node.path) ? 'שינוי צבע התיקייה…' : 'צבע לתיקייה…', icon: 'palette', run: () => pickBackground(node) },
@@ -1945,9 +1950,9 @@ function showTabMenu(p, x, y) {
 // שטח ריק בעץ ומסך הבית: הפעולות הכלליות של הכספת
 function vaultItems() {
   return [
-    { label: 'מסמך חדש', icon: 'filePlus', keys: 'Ctrl+N', run: () => { state.selectedDir = null; newNote(); } },
+    { label: 'מסמך חדש', icon: 'filePlus', keys: 'Ctrl+N', run: () => newNote(undefined, { dir: state.root }) },
     ...templateItem(null),
-    { label: 'מסמך גרפי חדש (קנבס)', icon: 'canvas', run: () => { state.selectedDir = null; newCanvas(); } },
+    { label: 'מסמך גרפי חדש (קנבס)', icon: 'canvas', run: () => newCanvas({ dir: state.root }) },
     { label: 'תיקייה חדשה', icon: 'folderPlus', run: () => { state.selectedDir = null; newFolder(); } },
     'sep',
     { label: 'כיווץ כל התיקיות', icon: 'collapseAll', run: collapseAll },
@@ -1975,7 +1980,7 @@ function otherContextItems(e) {
   ];
   if (t.closest('#tree') && !t.closest('.node')) return vaultItems();
   if (t.closest('#home')) return [
-    { label: 'מסמך חדש', icon: 'filePlus', keys: 'Ctrl+N', run: () => { state.selectedDir = null; newNote(); } },
+    { label: 'מסמך חדש', icon: 'filePlus', keys: 'Ctrl+N', run: () => newNote(undefined, { dir: state.root }) },
     { label: 'מעבר מהיר למסמך', icon: 'search', keys: 'Ctrl+O', run: () => openSwitcher() },
     { label: 'מצב שינה', icon: 'sleep', keys: 'Ctrl+Alt+L', run: () => enterSleep() },
     'sep',
@@ -2135,19 +2140,15 @@ $('btnSettings').addEventListener('click', openSettings);
 
 // 10.9 (לבקשת המשתמש): מסמך חדש נפתח מיד בשם "ללא שם", והשם נקבע ביציאה ממנו (nameOnLeave).
 // עם שם שכבר נבחר (קישור רפאים, Ctrl+O עם שם) לא שואלים. עד 10.8 חלון השם קפץ לפני שהמסמך נפתח.
-async function newNote(presetName) {
+async function newNote(presetName, { dir: chosen } = {}) {
   if (!state.root) return;
   try {
-    const dir = await noteTargetDir();
+    const dir = await noteTargetDir(chosen);
     let file = null;
     if (presetName) file = await window.api.createNote(dir, presetName);
     else {
-      for (let i = 1; !file && i < 200; i++) {
-        try { file = await window.api.createNote(dir, i === 1 ? UNTITLED : `${UNTITLED} ${i}`); }
-        catch (err) { if (!/קיים/.test(err.message)) throw err; }
-      }
+      file = await createUntitled((name) => window.api.createNote(dir, name));
       if (!file) return;
-      setUntitled(file, true);
     }
     await refreshTree();
     await openNote(file);
@@ -2155,7 +2156,19 @@ async function newNote(presetName) {
   } catch (err) { setStatus(err.message); }
 }
 
-// ----- 10.9: שם ביציאה מהמסמך -----
+// "ללא שם", "ללא שם 2"… (השם הפנוי הראשון), ונרשם כמסמך שעוד אין לו שם
+async function createUntitled(create) {
+  for (let i = 1; i < 200; i++) {
+    try {
+      const file = await create(i === 1 ? UNTITLED : `${UNTITLED} ${i}`);
+      setUntitled(file, true);
+      return file;
+    } catch (err) { if (!/קיים/.test(err.message)) throw err; }
+  }
+  return null;
+}
+
+// ----- 10.9: שם ביציאה מהמסמך (מ־11.0 גם למסמך גרפי) -----
 // הרשימה נשמרת לכל כספת (untitled:<תיקייה>), כך שגם אחרי סגירת האפליקציה השאלה תגיע ביציאה הבאה.
 // שינוי שם ידני (F2, לחיצה על השם, העץ) מוריד את המסמך מהרשימה: המשתמש כבר קבע שם.
 // (פונקציות ולא const: updateDocTitle נקרא כבר באתחול, לפני השורות האלה)
@@ -2190,14 +2203,19 @@ let naming = false;
 // כדי שלא יצטברו "ללא שם" ריקים. מחזיר { removed } לניקוי הכרטיסייה אחרי המעבר (afterLeave).
 async function nameOnLeave(next) {
   const p = state.currentPath;
-  if (!p || p === next || naming || state.canvas || !isUntitled(p)) return null;
+  if (!p || p === next || naming || !isUntitled(p)) return null;
   naming = true;
   try {
+    // עריכה פתוחה (כרטיס בקנבס, שדה) נסגרת ונשמרת לפני שבודקים אם המסמך ריק ולפני חלון השם
+    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+    await new Promise((r) => setTimeout(r, 0));
     await flushSave();
     const text = await window.api.read(p).catch(() => null);
     if (text == null) return null;
-    const body = text.replace(/^﻿?---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/, '').trim();
-    if (!body) {
+    const canvas = isCanvas(p);
+    const body = canvas ? canvasText(text) : text.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/, '').trim();
+    const blank = canvas ? canvasEmpty(text) : !body;
+    if (blank) {
       try { await window.api.remove(p); } catch { return null; }
       setUntitled(p, false);
       meta.drop(p);
@@ -2205,16 +2223,27 @@ async function nameOnLeave(next) {
       state.back = state.back.filter(keep);
       state.forward = state.forward.filter(keep);
       state.recent = state.recent.filter(keep);
-      setStatus('מסמך ריק בלי שם הועבר לסל המחזור');
+      setStatus(canvas ? 'מסמך גרפי ריק בלי שם הועבר לסל המחזור' : 'מסמך ריק בלי שם הועבר לסל המחזור');
       return { removed: p };
     }
-    const name = await ask('איך לקרוא למסמך?', suggestName(body) || noteName(p), { okText: 'שמירה', cancelText: `להשאיר "${noteName(p)}"` });
+    const name = await ask(canvas ? 'איך לקרוא למסמך הגרפי?' : 'איך לקרוא למסמך?', suggestName(body) || noteName(p), { okText: 'שמירה', cancelText: `להשאיר "${noteName(p)}"` });
     // רק אחרי תשובה (גם "להשאיר"): אם האפליקציה נסגרה באמצע, השאלה תחזור ביציאה הבאה
     setUntitled(p, false);
     const clean = (name || '').trim();
-    if (clean && clean !== noteName(p)) await renameNode({ path: p, name: noteName(p) + '.md' }, clean);
+    if (clean && clean !== noteName(p)) await renameNode({ path: p, name: noteName(p) + (canvas ? '.canvas' : '.md') }, clean);
     return null;
   } finally { naming = false; }
+}
+// קנבס: ריק = בלי צמתים וקווים; ההצעה לשם מהכרטיס הראשון שיש בו טקסט (או שם קבוצה)
+function canvasData(text) { try { return JSON.parse(text) || {}; } catch { return null; } }
+function canvasEmpty(text) {
+  const d = canvasData(text);
+  return !!d && !(d.nodes || []).length && !(d.edges || []).length;
+}
+function canvasText(text) {
+  const d = canvasData(text);
+  const n = (d?.nodes || []).find((x) => (x.type === 'text' && String(x.text || '').trim()) || (x.type === 'group' && x.label));
+  return n ? String(n.text || n.label) : '';
 }
 async function afterLeave(left) {
   if (!left?.removed) return;
@@ -2247,7 +2276,7 @@ async function pickTemplate(placeholder) {
   if (!chosen) return null;
   return { text: await window.api.read(chosen.path), conf };
 }
-async function newNoteFromTemplate() {
+async function newNoteFromTemplate({ dir } = {}) {
   if (!state.root) return;
   const tpl = await pickTemplate('תבנית למסמך החדש…');
   if (!tpl) return;
@@ -2255,7 +2284,7 @@ async function newNoteFromTemplate() {
   if (!name) return;
   try {
     const text = fillTemplate(tpl.text, { title: name, dateFormat: tpl.conf.dateFormat, timeFormat: tpl.conf.timeFormat });
-    const file = await window.api.createNote(await noteTargetDir(), name, text);
+    const file = await window.api.createNote(await noteTargetDir(dir), name, text);
     await refreshTree();
     await openNote(file);
     editorApi.editor.commands.focus('end');

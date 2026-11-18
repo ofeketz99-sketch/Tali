@@ -10,7 +10,7 @@ import { normalizeToolbar, toolbarLayoutValue } from './toolbar-layout.js';
 import { createToolbarEditor } from './toolbar-editor.js';
 
 export const DEFAULTS = {
-  version: 4,
+  version: 5,
   // ערכות צבעים (theme-core.js). עד 3.7 היו כאן theme / paper / accent, ו־migratePrefs ממיר אותם.
   themeMode: 'day',        // day | night | system (לפי Windows) | schedule (לפי שעות)
   themes: { day: { ...DEFAULT_THEMES.day }, night: { ...DEFAULT_THEMES.night } },
@@ -26,7 +26,7 @@ export const DEFAULTS = {
   docTitleSize: 26,        // כותרת המסמך שמעל הדף; יכולה להיות גדולה גם מ־H1
   docTitleStyle: 'clean',  // clean | strong | underline | label
   showBacklinks: true,
-  newNoteLocation: 'selected', // selected (התיקייה שנבחרה בעץ) | folder (תיקיית מסמכים חדשים) | root
+  newNoteLocation: 'root',  // root | folder (תיקיית מסמכים חדשים) | selected (התיקייה שנבחרה בעץ). 11.0: ברירת המחדל root
   newNoteFolder: 'מסמכים חדשים', // נתיב יחסי לתיקיית העבודה; נוצר בעת הצורך
   attachMode: 'folder',    // folder (תיקייה קבועה) | beside (ליד ההערה)
   attachFolder: 'attachments',
@@ -69,6 +69,9 @@ export async function loadPrefs() {
     saved.version = DEFAULTS.version;
   }
   // ערכות הצבעים (3.8): הצבע המודגש וגוון הנייר שנבחרו קודם עוברים לערכת היום, והמצב בהיר/כהה/Windows נשמר
+  // 11.0 (לבקשת המשתמש): מסמך חדש לא נכנס יותר לתיקייה שנלחצה בעץ, אלא לתיקייה הראשית. ההגדרה הישנה
+  // (selected) הייתה ברירת המחדל עד 10.9, ולכן היא מומרת פעם אחת; אפשר לבחור בה שוב בהגדרות.
+  if (saved && (saved.version || 0) < 5 && (saved.newNoteLocation ?? 'selected') === 'selected') saved.newNoteLocation = 'root';
   const migrated = migratePrefs(saved || {});
   prefs = { ...DEFAULTS, ...migrated, version: DEFAULTS.version };
   // 6.3 (main) קרא לתיקיית המסמכים החדשים 'inbox'; מ־6.4 זו האפשרות 'folder' עם תיקייה שניתן לבחור
@@ -313,10 +316,10 @@ function buildDialog() {
   const files = el('section', { class: 'set-page', 'data-page': 'files', hidden: '' },
     pageHead('מסמכים וקבצים', 'איפה נשמרים מסמכים חדשים ותמונות. כל הנתיבים בתוך תיקיית המסמכים.'),
     card('מסמכים חדשים',
-      row('מסמך חדש נוצר', null, select('newNoteLocation', [
-        ['selected', 'בתיקייה שנבחרה בעץ'],
-        ['folder', 'בתיקיית מסמכים חדשים'],
+      row('מסמך חדש נוצר', 'גם מסמך גרפי. "מסמך חדש בתיקייה" בלחיצה ימנית על תיקייה נכנס תמיד לאותה תיקייה', select('newNoteLocation', [
         ['root', 'בתיקייה הראשית'],
+        ['folder', 'בתיקיית מסמכים חדשים'],
+        ['selected', 'בתיקייה שנלחצה לאחרונה בעץ'],
       ], { onChange: refresh })),
       row('תיקיית מסמכים חדשים', 'נוצרת אוטומטית אם חסרה', noteFolderControl)),
     card('תמונות וקבצים מצורפים',

@@ -2661,3 +2661,9 @@ html.set-tb-grabbing, html.set-tb-grabbing * { cursor: grabbing !important; }
   .dc-searching, .dc-sa-line, .dc-sa-lens { animation: none; }
   .dc-sa-lens { transform: translate(-6px, 1px); }
 }
+
+/* 11.0: "מסמך חדש" ו"מסמך גרפי" ליד הכרטיסיות, מחוץ לפס הנגלל */
+.tab-adds { flex: none; display: flex; align-items: center; gap: 4px; padding-inline: 4px 2px; }
+.tab-add-canvas svg { transition: transform .3s var(--spring, ease); }
+.tab-add-canvas:hover svg { transform: rotate(-14deg); }
+@media (prefers-reduced-motion: reduce) { .tab-add-canvas:hover svg { transform: none; } }

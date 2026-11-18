@@ -8,7 +8,7 @@
 // renderer.js קורא ל־opened() מתוך openNote, ול־remap/drop בשינוי שם, העברה ומחיקה.
 import { icon } from './icons.js';
 
-export function createTabs({ navEl, $, store, getRoot, getCurrent, openNote, flushSave, showEmpty, renderPreview, noteName, onContext, onHome, onNewNote, fileIcon, flagOf, backgroundOf }) {
+export function createTabs({ navEl, $, store, getRoot, getCurrent, openNote, flushSave, showEmpty, renderPreview, noteName, onContext, onHome, onNewNote, onNewCanvas, fileIcon, flagOf, backgroundOf }) {
   const bar = $('tabBar');
   const panesEl = $('panes');
   const pane0 = $('pane0');
@@ -114,7 +114,21 @@ export function createTabs({ navEl, $, store, getRoot, getCurrent, openNote, flu
     add.setAttribute('aria-label', 'מסמך חדש');
     add.innerHTML = `${icon('plus', 15)}<span>מסמך חדש</span>`;
     add.addEventListener('click', () => onNewNote?.());
-    strip.append(add);
+    // 11.0: כפתורי ההוספה מחוץ לפס הנגלל, כדי שלא ייעלמו כשיש הרבה כרטיסיות
+    const adds = document.createElement('div');
+    adds.className = 'tab-adds';
+    adds.append(add);
+    // 11.0: מסמך גרפי חדש, מכחול ליד הפלוס
+    if (onNewCanvas) {
+      const addCanvas = document.createElement('button');
+      addCanvas.type = 'button';
+      addCanvas.className = 'tab tab-add tab-add-canvas';
+      addCanvas.dataset.tip = 'מסמך גרפי חדש (קנבס)';
+      addCanvas.setAttribute('aria-label', 'מסמך גרפי חדש');
+      addCanvas.innerHTML = `${icon('draw', 15)}<span>מסמך גרפי</span>`;
+      addCanvas.addEventListener('click', () => onNewCanvas());
+      adds.append(addCanvas);
+    }
     const splitBtn = document.createElement('button');
     splitBtn.type = 'button';
     splitBtn.className = 'icon-btn tab-split' + (panes.length > 1 ? ' on' : '');
@@ -122,7 +136,7 @@ export function createTabs({ navEl, $, store, getRoot, getCurrent, openNote, flu
     splitBtn.setAttribute('aria-pressed', String(panes.length > 1));
     splitBtn.innerHTML = icon('splitView', 16);
     splitBtn.addEventListener('click', () => toggleSplit());
-    bar.append(strip, splitBtn);
+    bar.append(strip, adds, splitBtn);
     bar.querySelector('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
