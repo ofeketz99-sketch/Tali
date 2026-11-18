@@ -234,7 +234,8 @@ const tabs = createTabs({
   getCurrent: () => state.currentPath,
   openNote: (p, opts) => openNote(p, opts),
   flushSave: () => flushSave(),
-  showEmpty: () => showEmpty(),
+  // 10.9: סגירת הכרטיסייה האחרונה היא יציאה מהמסמך: קודם שם למסמך שעוד אין לו
+  showEmpty: async () => { const left = await nameOnLeave(null); showEmpty(); await afterLeave(left); },
   renderPreview: async (el, p) => {
     if (isCanvas(p)) { await renderCanvasPreview(el, p); return; }
     try { el.innerHTML = renderNoteHtml(await window.api.read(p), { resolve: resolveTarget, fileUrl }); }
@@ -327,12 +328,14 @@ async function pickRoot() {
 // חזרה למסך הבית מתוך מסמך: הכרטיסיות נשארות, הפיצול נסגר
 async function goHome({ history = true } = {}) {
   if (!state.root) return;
+  const left = await nameOnLeave(null);
   await flushSave();
   rememberPosition();
   if (history) pushHistory(HOME);
   if (tabs.split) tabs.unsplit();
   showEmpty();
   updateNavButtons();
+  await afterLeave(left);
 }
 // 8.3: תצוגה מיידית של תמונה מודבקת, עוד לפני שנשמרה לקובץ: src בשכבה ← כתובת blob: של התוכן שבזיכרון
 const previewUrls = new Map();
@@ -882,6 +885,10 @@ new ResizeObserver(measureTitle).observe($('docTitle'));
 function updateDocTitle() {
   const p = state.currentPath;
   $('docTitle').textContent = p ? noteName(p) : '';
+  // 10.9: מסמך חדש שעוד אין לו שם: השם דהוי, והשאלה תגיע ביציאה ממנו
+  const untitled = isUntitled(p);
+  $('docTitle').classList.toggle('untitled', untitled);
+  $('docTitle').dataset.tip = untitled ? 'השם ייקבע ביציאה מהמסמך. לחיצה: לתת שם עכשיו (F2)' : 'שינוי שם (F2)';
   measureTitle();
   const meta = $('docMeta');
   meta.hidden = !p;
@@ -1239,7 +1246,13 @@ async function noteTargetDir() {
 function folderTargetDir() { return state.selectedDir || (state.currentPath ? dirname(state.currentPath) : state.root); }
 
 // כל מסמך חדש נפתח בכרטיסייה משלו. אם הוא כבר פתוח, מנהל הכרטיסיות ממקד את הכרטיסייה הקיימת.
-async function openNote(p, { history = true, newTab = false } = {}) {
+// 10.9: לפני מעבר למסמך אחר, מסמך חדש שעוד אין לו שם מקבל שם (nameOnLeave)
+async function openNote(p, opts = {}) {
+  const left = await nameOnLeave(p);
+  await openNoteHere(p, opts);
+  await afterLeave(left);
+}
+async function openNoteHere(p, { history = true, newTab = false } = {}) {
   await flushSave();
   rememberPosition();
   if (isCanvas(p)) return openCanvas(p, { history, newTab });
@@ -1527,10 +1540,10 @@ async function enterRoot(r) {
 // ===== שינוי שם ומחיקה (מהתפריט הימני, מהמקלדת או מלוח הפקודות) =====
 const currentNode = () => state.currentPath && { path: state.currentPath, name: state.currentPath.slice(Math.max(state.currentPath.lastIndexOf('/'), state.currentPath.lastIndexOf('\\')) + 1) };
 
-async function renameNode(node) {
+async function renameNode(node, preset) {
   if (!node) return;
   const current = node.name.replace(/\.md$/i, '');
-  const name = await ask('שם חדש:', current);
+  const name = preset ?? await ask('שם חדש:', current);
   if (!name || name === current) return;
   try {
     await flushSave();
@@ -1543,6 +1556,7 @@ async function renameNode(node) {
     if (state.currentPath) state.currentPath = swap(state.currentPath);
     tabs.remap(swap);
     meta.remap(node.path, to);
+    remapUntitled(swap, true);
     // אם הקישורים עודכנו גם בהערה הפתוחה, טוענים אותה מחדש מהדיסק
     if (state.currentPath && changed.includes(state.currentPath)) {
       await reloadFromDisk();
@@ -1567,6 +1581,7 @@ async function deleteNode(node) {
     state.recent = state.recent.filter(keep);
     const gone = (p) => p === node.path || p.startsWith(node.path + '\\') || p.startsWith(node.path + '/');
     meta.drop(node.path);
+    remapUntitled((x) => (gone(x) ? null : x));
     if (state.currentPath && gone(state.currentPath)) { state.currentPath = null; state.dirty = false; }
     await refreshTree();
     // הכרטיסיות של מה שנמחק נסגרות. אם המסמך הפעיל נמחק, נפתחת כרטיסייה אחרת או המסך הריק
@@ -1589,6 +1604,7 @@ async function moveNode(src, destDir) {
     store.set('recent:' + state.root, state.recent);
     tabs.remap(swap);
     meta.remap(src, to);
+    remapUntitled(swap);
     if (state.currentPath) {
       state.currentPath = swap(state.currentPath);
       if (changed.includes(state.currentPath)) await reloadFromDisk();
@@ -2117,16 +2133,93 @@ $('btnPick').addEventListener('click', pickRoot);
 $('btnPickBig').addEventListener('click', pickRoot);
 $('btnSettings').addEventListener('click', openSettings);
 
+// 10.9 (לבקשת המשתמש): מסמך חדש נפתח מיד בשם "ללא שם", והשם נקבע ביציאה ממנו (nameOnLeave).
+// עם שם שכבר נבחר (קישור רפאים, Ctrl+O עם שם) לא שואלים. עד 10.8 חלון השם קפץ לפני שהמסמך נפתח.
 async function newNote(presetName) {
   if (!state.root) return;
-  const name = presetName || await ask('שם המסמך:');
-  if (!name) return;
   try {
-    const file = await window.api.createNote(await noteTargetDir(), name);
+    const dir = await noteTargetDir();
+    let file = null;
+    if (presetName) file = await window.api.createNote(dir, presetName);
+    else {
+      for (let i = 1; !file && i < 200; i++) {
+        try { file = await window.api.createNote(dir, i === 1 ? UNTITLED : `${UNTITLED} ${i}`); }
+        catch (err) { if (!/קיים/.test(err.message)) throw err; }
+      }
+      if (!file) return;
+      setUntitled(file, true);
+    }
     await refreshTree();
     await openNote(file);
     editorApi.editor.commands.focus();
   } catch (err) { setStatus(err.message); }
+}
+
+// ----- 10.9: שם ביציאה מהמסמך -----
+// הרשימה נשמרת לכל כספת (untitled:<תיקייה>), כך שגם אחרי סגירת האפליקציה השאלה תגיע ביציאה הבאה.
+// שינוי שם ידני (F2, לחיצה על השם, העץ) מוריד את המסמך מהרשימה: המשתמש כבר קבע שם.
+// (פונקציות ולא const: updateDocTitle נקרא כבר באתחול, לפני השורות האלה)
+var UNTITLED = 'ללא שם';
+function untitledKey() { return 'untitled:' + state.root; }
+function untitledList() { return (state.root && store.get(untitledKey(), [])) || []; }
+function setUntitled(p, on) {
+  const list = untitledList().filter((x) => x !== p);
+  if (on) list.push(p);
+  store.set(untitledKey(), list.slice(-50));
+  if (p === state.currentPath) updateDocTitle();
+}
+function isUntitled(p) { return !!p && untitledList().includes(p); }
+// map: נתיב ← נתיב חדש, או null כשנמחק. clear (שינוי שם): המשתמש קבע שם, ולכן יורד מהרשימה
+function remapUntitled(map, clear = false) {
+  const list = untitledList();
+  if (!list.length) return;
+  store.set(untitledKey(), list.map((p) => { const to = map(p); return clear && to !== p ? null : to; }).filter(Boolean));
+}
+// הצעה לשם: הכותרת הראשונה, או השורה הראשונה בטקסט, בלי סימני Markdown ותווים שאסורים בשם קובץ
+function suggestName(body) {
+  const lines = body.split(/\r?\n/).map((l) => l.replace(/\\([\\`*_{}[\]()#+\-.!|~<>$%=])/g, '$1').trim())
+    .filter((l) => l && !/^(<!--|---|\*\*\*|___|```|\$\$)/.test(l));
+  const line = lines.find((l) => /^#{1,6}\s/.test(l)) || lines[0] || '';
+  return line.replace(/^#{1,6}\s+/, '').replace(/^[-*+>]\s+/, '').replace(/^\d+[.)]\s+/, '').replace(/^\[[ xX]\]\s+/, '')
+    .replace(/\[\[([^\]|]*\|)?([^\]]*)\]\]/g, '$2').replace(/<[^>]+>/g, '')
+    .replace(/[*_~`=#[\]]/g, '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60).trim();
+}
+let naming = false;
+// יציאה מהמסמך הפתוח (מעבר למסמך אחר, מסך הבית, סגירת כרטיסייה): אם עוד אין לו שם, שואלים עכשיו,
+// עם הצעה מהשורה הראשונה. "להשאיר" שומר את "ללא שם" ולא שואל שוב. מסמך ריק לגמרי עובר לסל המחזור בשקט,
+// כדי שלא יצטברו "ללא שם" ריקים. מחזיר { removed } לניקוי הכרטיסייה אחרי המעבר (afterLeave).
+async function nameOnLeave(next) {
+  const p = state.currentPath;
+  if (!p || p === next || naming || state.canvas || !isUntitled(p)) return null;
+  naming = true;
+  try {
+    await flushSave();
+    const text = await window.api.read(p).catch(() => null);
+    if (text == null) return null;
+    const body = text.replace(/^﻿?---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/, '').trim();
+    if (!body) {
+      try { await window.api.remove(p); } catch { return null; }
+      setUntitled(p, false);
+      meta.drop(p);
+      const keep = (x) => x !== p;
+      state.back = state.back.filter(keep);
+      state.forward = state.forward.filter(keep);
+      state.recent = state.recent.filter(keep);
+      setStatus('מסמך ריק בלי שם הועבר לסל המחזור');
+      return { removed: p };
+    }
+    const name = await ask('איך לקרוא למסמך?', suggestName(body) || noteName(p), { okText: 'שמירה', cancelText: `להשאיר "${noteName(p)}"` });
+    // רק אחרי תשובה (גם "להשאיר"): אם האפליקציה נסגרה באמצע, השאלה תחזור ביציאה הבאה
+    setUntitled(p, false);
+    const clean = (name || '').trim();
+    if (clean && clean !== noteName(p)) await renameNode({ path: p, name: noteName(p) + '.md' }, clean);
+    return null;
+  } finally { naming = false; }
+}
+async function afterLeave(left) {
+  if (!left?.removed) return;
+  await tabs.drop((x) => x === left.removed);
+  await refreshTree();
 }
 
 // ===== תבניות (התיקייה והפורמטים מ־.obsidian/templates.json, ראו 'templates' ב־main.js) =====

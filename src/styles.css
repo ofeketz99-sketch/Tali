@@ -2637,3 +2637,27 @@ dialog[open]::backdrop { animation: fade .24s ease; }
 html.set-tb-grabbing, html.set-tb-grabbing * { cursor: grabbing !important; }
 .set-tb-ghost { transition: opacity .16s var(--ease); }
 .set-tb-ghost.merging { opacity: .55; }
+
+/* 10.9: מסמך חדש שעוד אין לו שם (השם ייקבע ביציאה ממנו) */
+#docTitle.untitled { color: var(--muted); font-style: italic; opacity: .7; }
+#docTitle.untitled:hover { opacity: 1; }
+
+/* 10.9: חיפוש "מוזכר בלי קישור" (context-panel.js, mentionsSearching) */
+.dc-searching { display: flex; align-items: center; gap: 10px; margin: 10px 4px 4px; padding: 8px 10px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; animation: dc-sa-in .3s var(--ease) .18s both; }
+.dc-search-anim { flex: none; color: var(--accent-strong); overflow: visible; }
+.dc-sa-page { opacity: .45; }
+.dc-sa-line { opacity: .3; animation: dc-sa-line 1.8s var(--ease) infinite; }
+.dc-sa-line.l2 { animation-delay: .3s; }
+.dc-sa-line.l3 { animation-delay: .6s; }
+.dc-sa-lens { animation: dc-sa-lens 1.8s cubic-bezier(.45, 0, .55, 1) infinite; transform-origin: 34px 14px; }
+@keyframes dc-sa-in { from { opacity: 0; transform: translateY(4px); } }
+@keyframes dc-sa-line { 0%, 100% { opacity: .3; } 35% { opacity: 1; } }
+@keyframes dc-sa-lens {
+  0%, 100% { transform: translate(-16px, -4px); }
+  33% { transform: translate(-6px, 1px) rotate(-8deg); }
+  66% { transform: translate(-13px, 7px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dc-searching, .dc-sa-line, .dc-sa-lens { animation: none; }
+  .dc-sa-lens { transform: translate(-6px, 1px); }
+}

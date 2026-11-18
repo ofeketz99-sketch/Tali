@@ -268,7 +268,7 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
     const p = api.getPath();
     if (!api.findMentions || !p) return;
     if (mentions.path !== p) loadMentions(p);
-    if (mentions.list === null) return; // עוד נטען: לא מציגים כותרת ריקה
+    if (mentions.list === null) { body.append(mentionsSearching()); return; } // 10.9: עוד מחפש
     if (!mentions.list.length) return;
     section('search', 'מוזכר בלי קישור', mentions.list.length, true);
     mentions.list.forEach((m, i) => {
@@ -283,6 +283,18 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
       });
       body.append(row({ iconName: 'file', i, name: m.name, sub: m.snippet, cls: 'back mention', extra: btn, onClick: () => api.openNote(m.path) }));
     });
+  }
+  // 10.9: חיווי חיפוש בסגנון Lucide (קווים של 2px, קצוות מעוגלים): זכוכית מגדלת שעוברת על שורות של דף,
+  // והשורות מתבהרות אחת אחרי השנייה. מופיע רק אחרי רגע (CSS), כדי שחיפוש מהיר לא יהבהב. בלי תנועה: נייח.
+  function mentionsSearching() {
+    const box = el('div', 'dc-searching');
+    box.setAttribute('role', 'status');
+    box.innerHTML = `<svg class="dc-search-anim" viewBox="0 0 48 32" width="48" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect class="dc-sa-page" x="3" y="3" width="26" height="26" rx="3"/>
+      <path class="dc-sa-line l1" d="M9 11h14"/><path class="dc-sa-line l2" d="M9 16h10"/><path class="dc-sa-line l3" d="M9 21h12"/>
+      <g class="dc-sa-lens"><circle cx="34" cy="14" r="6"/><path d="m38.5 18.5 4.5 4.5"/></g>
+    </svg><span>מחפש אזכורים בלי קישור…</span>`;
+    return box;
   }
   async function loadMentions(p) {
     mentions = { path: p, list: null };
