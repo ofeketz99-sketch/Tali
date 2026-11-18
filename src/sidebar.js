@@ -3,7 +3,6 @@ import { icon as svg, lucide } from './icons.js';
 
 // opening: התיקייה שנפתחה עכשיו. הפריטים שלה נכנסים באנימציה, אחד אחרי השני.
 // onMove(path, destDir): גרירת הערה או תיקייה אל תיקייה (או אל שטח ריק בעץ = התיקייה הראשית, root).
-const DRAG_TYPE = 'application/x-tali-path';
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 // יש בתיקייה (או בתת־תיקייה) לפחות מסמך אחד. העץ מכיל רק .md, ולכן תיקיית תמונות נראית ריקה.
 const notesCache = new WeakMap();
@@ -24,25 +23,9 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
     opened.animate([{ height: '0px' }, { height: h + 'px' }], { duration: Math.min(300, 140 + h / 5), easing: 'cubic-bezier(.2, .8, .3, 1)' })
       .onfinish = () => { opened.style.overflow = ''; };
   }
-  if (onMove && !container.dataset.dropReady) {
-    // שטח ריק בעץ: העברה לתיקייה הראשית. מוגדר פעם אחת (העץ נבנה מחדש הרבה).
-    container.dataset.dropReady = '1';
-    container.addEventListener('dragover', (e) => {
-      if (!e.dataTransfer.types.includes(DRAG_TYPE) || e.target.closest('.node')) return;
-      e.preventDefault(); container.classList.add('drop-root');
-    });
-    container.addEventListener('dragleave', (e) => { if (e.target === container) container.classList.remove('drop-root'); });
-    container.addEventListener('drop', (e) => {
-      container.classList.remove('drop-root');
-      const src = e.dataTransfer.getData(DRAG_TYPE);
-      if (!src || e.target.closest('.node')) return;
-      e.preventDefault();
-      container._onMove?.(src, container._root);
-    });
-  }
-  container._onMove = onMove;
-  container._root = root;
-  const clearMarks = () => container.querySelectorAll('.drop-target, .drop-before, .drop-after').forEach((el) => el.classList.remove('drop-target', 'drop-before', 'drop-after'));
+  // מה שהגרירה צריכה (העץ נבנה מחדש הרבה, גם באמצע גרירה כשתיקייה נפתחת לבד)
+  container._tree = { onMove, onReorder, onToggleDir, collapsed, root };
+  if (drag?.container === container) drag.refresh();
 
   function buildLevel(list) {
     const frag = document.createDocumentFragment();
@@ -77,51 +60,10 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
         event.stopPropagation();
         onDelete?.(n);
       });
-      if (onMove) {
-        row.draggable = true;
-        row.addEventListener('dragstart', (e) => {
-          e.dataTransfer.setData(DRAG_TYPE, n.path);
-          e.dataTransfer.effectAllowed = 'move';
-          row.classList.add('dragging');
-        });
-        row.addEventListener('dragend', () => { row.classList.remove('dragging'); clearMarks(); container.classList.remove('drop-root'); });
-        // איפה ייפול: בחלק העליון של השורה "לפני", בתחתון "אחרי" (סדר ידני, onReorder).
-        // תיקייה: רבע עליון/תחתון לפני/אחרי, והאמצע לתוכה (העברה, כמו קודם). תיקייה פתוחה: "אחרי" = לתוכה.
-        const zoneOf = (e) => {
-          const r = row.getBoundingClientRect();
-          const y = (e.clientY - r.top) / r.height;
-          if (!onReorder) return n.type === 'dir' ? 'into' : null;
-          if (n.type !== 'dir') return y < 0.5 ? 'before' : 'after';
-          if (y < 0.28) return 'before';
-          if (y > 0.72 && collapsed.has(n.path)) return 'after';
-          return 'into';
-        };
-        const mark = (zone) => {
-          const cls = zone === 'into' ? 'drop-target' : zone === 'before' ? 'drop-before' : 'drop-after';
-          if (!row.classList.contains(cls)) { clearMarks(); row.classList.add(cls); }
-        };
-        row.addEventListener('dragover', (e) => {
-          if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
-          const zone = zoneOf(e);
-          if (!zone) return;
-          e.preventDefault();
-          e.stopPropagation();
-          e.dataTransfer.dropEffect = 'move';
-          mark(zone);
-        });
-        row.addEventListener('dragleave', (e) => { if (!row.contains(e.relatedTarget)) row.classList.remove('drop-target', 'drop-before', 'drop-after'); });
-        row.addEventListener('drop', (e) => {
-          const zone = zoneOf(e);
-          if (!zone) return;
-          e.preventDefault();
-          e.stopPropagation();
-          clearMarks();
-          const src = e.dataTransfer.getData(DRAG_TYPE);
-          if (!src || src === n.path) return;
-          if (zone === 'into') onMove(src, n.path);
-          else onReorder(src, n.path, zone);
-        });
-      }
+      // 11.1: גרירה בעכבר משלנו (startTreeDrag), לא HTML5 drag
+      if (onMove) row.addEventListener('pointerdown', (e) => startTreeDrag(e, row, n, container));
+      if (drag && drag.src === n.path) row.classList.add('dragging');
+      if (landed && landed.path === n.path) row.classList.add('landed');
       const icon = document.createElement('span');
       icon.className = 'icon';
       const label = document.createElement('span');
@@ -188,6 +130,195 @@ export function renderTree(container, tree, { activePath, collapsed, opening, on
     });
     return frag;
   }
+}
+
+// ===== 11.1: גרירה בעץ =====
+// עד 11.0 זו הייתה גרירת HTML5: תמונת רפאים של הדפדפן, אזור "לתוך תיקייה" של כמה פיקסלים באמצע השורה,
+// בלי פתיחה של תיקייה סגורה ובלי גלילה, ולא היה ברור לאן המסמך ייפול. עכשיו:
+// - תווית עם השם עוקבת אחרי העכבר, ומתחתיה לאן הוא ייכנס ("אל: תיקייה" / "סידור מחדש").
+// - תיקיית היעד מוארת כולה (השורה והתוכן שלה), גם כשמצביעים על מסמך שבתוכה.
+// - שורת תיקייה: כמעט כולה "לתוך"; רק פס דק בקצה העליון/התחתון הוא "לפני/אחרי" (סדר ידני).
+// - תיקייה סגורה נפתחת לבד אחרי חצי שנייה מעליה. ליד הקצה העץ נגלל. שטח ריק = התיקייה הראשית. Esc מבטל.
+// - אחרי השחרור השורה מהבהבת במקום החדש (landed).
+let drag = null;
+let landed = null;
+const dirOf = (p) => p.slice(0, Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')));
+const baseOf = (p) => p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1);
+const shown = (p, root) => (p === root ? 'התיקייה הראשית' : baseOf(p));
+const inside = (p, dir) => p === dir || p.startsWith(dir + '/') || p.startsWith(dir + '\\');
+
+// התווית משמאל לעכבר (העץ מימין לשמאל: כך היא לא מסתירה את השמות), ונשארת בתוך החלון
+function ghostAt(ghost, x, y) {
+  const w = ghost.offsetWidth;
+  return `translate(${Math.max(4, x - w - 14)}px, ${Math.min(y + 8, window.innerHeight - ghost.offsetHeight - 4)}px)`;
+}
+
+function startTreeDrag(e, row, n, container) {
+  if (e.button !== 0 || drag || e.target.closest('input, button')) return;
+  const sx = e.clientX, sy = e.clientY;
+  let started = false;
+  const begin = () => {
+    started = true;
+    const ghost = document.createElement('div');
+    ghost.className = 'tree-ghost';
+    const head = document.createElement('div');
+    head.className = 'tg-head';
+    head.innerHTML = row.querySelector('.cust-icon')?.innerHTML || row.querySelector('.icon')?.innerHTML || '';
+    const name = document.createElement('span');
+    name.textContent = row.querySelector('.label')?.textContent || baseOf(n.path);
+    head.append(name);
+    const where = document.createElement('div');
+    where.className = 'tg-where';
+    ghost.append(head, where);
+    document.body.append(ghost);
+    document.documentElement.classList.add('tree-dragging');
+    drag = { src: n.path, isDir: n.type === 'dir', container, ghost, where, target: null, hoverDir: null, hoverTimer: 0, x: sx, y: sy,
+      scrollTimer: setInterval(() => autoScroll(), 30),
+      refresh: () => { mark(); } };
+    container.querySelector(`.node[data-path="${CSS.escape(n.path)}"]`)?.classList.add('dragging');
+    ghost.style.transform = ghostAt(ghost, sx, sy);
+    ghost.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 140, easing: 'ease-out' });
+  };
+  const move = (ev) => {
+    if (!started) {
+      if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 5) return;
+      begin();
+    }
+    drag.x = ev.clientX; drag.y = ev.clientY;
+    drag.ghost.style.transform = ghostAt(drag.ghost, ev.clientX, ev.clientY);
+    drag.target = targetAt(ev.clientX, ev.clientY);
+    springOpen();
+    mark();
+  };
+  const finish = (ok) => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', cancel);
+    window.removeEventListener('keydown', key, true);
+    if (!started) return;
+    // הלחיצה שמסיימת גרירה לא פותחת את המסמך
+    window.addEventListener('click', swallow, true);
+    setTimeout(() => window.removeEventListener('click', swallow, true), 0);
+    const d = drag;
+    drag = null;
+    clearInterval(d.scrollTimer);
+    clearTimeout(d.hoverTimer);
+    document.documentElement.classList.remove('tree-dragging');
+    clearMarks(d.container);
+    d.container.querySelectorAll('.dragging').forEach((x) => x.classList.remove('dragging'));
+    const t = ok ? d.target : null;
+    d.ghost.animate([{ opacity: 1 }, { opacity: 0, transform: d.ghost.style.transform + ' scale(.85)' }], { duration: 140, easing: 'ease-in' }).onfinish = () => d.ghost.remove();
+    if (!t || t.invalid) return;
+    const opts = d.container._tree;
+    const sep = d.src.includes('\\') ? '\\' : '/';
+    if (t.zone === 'into') {
+      if (dirOf(d.src) === t.dir) return;
+      landed = { path: t.dir + sep + baseOf(d.src) };
+      opts.onMove(d.src, t.dir);
+    } else {
+      landed = { path: dirOf(d.src) === dirOf(t.path) ? d.src : dirOf(t.path) + sep + baseOf(d.src) };
+      opts.onReorder(d.src, t.path, t.zone);
+    }
+    setTimeout(() => { landed = null; }, 1500);
+  };
+  const swallow = (c) => { c.stopPropagation(); c.preventDefault(); };
+  const up = () => finish(true);
+  const cancel = () => finish(false);
+  const key = (ev) => { if (ev.key === 'Escape' && started) { ev.preventDefault(); ev.stopImmediatePropagation(); finish(false); } };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', cancel);
+  window.addEventListener('keydown', key, true);
+}
+
+// לאן ייפול לפי הנקודה: { zone: into|before|after, dir: תיקיית היעד, path: השורה, invalid }
+function targetAt(x, y) {
+  const { container } = drag;
+  const opts = container._tree;
+  const el = document.elementFromPoint(x, y);
+  if (!el || !container.contains(el)) return null;
+  const row = el.closest('.node');
+  let t;
+  if (!row) t = { zone: 'into', dir: opts.root, path: opts.root }; // שטח ריק: התיקייה הראשית
+  else {
+    const p = row.dataset.path;
+    const isDir = row.classList.contains('dir');
+    const r = row.getBoundingClientRect();
+    const f = (y - r.top) / r.height;
+    if (isDir) {
+      const edge = opts.onReorder ? 0.2 : 0;
+      if (f < edge) t = { zone: 'before', dir: dirOf(p), path: p };
+      else if (f > 1 - edge && opts.collapsed.has(p)) t = { zone: 'after', dir: dirOf(p), path: p };
+      else t = { zone: 'into', dir: p, path: p };
+    } else if (opts.onReorder) t = { zone: f < 0.5 ? 'before' : 'after', dir: dirOf(p), path: p };
+    else t = { zone: 'into', dir: dirOf(p), path: p };
+  }
+  // תיקייה לתוך עצמה, או מסמך על עצמו
+  if (t.path === drag.src || (drag.isDir && inside(t.dir, drag.src))) t.invalid = true;
+  return t;
+}
+
+function clearMarks(container) {
+  container.querySelectorAll('.drop-target, .drop-before, .drop-after, .drop-dest, .spring').forEach((el) => el.classList.remove('drop-target', 'drop-before', 'drop-after', 'drop-dest', 'spring'));
+  container.classList.remove('drop-root');
+}
+
+function mark() {
+  if (!drag) return;
+  const { container, target: t, where } = drag;
+  clearMarks(container);
+  container.querySelector(`.node[data-path="${CSS.escape(drag.src)}"]`)?.classList.add('dragging');
+  drag.ghost.classList.toggle('invalid', !!t?.invalid);
+  if (!t) { where.textContent = ''; return; }
+  if (t.invalid) { where.textContent = 'אי אפשר להעביר לכאן'; return; }
+  const root = container._tree.root;
+  const same = dirOf(drag.src) === t.dir;
+  where.textContent = t.zone === 'into'
+    ? (same ? 'כבר כאן' : `אל: ${shown(t.dir, root)}`)
+    : (same ? 'סידור מחדש' : `אל: ${shown(t.dir, root)}`);
+  const rowOf = (p) => container.querySelector(`.node[data-path="${CSS.escape(p)}"]`);
+  if (t.zone !== 'into') rowOf(t.path)?.classList.add(t.zone === 'before' ? 'drop-before' : 'drop-after');
+  // תיקיית היעד מוארת: השורה שלה והתוכן הפתוח שלה (או כל העץ, לתיקייה הראשית)
+  if (t.dir === root) { if (!same || t.zone === 'into') container.classList.add('drop-root'); }
+  else {
+    const dirRow = rowOf(t.dir);
+    dirRow?.classList.add(t.zone === 'into' ? 'drop-target' : 'drop-dest');
+    const kids = dirRow?.nextElementSibling;
+    if (kids?.classList.contains('children')) kids.classList.add('drop-dest');
+  }
+}
+
+// תיקייה סגורה נפתחת לבד אחרי חצי שנייה של ריחוף מעליה ("לתוך")
+function springOpen() {
+  const t = drag.target;
+  const dir = t && !t.invalid && t.zone === 'into' && t.path === t.dir && drag.container._tree.collapsed.has(t.dir) ? t.dir : null;
+  if (dir === drag.hoverDir) return;
+  clearTimeout(drag.hoverTimer);
+  drag.hoverDir = dir;
+  if (!dir) return;
+  drag.container.querySelector(`.node[data-path="${CSS.escape(dir)}"]`)?.classList.add('spring');
+  drag.hoverTimer = setTimeout(() => {
+    if (!drag || drag.hoverDir !== dir) return;
+    drag.container._tree.onToggleDir(dir);
+    drag.target = targetAt(drag.x, drag.y);
+    mark();
+  }, 550);
+}
+
+function autoScroll() {
+  if (!drag) return;
+  let box = drag.container;
+  while (box && box !== document.body && !(box.scrollHeight > box.clientHeight && /auto|scroll/.test(getComputedStyle(box).overflowY))) box = box.parentElement;
+  if (!box || box === document.body) return;
+  const r = box.getBoundingClientRect();
+  const y = drag.y;
+  let dy = 0;
+  if (y < r.top + 36) dy = -Math.ceil((r.top + 36 - y) / 3);
+  else if (y > r.bottom - 36) dy = Math.ceil((y - (r.bottom - 36)) / 3);
+  if (!dy) return;
+  box.scrollTop += dy;
+  drag.target = targetAt(drag.x, drag.y);
+  mark();
 }
 
 function hitRow({ title, snippet, index, onClick }) {

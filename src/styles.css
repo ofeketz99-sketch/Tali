@@ -2667,3 +2667,28 @@ html.set-tb-grabbing, html.set-tb-grabbing * { cursor: grabbing !important; }
 .tab-add-canvas svg { transition: transform .3s var(--spring, ease); }
 .tab-add-canvas:hover svg { transform: rotate(-14deg); }
 @media (prefers-reduced-motion: reduce) { .tab-add-canvas:hover svg { transform: none; } }
+
+/* ===== 11.1: גרירה בעץ (sidebar.js, startTreeDrag) ===== */
+html.tree-dragging, html.tree-dragging * { cursor: grabbing !important; user-select: none !important; }
+.tree-ghost { position: fixed; left: 0; top: 0; z-index: 3000; pointer-events: none; display: flex; flex-direction: column; gap: 2px; max-width: 240px; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 10px; background: var(--page-bg); color: var(--text); box-shadow: 0 12px 28px -10px rgba(0, 0, 0, .35); font-size: 13px; will-change: transform; direction: rtl; }
+.tree-ghost .tg-head { display: flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; overflow: hidden; }
+.tree-ghost .tg-head span { overflow: hidden; text-overflow: ellipsis; }
+.tree-ghost .tg-head svg { flex: none; color: var(--accent-strong); }
+.tree-ghost .tg-where { font-size: 11.5px; color: var(--accent-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tree-ghost .tg-where:empty { display: none; }
+.tree-ghost.invalid { border-color: var(--muted); }
+.tree-ghost.invalid .tg-where { color: var(--muted); }
+#tree .node.dragging { opacity: .4; }
+#tree .node.drop-target { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); border-radius: 8px; transition: background .12s var(--ease), box-shadow .12s var(--ease); }
+#tree .node.drop-dest { background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 8px; }
+#tree .children.drop-dest { background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 0 0 8px 8px; transition: background .12s var(--ease); }
+#tree .node.drop-before { box-shadow: inset 0 3px 0 var(--accent); }
+#tree .node.drop-after { box-shadow: inset 0 -3px 0 var(--accent); }
+#tree.drop-root { background: color-mix(in srgb, var(--accent) 6%, transparent); box-shadow: inset 0 0 0 2px var(--accent-line); border-radius: 10px; }
+/* תיקייה סגורה שתיפתח: החץ "מתכונן" */
+#tree .node.dir.spring .icon svg { animation: tree-spring .55s ease-in-out; }
+@keyframes tree-spring { 50% { transform: rotate(-45deg) scale(1.15); } }
+/* אחרי שחרור: השורה במקומה החדש מהבהבת פעם אחת */
+#tree .node.landed { animation: tree-landed 1.1s var(--ease); }
+@keyframes tree-landed { 0%, 30% { background: color-mix(in srgb, var(--accent) 28%, transparent); } 100% { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { #tree .node.landed, #tree .node.dir.spring .icon svg { animation: none; } }

@@ -204,6 +204,42 @@ function makeResolver(files) {
   };
 }
 
+// 11.1: אחרי העברה של מסמכים (pairs: [נתיב ישן, נתיב חדש]), כבר אחרי ה־rename בדיסק. אותה תוצאה כמו
+// updateLinksAfterRename לכל זוג לפי הסדר, אבל כל קובץ נקרא פעם אחת (8 במקביל), ההחלפות נעשות בזיכרון,
+// ורק מה שהשתנה נכתב. before: רשימת המסמכים לפני ההעברה. מחזיר את הנתיבים (החדשים) של מה שנכתב.
+async function relinkMoved(pairs, before) {
+  if (!pairs.length) return [];
+  const where = new Map(pairs); // ישן -> חדש, למסמכים שזזו בעצמם
+  const files = before.map((f) => ({ path: where.get(f) || f, text: null, dirty: false }));
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(8, files.length) }, async () => {
+    while (next < files.length) {
+      const f = files[next++];
+      try { f.text = await fs.readFile(f.path, 'utf8'); } catch { f.text = null; }
+    }
+  }));
+  let list = before;
+  for (const [oldFile, newFile] of pairs) {
+    const after = list.map((f) => (f === oldFile ? newFile : f));
+    const resolveBefore = makeResolver(list);
+    const newBase = path.basename(newFile).replace(/\.md$/i, '');
+    const newRel = path.relative(root, newFile).replace(/\\/g, '/').replace(/\.md$/i, '');
+    const shortOk = resolveLink(newBase, after, root) === newFile;
+    for (const f of files) {
+      if (f.text == null || !f.text.includes('[[')) continue;
+      const replaced = replaceLinks(f.text, (target) => {
+        if (resolveBefore(target) !== oldFile) return null;
+        return target.includes('/') || !shortOk ? newRel : newBase;
+      });
+      if (replaced !== f.text) { f.text = replaced; f.dirty = true; }
+    }
+    list = after;
+  }
+  const out = files.filter((f) => f.dirty);
+  await Promise.all(out.map((f) => fs.writeFile(f.path, f.text, 'utf8')));
+  return out.map((f) => f.path);
+}
+
 // אחרי שינוי שם של הערה: מעדכן את כל הקישורים אליה בשאר ההערות.
 // מחזיר את רשימת הקבצים ששונו.
 async function updateLinksAfterRename(from, to, before) {
@@ -288,20 +324,14 @@ function registerIpc() {
     const isFile = (await fs.stat(from)).isFile();
     const before = await walkFiles(root);
     await fs.rename(from, to);
-    const changed = new Set();
-    if (isFile) {
-      for (const f of await updateLinksAfterRename(from, to, before)) changed.add(f);
-    } else {
-      // תיקייה: מעדכנים קישורים לכל הערה שבתוכה, אחת אחרי השנייה
-      let list = before;
-      for (const oldFile of before.filter((f) => f.startsWith(from + path.sep))) {
-        const newFile = to + oldFile.slice(from.length);
-        for (const f of await updateLinksAfterRename(oldFile, newFile, list)) changed.add(f);
-        list = list.map((f) => (f === oldFile ? newFile : f));
-      }
-    }
+    // 11.1: כל מסמך נקרא פעם אחת ונכתב לכל היותר פעם אחת (relinkMoved). עד 11.0 כל העברה קראה את כל
+    // הכספת אחד אחרי השני, והעברת תיקייה קראה את כל הכספת מחדש לכל מסמך שבתוכה, ולכן הגרירה לקחה זמן רב.
+    const pairs = isFile
+      ? [[from, to]]
+      : before.filter((f) => f.startsWith(from + path.sep)).map((f) => [f, to + f.slice(from.length)]);
+    const changed = await relinkMoved(pairs, before);
     vaultIndex.invalidate();
-    return { to, changed: [...changed] };
+    return { to, changed };
   });
 
   // ייצוא ההערה הפתוחה. html: התוכן כפי שהוא מוצג בעורך (אחרי ניקוי בממשק).
