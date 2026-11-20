@@ -458,7 +458,9 @@ setupContextMenus({
     const found = resolveTarget(target);
     if (!found || !isNote(found)) return null;
     const rel = relOf(dirname(found));
-    return { where: rel ? rel.split('/').join(' › ') : 'התיקייה הראשית', reveal: () => revealPath(found), move: () => moveToFolder(found) };
+    const merge = found !== state.currentPath && isNote(found) && isNote(state.currentPath || '')
+      ? () => mergeNotes(found, state.currentPath) : null;
+    return { where: rel ? rel.split('/').join(' › ') : 'התיקייה הראשית', reveal: () => revealPath(found), move: () => moveToFolder(found), merge };
   } },
   other: (e) => otherContextItems(e),
 });
@@ -1059,6 +1061,7 @@ async function reloadFromDisk() {
   if (state.canvas) { canvasDoc().load(md, p); return; }
   editorApi.setMarkdown(md);
   refreshLinksPanel();
+  updateWordCount(); // 11.3: עד עכשיו הספירה נשארה של הגרסה הקודמת (מיזוג, שינוי מבחוץ)
 }
 
 // חזרה לחלון: אם ההערה הפתוחה השתנתה בחוץ ואין כאן שינויים, טוענים אותה מחדש בשקט.
@@ -1611,6 +1614,43 @@ async function deleteNode(node) {
   } catch (err) { setStatus(err.message); }
 }
 
+// ===== 11.3: מיזוג מסמך לתוך מסמך אחר (merge-notes.js, merge-notes ב־main.js) =====
+// התוכן של src נכנס בסוף dest תחת "## <שם>", כל הקישורים אליו בכספת מובילים לסעיף הזה, ו־src עובר לסל המחזור.
+// בסוף נפתח dest, גלול לסעיף החדש.
+async function mergeNotes(src, dest) {
+  if (!src || !dest || src === dest) return;
+  if (!isNote(src) || !isNote(dest)) { setStatus('אפשר למזג רק מסמכים רגילים, לא מסמך גרפי'); return; }
+  const from = noteName(src), into = noteName(dest);
+  const ok = await ask(`למזג את "${from}" לתוך "${into}"? התוכן שלו ייכנס בסוף "${into}" תחת הכותרת "${from}", הקישורים אליו מכל המסמכים יובילו לשם, והמסמך "${from}" יעבור לסל המחזור.`, '', { confirmOnly: true, okText: 'מיזוג' });
+  if (!ok) return;
+  try {
+    await flushSave();
+    const r = await window.api.mergeNotes(src, dest);
+    const keep = (p) => p !== src;
+    state.back = state.back.filter(keep);
+    state.forward = state.forward.filter(keep);
+    state.recent = state.recent.filter(keep);
+    store.set('recent:' + state.root, state.recent);
+    meta.drop(src);
+    remapUntitled((x) => (x === src ? null : x));
+    if (state.currentPath === src) { state.currentPath = null; state.dirty = false; }
+    await refreshTree();
+    await tabs.drop((p) => p === src);
+    if (state.currentPath === dest) await reloadFromDisk(); else await openNote(dest);
+    // הסעיף החדש: גלילה אליו, כדי שיהיה ברור מה נכנס ואיפה
+    requestAnimationFrame(() => {
+      const h = [...document.querySelectorAll('#page .ProseMirror h2')].reverse().find((el) => el.textContent.trim() === r.section);
+      h?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+    const others = r.changed.filter((p) => p !== dest).length;
+    const notes = [];
+    if (others) notes.push(others === 1 ? 'הקישורים עודכנו במסמך אחד נוסף' : `הקישורים עודכנו ב־${others} מסמכים נוספים`);
+    if (r.droppedProps.length) notes.push(`${r.droppedProps.length === 1 ? 'המאפיין' : 'המאפיינים'} ${r.droppedProps.join(', ')} של "${from}" לא עבר${r.droppedProps.length === 1 ? '' : 'ו'}`);
+    if (r.hadOverlay) notes.push(`שרטוטים והערות שוליים של "${from}" לא עברו`);
+    setStatus(`"${from}" מוזג לתוך "${into}"` + (notes.length ? ' · ' + notes.join(' · ') : '') + ' · המקור בסל המחזור');
+  } catch (err) { setStatus(err.message); }
+}
+
 // ===== העברה בגרירה לתיקייה אחרת =====
 async function moveNode(src, destDir) {
   const sepIdx = Math.max(src.lastIndexOf('/'), src.lastIndexOf('\\'));
@@ -1912,6 +1952,7 @@ function fileItems(node) {
     'sep',
     { label: 'שינוי שם', icon: 'edit', keys: 'F2', run: () => renameNode(node) },
     { label: 'העברה לתיקייה…', icon: 'moveToFolder', run: () => moveToFolder(node.path) },
+    { label: 'מיזוג לתוך מסמך אחר…', icon: 'mergeNotes', run: () => pickNote(`מיזוג "${noteName(node.path)}" לתוך…`, (dest) => mergeNotes(node.path, dest)) },
     { label: 'שכפול', icon: 'copy', run: () => duplicateNode(node) },
     { label: meta.ownBackground(node.path) ? 'שינוי צבע המסמך…' : 'צבע למסמך…', icon: 'palette', run: () => pickBackground(node) },
     { label: 'מסמך קשור…', icon: 'link', run: () => pickLinksFor(node.path) },
@@ -2709,6 +2750,7 @@ const COMMANDS = [
   { title: 'קדימה', keys: 'Alt+→', run: () => goHistory(1) },
   { title: 'הצגת המסמך בעץ הקבצים', run: revealInTree, needs: 'note' },
   { title: 'העברת המסמך לתיקייה…', keys: 'Ctrl+Shift+M', run: () => moveToFolder(), needs: 'note' },
+  { title: 'מיזוג מסמך אחר לתוך המסמך הזה…', run: () => pickNote('איזה מסמך למזג לתוך המסמך הזה?', (src) => mergeNotes(src, state.currentPath)), needs: 'note' },
   { title: 'כיווץ כל התיקיות', run: collapseAll, needs: 'root' },
   { title: 'מיקוד העץ על המסמך הפתוח', keys: 'Ctrl+Shift+L', run: focusTree, needs: 'root' },
   { title: 'פתיחת כל התיקיות', run: expandAll, needs: 'root' },

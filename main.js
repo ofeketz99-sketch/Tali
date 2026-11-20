@@ -15,6 +15,7 @@ const { withCreated } = require('./vault-data');
 const { resolveNewNoteFolderPath, relativeNewNoteFolderPath } = require('./new-note-folder');
 const { createVaultIndex } = require('./vault-index');
 const { writeWithBackup, recoverInterruptedSave } = require('./safe-write');
+const { mergeNoteText, retargetMerged } = require('./merge-notes');
 const os = require('os');
 
 // שם האפליקציה: Tali. ההגדרות נשארות בתיקייה המקורית (my-notes), כדי ששינוי השם לא ימחק אותן.
@@ -686,6 +687,39 @@ function registerIpc() {
   // הערות שמקשרות להערה הזו. משתמש באותו ניתוח שכבר נבנה לאינדקס,
   // ולכן מעבר בין מסמכים לא קורא מחדש את כל הכספת.
   ipcMain.handle('backlinks', async (_e, p) => vaultIndex.backlinks(safe(p)));
+
+  // 11.3: מיזוג מסמך (src) לתוך מסמך אחר (dest): התוכן נכנס בסוף היעד תחת "## <שם>", כל הקישורים
+  // בכספת אל src הופכים ל־[[dest#שם]], ו־src עובר לסל המחזור (אפשר לשחזר משם). merge-notes.js, עם בדיקות.
+  ipcMain.handle('merge-notes', async (_e, srcPath, destPath) => {
+    const src = safe(srcPath), dest = safe(destPath);
+    if (src.toLowerCase() === dest.toLowerCase()) throw new Error('אי אפשר למזג מסמך לתוך עצמו');
+    if (!/\.md$/i.test(src) || !/\.md$/i.test(dest)) throw new Error('אפשר למזג רק מסמכי Markdown');
+    const before = await walkFiles(root);
+    const resolveBefore = makeResolver(before);
+    const [srcText, destText] = await Promise.all([fs.readFile(src, 'utf8'), fs.readFile(dest, 'utf8')]);
+    const srcName = path.basename(src).replace(/\.md$/i, '');
+    const isSelf = (t) => { const r = resolveBefore(t); return r === src || r === dest; };
+    const merged = mergeNoteText(destText, srcText, srcName, isSelf);
+    // אחרי המיזוג src כבר לא בכספת: שם קצר ליעד רק אם הוא חד־משמעי בלעדיו
+    const after = before.filter((f) => f !== src);
+    const destBase = path.basename(dest).replace(/\.md$/i, '');
+    const destRel = path.relative(root, dest).replace(/\\/g, '/').replace(/\.md$/i, '');
+    const destTarget = resolveLink(destBase, after, root) === dest ? destBase : destRel;
+    const isSource = (t) => resolveBefore(t) === src;
+    await writeWithBackup(dest, retargetMerged(merged.text, isSource, destTarget, srcName));
+    const changed = [dest];
+    for (const file of after) {
+      if (file === dest) continue;
+      let text;
+      try { text = await fs.readFile(file, 'utf8'); } catch { continue; }
+      if (!text.includes('[[')) continue;
+      const next = retargetMerged(text, isSource, destTarget, srcName);
+      if (next !== text) { await fs.writeFile(file, next, 'utf8'); changed.push(file); }
+    }
+    await shell.trashItem(src);
+    vaultIndex.invalidate();
+    return { changed, droppedProps: merged.droppedProps, hadOverlay: merged.hadOverlay, section: srcName };
+  });
 
   ipcMain.handle('delete', async (_e, p) => {
     await shell.trashItem(safe(p)); // מעביר לסל המחזור, לא מוחק לצמיתות

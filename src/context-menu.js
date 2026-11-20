@@ -209,6 +209,7 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
       'sep',
       { label: `שמור ב: ${found.where}`, icon: 'folder', run: found.reveal },
       { label: 'העברת המסמך המקושר לתיקייה…', icon: 'moveToFolder', run: found.move },
+      ...(found.merge ? [{ label: 'מיזוג המסמך המקושר לתוך המסמך הזה…', icon: 'mergeNotes', run: found.merge }] : []),
     ];
   }
   // בתוך טבלה: פעולות השורות והעמודות, כמו בסרגל הטבלה

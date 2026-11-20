@@ -56,6 +56,7 @@ contextBridge.exposeInMainWorld('api', {
   writeImage: call('write-image'),
   vaultIndex: call('vault-index'),
   move: call('move'),
+  mergeNotes: call('merge-notes'),
   exportNote: call('export-note'),
   inlineImages: call('inline-images'),
   openExternalFile: call('open-export'),
