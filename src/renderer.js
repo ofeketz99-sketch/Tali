@@ -413,11 +413,18 @@ const useOverlay = (tool) => {
   else pageOverlay.openDrawing();
   setStatus('שרטוט על הדף: הכלים בסרגל למטה. "סיום" או Esc חוזרים לכתיבה.');
 };
+// 11.2: "הערת שוליים": הלחיצה הבאה בדף או בשוליים קובעת את מקומה. טקסט מסומן נקשר אליה כציטוט,
+// ואפשר גם לקשר אחר כך (הכפתור בכותרת ההערה).
 const addMarginComment = (quote) => {
-  if (!state.currentPath || editorApi.isRaw()) { setStatus('פותחים מסמך בתצוגה המעוצבת כדי להוסיף הערה'); return; }
-  if (!quote?.trim()) { setStatus('מסמנים קודם את הציטוט שאליו ההערה שייכת'); return; }
+  if (!state.currentPath || state.canvas || editorApi.isRaw()) { setStatus('פותחים מסמך בתצוגה המעוצבת כדי להוסיף הערה'); return; }
   pageOverlay.setEnabled(true);
-  if (pageOverlay.addComment(quote)) setStatus('ההערה מקושרת לציטוט וניתנת לגרירה בשולי הדף');
+  const linked = !!quote?.trim();
+  const onDone = (created) => setStatus(created
+    ? (linked ? 'ההערה נוספה ומקושרת לטקסט המסומן. גרירה בכותרת מזיזה אותה' : 'ההערה נוספה. הכפתור בכותרת שלה מקשר אותה לטקסט בדף')
+    : 'הוספת ההערה בוטלה');
+  if (pageOverlay.startPlacement({ quote, onDone })) {
+    setStatus(quote?.trim() ? 'לחצו במקום שבו תופיע ההערה (היא תקושר לטקסט המסומן) · Esc ביטול' : 'לחצו במקום שבו תופיע ההערה · Esc ביטול');
+  }
 };
 const toolbarApi = buildToolbar($('toolbar'), editorApi, {
   onImage: importImages,
@@ -445,6 +452,13 @@ setupContextMenus({
   link: { open: (target, mode) => {
     if (mode === 'side') { const found = resolveTarget(target); if (found && isNote(found)) return tabs.splitWith(found); }
     return openLink(target, mode === 'tab' ? { newTab: true } : {});
+  },
+  // 11.2: המסמך המקושר: איפה הוא שמור (הצגה בעץ) והעברה לתיקייה, בלי לפתוח ולחפש אותו
+  locate: (target) => {
+    const found = resolveTarget(target);
+    if (!found || !isNote(found)) return null;
+    const rel = relOf(dirname(found));
+    return { where: rel ? rel.split('/').join(' › ') : 'התיקייה הראשית', reveal: () => revealPath(found), move: () => moveToFolder(found) };
   } },
   other: (e) => otherContextItems(e),
 });
@@ -883,6 +897,8 @@ const measureTitle = () => {
   if (h) $('pageWrap').style.setProperty('--title-h', h + 'px'); else $('pageWrap').style.removeProperty('--title-h');
 };
 new ResizeObserver(measureTitle).observe($('docTitle'));
+// 11.2: ליד התיקייה: העברת המסמך לתיקייה אחרת (moveToFolder), בלי לחפש אותו בעץ
+$('dmMove').addEventListener('click', () => moveToFolder());
 function updateDocTitle() {
   const p = state.currentPath;
   $('docTitle').textContent = p ? noteName(p) : '';
@@ -1895,6 +1911,7 @@ function fileItems(node) {
       : { label: 'נעיצה למסך הבית', icon: 'pin', run: () => { meta.setPinned(node.path, true); setStatus('המסמך ננעץ למסך הבית'); if (!state.currentPath) home.render({ refresh: false }); } },
     'sep',
     { label: 'שינוי שם', icon: 'edit', keys: 'F2', run: () => renameNode(node) },
+    { label: 'העברה לתיקייה…', icon: 'moveToFolder', run: () => moveToFolder(node.path) },
     { label: 'שכפול', icon: 'copy', run: () => duplicateNode(node) },
     { label: meta.ownBackground(node.path) ? 'שינוי צבע המסמך…' : 'צבע למסמך…', icon: 'palette', run: () => pickBackground(node) },
     { label: 'מסמך קשור…', icon: 'link', run: () => pickLinksFor(node.path) },
@@ -2479,13 +2496,19 @@ function allDirs(nodes = state.tree, out = []) {
   for (const n of nodes) if (n.type === 'dir') { out.push(n.path); allDirs(n.children, out); }
   return out;
 }
-function revealInTree() {
-  if (!state.currentPath) return;
+function revealInTree() { if (state.currentPath) revealPath(state.currentPath); }
+// 11.2: כל מסמך (גם לא הפתוח, למשל מסמך מקושר): פותח את התיקיות שמעליו, גולל אליו ומבליט אותו לרגע
+function revealPath(p) {
+  if (!p) return;
   if ($('search').value) { $('search').value = ''; }
-  for (const d of allDirs()) if (state.currentPath.startsWith(d + '\\') || state.currentPath.startsWith(d + '/')) state.collapsed.delete(d);
+  if (sidebarMode === 'compact') setSidebarMode('expanded');
+  for (const d of allDirs()) if (p.startsWith(d + '\\') || p.startsWith(d + '/')) state.collapsed.delete(d);
   saveCollapsed();
   drawTree();
-  document.querySelector('#tree .node.active')?.scrollIntoView({ block: 'center' });
+  const row = [...$('tree').querySelectorAll('.node.file')].find((n) => n.dataset.path === p);
+  if (!row) return;
+  row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash');
 }
 // מיקוד: כל התיקיות נסגרות חוץ מאלה שמובילות למסמך הפתוח, והעץ גולל אליו ומבליט אותו
 function focusTree() {
@@ -2545,6 +2568,43 @@ function stepFolder(dir) {
     const row = [...$('tree').querySelectorAll('.node.dir')].find((n) => n.dataset.path === target.path);
     if (row) { row.scrollIntoView({ block: 'nearest' }); row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash'); }
     else $('tree').scrollTo({ top: 0 });
+  });
+}
+
+// 11.2: העברת מסמך לתיקייה בלי לחפש אותו בעץ: רשימת כל התיקיות עם חיפוש, ותיקייה חדשה בשם שהוקלד.
+// נפתח מהפירורים שמעל הדף, מהתפריט של קישור [[...]] (בשביל המסמך המקושר), מהעץ ומלוח הפקודות.
+function moveToFolder(path = state.currentPath) {
+  if (!path || !state.root) return;
+  const here = dirname(path);
+  const label = (d) => (d === state.root ? 'התיקייה הראשית' : relOf(d).split('/').join(' › '));
+  const dirs = [state.root, ...allDirs().filter((d) => !isArchived(relOf(d)))];
+  openPalette({
+    placeholder: `העברת "${noteName(path)}" אל…`,
+    footer: '↑↓ בחירה · Enter העברה · Esc ביטול',
+    emptyText: 'אין תיקייה כזו',
+    items: (query) => {
+      const q = query.trim();
+      const list = [];
+      for (const d of dirs) {
+        const m = q ? fuzzy(q, label(d)) : { score: 0, marks: [] };
+        if (!m) continue;
+        const current = d === here;
+        list.push({ score: m.score - (current ? 1000 : 0), title: label(d), marks: m.marks,
+          hint: current ? 'המיקום הנוכחי' : '', run: () => { if (!current) moveNode(path, d); } });
+      }
+      if (q) list.sort((a, b) => b.score - a.score);
+      else list.sort((a, b) => (a.hint ? -1 : b.hint ? 1 : 0)); // המיקום הנוכחי ראשון, כדי שיהיה ברור איפה המסמך עכשיו
+      const clean = q.replace(/[\\/:*?"<>|]/g, '').trim();
+      if (clean && !dirs.some((d) => d !== state.root && label(d).split(' › ').pop().toLowerCase() === clean.toLowerCase())) {
+        list.push({ title: `תיקייה חדשה בתיקייה הראשית: ${clean}`, className: 'pal-create', run: async () => {
+          try {
+            await window.api.createFolder(state.root, clean);
+            await moveNode(path, state.root + (state.root.includes('\\') ? '\\' : '/') + clean);
+          } catch (err) { setStatus(err.message); }
+        } });
+      }
+      return list;
+    },
   });
 }
 
@@ -2648,6 +2708,7 @@ const COMMANDS = [
   { title: 'אחורה למסמך הקודם', keys: 'Alt+←', run: () => goHistory(-1) },
   { title: 'קדימה', keys: 'Alt+→', run: () => goHistory(1) },
   { title: 'הצגת המסמך בעץ הקבצים', run: revealInTree, needs: 'note' },
+  { title: 'העברת המסמך לתיקייה…', keys: 'Ctrl+Shift+M', run: () => moveToFolder(), needs: 'note' },
   { title: 'כיווץ כל התיקיות', run: collapseAll, needs: 'root' },
   { title: 'מיקוד העץ על המסמך הפתוח', keys: 'Ctrl+Shift+L', run: focusTree, needs: 'root' },
   { title: 'פתיחת כל התיקיות', run: expandAll, needs: 'root' },
@@ -2687,7 +2748,7 @@ const COMMANDS = [
 // The default shortcut itself is a stable id for the existing command set. Custom values live in prefs.hotkeys.
 for (const command of COMMANDS) if (command.keys && !command.id) command.id = 'shortcut:' + command.keys;
 // 10.4: פקודות מסמך שמתאימות גם לקנבס
-const CANVAS_OK = new Set(['הכרטיסייה הבאה', 'הכרטיסייה הקודמת', 'סגירת הכרטיסייה', 'שני מסמכים זה לצד זה / ביטול', 'פתיחת מסמך לצד…', 'שמירה', 'שינוי שם המסמך', 'מחיקת המסמך (לסל המחזור)', 'שכפול המסמך', 'העברת המסמך לארכיון', 'החזרת המסמך מהארכיון', 'הצגת המסמך בעץ הקבצים']);
+const CANVAS_OK = new Set(['הכרטיסייה הבאה', 'הכרטיסייה הקודמת', 'סגירת הכרטיסייה', 'שני מסמכים זה לצד זה / ביטול', 'פתיחת מסמך לצד…', 'שמירה', 'שינוי שם המסמך', 'מחיקת המסמך (לסל המחזור)', 'שכפול המסמך', 'העברת המסמך לארכיון', 'החזרת המסמך מהארכיון', 'הצגת המסמך בעץ הקבצים', 'העברת המסמך לתיקייה…']);
 for (const command of COMMANDS) if (CANVAS_OK.has(command.title.trim())) command.canvas = true;
 setHotkeyCatalog(COMMANDS);
 // 10.4: פקודות של מסמך (needs: 'note') פועלות בקנבס רק אם סומנו canvas: true (שינוי שם, מחיקה וכו')

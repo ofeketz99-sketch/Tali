@@ -197,7 +197,18 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
       { label: 'פתיחה בכרטיסייה חדשה', icon: 'filePlus', keys: 'Ctrl+לחיצה', run: () => link.open(target, 'tab') },
       { label: 'פתיחה לצד', icon: 'splitView', run: () => link.open(target, 'side') },
       { label: 'העתקת הקישור', icon: 'copy', run: () => navigator.clipboard?.writeText(`[[${target}]]`) },
+      ...locateItems(target),
       'sep',
+    ];
+  }
+  // 11.2: איפה המסמך המקושר שמור (לחיצה: מראה אותו בעץ), והעברה שלו לתיקייה אחרת בלי לפתוח אותו
+  function locateItems(target) {
+    const found = link.locate?.(target);
+    if (!found) return [];
+    return [
+      'sep',
+      { label: `שמור ב: ${found.where}`, icon: 'folder', run: found.reveal },
+      { label: 'העברת המסמך המקושר לתיקייה…', icon: 'moveToFolder', run: found.move },
     ];
   }
   // בתוך טבלה: פעולות השורות והעמודות, כמו בסרגל הטבלה
@@ -292,14 +303,14 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
       { label: 'תמונה', icon: 'image', run: edit.image },
       { label: 'קישור למסמך', icon: 'link', disabled: inCode(), run: edit.link },
       { label: 'ציור (נשמר כתמונה)', icon: 'draw', run: edit.drawing },
-      { label: 'מסגרת סביב טקסט', icon: 'quote', disabled: inCode(), run: edit.textBox },
+      { label: 'מסגרת סביב טקסט', icon: 'rect', disabled: inCode(), run: edit.textBox },
       { label: 'ציטוט', icon: 'quote', disabled: inCode(), run: edit.quote, active: () => has('blockquote') },
       { label: 'בלוק קוד', icon: 'code', run: edit.codeBlock, active: () => has('codeBlock') },
       { label: 'קו מפריד', icon: 'rule', run: edit.rule },
       ] },
       { label: 'חופשי על הדף', icon: 'pen', sub: [
         { label: 'תיבת טקסט שזזה חופשי', icon: 'textBox', run: edit.floatingBox },
-        { label: 'הערת שוליים לטקסט המסומן', icon: 'comment', disabled: empty || inCode(), run: edit.marginComment },
+        { label: empty ? 'הערת שוליים' : 'הערת שוליים על הטקסט המסומן', icon: 'comment', run: edit.marginComment },
         { label: 'שרטוט על הדף', icon: 'pen', run: edit.pageDrawing },
         'sep',
         { label: 'המרה ל־Markdown רגיל', icon: 'file', run: edit.plainMarkdown },

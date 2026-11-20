@@ -279,7 +279,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
   }
   const PW = () => refWidth || cssPageWidth(); // רוחב הדף בקואורדינטות השכבה
   const PH = () => page.offsetHeight / scale;   // גובה הדף בקואורדינטות השכבה
-  new ResizeObserver(() => { if (enabled) fitPage(); }).observe(page);
+  new ResizeObserver(() => { if (enabled) { fitPage(); scheduleLinks(); } }).observe(page);
   function fitPage() {
     applyScale();
     // 8.4: הישויות בקואורדינטות השכבה; הגובה על המסך = כפול קנה המידה
@@ -303,7 +303,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
   // 8.2: כשהטקסט גדל או קטן (הקלדה, פתיחת מסמך) הרווח מתחת מתעדכן. גובה הטקסט לא תלוי ב־min-height של הדף,
   // ולכן אין כאן לולאה.
   const editorEl = page.querySelector('.ProseMirror');
-  if (editorEl) new ResizeObserver(() => { if (enabled && objects.length) fitPage(); }).observe(editorEl);
+  if (editorEl) new ResizeObserver(() => { if (enabled && objects.length) { fitPage(); scheduleLinks(); } }).observe(editorEl);
   // מצב הסרגל לפי הכלי והבחירה: מה שלא רלוונטי מוסתר, כדי שהסרגל יהיה קצר
   function updateToolbar() {
     // 7.7: ידית הגרירה של השורות (⋮⋮, block-handle.js) מוסתרת בזמן ציור, כדי שלא תפריע
@@ -500,7 +500,9 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     return { x: (event.clientX - bounds.left) / scale, y: (event.clientY - bounds.top) / scale };
   };
 
-  function quoteRect(quote) {
+  // ===== 11.2: הערות שוליים =====
+  // הציטוט מזוהה לפי התוכן (ההופעה הראשונה בטקסט). Range על הטקסט בעורך, או null כשהוא כבר לא שם.
+  function quoteRange(quote) {
     const editor = page.querySelector('.ProseMirror');
     if (!editor || !quote) return null;
     const nodes = [];
@@ -515,47 +517,291 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     const range = document.createRange();
     range.setStart(first.node, at - first.start);
     range.setEnd(last.node, Math.min(last.node.data.length, at + quote.length - last.start));
-    return range.getBoundingClientRect();
+    return range;
   }
-
-  function addComment(quote) {
-    const clean = String(quote || '').replace(/\s+/g, ' ').trim().slice(0, 1000);
-    if (!enabled || !clean) return false;
-    const width = 230, height = 130;
-    const rect = quoteRect(clean);
-    const bounds = page.getBoundingClientRect();
-    const count = objects.filter((item) => item.kind === 'comment').length;
-    const side = count % 2 ? 'end' : 'start';
+  const cleanQuote = (quote) => String(quote || '').replace(/\s+/g, ' ').trim().slice(0, 1000);
+  const shortQuote = (quote) => `„${quote.slice(0, 64)}${quote.length > 64 ? '…' : ''}“`;
+  const NOTE_W = 230, NOTE_H = 130;
+  // הטווח האופקי (בקואורדינטות השכבה) שגלוי בחלון: בלי פס הגלילה ובלי לוח ההקשר שבצד הדף.
+  // עד 11.1 הערה חדשה נוצרה תמיד 254px משמאל לדף, ובחלון צר היא נחתכה או נעלמה מאחורי לוח ההקשר.
+  // top/bottom (על המסך, לא חובה): לוח ההקשר נחשב רק אם הוא בגובה של ההערה
+  function visibleSpan(top = -Infinity, bottom = Infinity) {
+    const wrap = page.closest('#pageWrap') || page.parentElement;
+    const w = wrap.getBoundingClientRect(), b = page.getBoundingClientRect();
+    let left = w.left + 8, right = w.left + wrap.clientWidth - 8;
+    const ctx = document.getElementById('docCtx');
+    const c = ctx?.offsetParent ? ctx.getBoundingClientRect() : null;
+    if (c && c.bottom > top && c.top < bottom) {
+      if (c.right <= b.left + 40) left = Math.max(left, c.right + 8);
+      else if (c.left >= b.right - 40) right = Math.min(right, c.left - 8);
+    }
+    return { min: (left - b.left) / scale, max: (right - b.left) / scale };
+  }
+  const fitX = (x, width, top, bottom) => {
+    const { min, max } = visibleSpan(top, bottom);
+    return Math.round(max - min < width ? min : limit(x, min, max - width));
+  };
+  // מיקום ההערה ביחס לסמן: הסמן באמצע פס הכותרת שלה, כך שמה שרואים לפני הלחיצה הוא בדיוק מה שנוצר
+  function noteSpot(clientX, clientY) {
+    const b = page.getBoundingClientRect();
+    const px = (clientX - b.left) / scale, py = (clientY - b.top) / scale;
+    const y = Math.round(Math.max(0, py - 12));
+    return { x: fitX(px - NOTE_W / 2, NOTE_W, b.top + y * scale, b.top + (y + NOTE_H) * scale), y };
+  }
+  function makeComment({ x, y, quote = '' }) {
     const object = {
-      id: makeId(), kind: 'comment', quote: clean, text: '', side,
-      x: side === 'start' ? -width - 24 : PW() + 24,
-      y: Math.max(18, Math.round((rect ? (rect.top - bounds.top) / scale : 70 + count * 42))),
-      width, height, color, weight,
+      id: makeId(), kind: 'comment', quote: cleanQuote(quote), text: '',
+      side: x + NOTE_W / 2 < PW() / 2 ? 'start' : 'end',
+      x, y, width: NOTE_W, height: NOTE_H, color, weight,
     };
     objects.push(object);
-    session = true; mode = 'select';
+    // 11.2: הערה לא פותחת את סרגל השרטוט. היא תיבה שכותבים בה, ולא כלי ציור.
     render(); select(object.id); notify();
-    requestAnimationFrame(() => boxes.querySelector(`[data-id="${object.id}"] textarea`)?.focus());
-    return true;
+    requestAnimationFrame(() => boxes.querySelector(`[data-id="${object.id}"] textarea`)?.focus({ preventScroll: true }));
+    return object;
   }
-
-  // 8.0: הערת שוליים בלי ציטוט, בנקודה שנלחצה בשוליים (לחיצה כפולה או תפריט). הצד לפי מקום הלחיצה.
+  // לחיצה כפולה או תפריט בשוליים: ההערה נוצרת בדיוק שם (גלויה כולה בחלון)
   function addNote(clientX, clientY) {
     if (!enabled) return false;
-    const width = 230, height = 130;
-    const bounds = page.getBoundingClientRect();
-    const side = clientX < bounds.left + bounds.width / 2 ? 'start' : 'end';
-    const object = {
-      id: makeId(), kind: 'comment', quote: '', text: '', side,
-      x: side === 'start' ? -width - 24 : PW() + 24,
-      y: Math.max(0, Math.round((clientY - bounds.top) / scale - 14)),
-      width, height, color, weight,
-    };
-    objects.push(object);
-    session = true; mode = 'select';
-    render(); select(object.id); notify();
-    requestAnimationFrame(() => boxes.querySelector(`[data-id="${object.id}"] textarea`)?.focus());
+    stopPlacement(); stopLinking();
+    if (session) endSession();
+    makeComment(noteSpot(clientX, clientY));
     return true;
+  }
+
+  // ===== 11.2: מיקום הערה בלחיצה =====
+  // הכפתור "הערת שוליים" (סרגל, "הוספה", תפריט ימני) לא יוצר תיבה מיד: כרטיס שקוף נצמד לעכבר,
+  // והלחיצה הבאה בדף או בשוליים קובעת את מקומו. טקסט שהיה מסומן נקשר אליה (ומודגש עד הלחיצה).
+  // Esc, לחיצה ימנית או לחיצה מחוץ לאזור הדף: ביטול.
+  let placing = null;
+  let lastPointer = null;
+  window.addEventListener('pointermove', (event) => { lastPointer = { clientX: event.clientX, clientY: event.clientY }; }, { passive: true, capture: true });
+  function startPlacement({ quote = '', onDone } = {}) {
+    if (!enabled) return false;
+    stopPlacement(); stopLinking();
+    if (session) endSession();
+    const clean = cleanQuote(quote);
+    const wrap = page.closest('#pageWrap') || page.parentElement;
+    const ghost = document.createElement('div');
+    ghost.className = 'tali-note-ghost off';
+    ghost.innerHTML = `<div class="tali-note-ghost-head">${icon('comment', 14)}<span></span></div>`
+      + '<div class="tali-note-ghost-body">לחיצה כאן ממקמת את ההערה<small>Esc לביטול</small></div>';
+    ghost.querySelector('span').textContent = clean ? shortQuote(clean) : 'הערת שוליים';
+    document.body.append(ghost);
+    document.body.classList.add('tali-placing-note');
+    const allowed = (event) => {
+      const target = document.elementFromPoint(event.clientX, event.clientY);
+      return !!target && wrap.contains(target) && !target.closest('#docCtx, .tali-overlay-toolbar, .tali-overlay-box');
+    };
+    let last = null, created = false;
+    const show = (event) => {
+      last = event;
+      const b = page.getBoundingClientRect();
+      const spot = noteSpot(event.clientX, event.clientY);
+      ghost.classList.toggle('off', !allowed(event));
+      ghost.style.left = b.left + spot.x * scale + 'px';
+      ghost.style.top = b.top + spot.y * scale + 'px';
+      ghost.style.width = NOTE_W * scale + 'px';
+    };
+    const onMove = (event) => show(event);
+    const onScroll = () => { if (last) show(last); };
+    const blockMenu = (event) => { event.preventDefault(); event.stopImmediatePropagation(); };
+    const onDown = (event) => {
+      if (event.button === 2) {
+        blockMenu(event);
+        window.addEventListener('contextmenu', blockMenu, { capture: true, once: true });
+        stopPlacement();
+        return;
+      }
+      if (event.button !== 0 || !allowed(event)) { stopPlacement(); return; } // הלחיצה ממשיכה כרגיל
+      event.preventDefault(); event.stopImmediatePropagation();
+      const spot = noteSpot(event.clientX, event.clientY);
+      created = true;
+      stopPlacement();
+      makeComment({ ...spot, quote: clean });
+      onDone?.(true);
+    };
+    const onKey = (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      stopPlacement();
+    };
+    window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('keydown', onKey, true);
+    wrap.addEventListener('scroll', onScroll, { passive: true });
+    placing = {
+      quote: clean,
+      stop: () => {
+        window.removeEventListener('pointermove', onMove, true);
+        window.removeEventListener('pointerdown', onDown, true);
+        window.removeEventListener('keydown', onKey, true);
+        wrap.removeEventListener('scroll', onScroll);
+        ghost.remove();
+        document.body.classList.remove('tali-placing-note');
+        placing = null;
+        drawLinks();
+        if (!created) onDone?.(false);
+      },
+    };
+    if (lastPointer) show(lastPointer); else ghost.hidden = true;
+    if (!lastPointer) window.addEventListener('pointermove', () => { ghost.hidden = false; }, { once: true, capture: true });
+    drawLinks();
+    return true;
+  }
+  function stopPlacement() { placing?.stop(); }
+
+  // ===== 11.2: קישור הערה לציטוט אחרי שנוצרה =====
+  // הכפתור בכותרת ההערה: אם יש טקסט מסומן בדף הוא נקשר מיד; אחרת מסמנים עכשיו (תווית ליד העכבר), Esc מבטל.
+  let linking = null;
+  function editorSelectionText() {
+    const editor = page.querySelector('.ProseMirror');
+    const sel = window.getSelection();
+    if (!editor || !sel || sel.isCollapsed || !editor.contains(sel.anchorNode) || !editor.contains(sel.focusNode)) return '';
+    return cleanQuote(sel.toString());
+  }
+  function setQuote(object, quote) {
+    object.quote = quote;
+    drawBoxes(); notify();
+    if (quote) flashQuote(object);
+  }
+  function startLinking(id) {
+    const object = objects.find((o) => o.id === id && o.kind === 'comment');
+    if (!object) return;
+    stopPlacement(); stopLinking();
+    const now = editorSelectionText();
+    if (now) { setQuote(object, now); return; }
+    document.body.classList.add('tali-linking-quote');
+    const chip = document.createElement('div');
+    chip.className = 'tali-link-chip';
+    chip.textContent = 'סמנו בדף את הטקסט שההערה מתייחסת אליו · Esc לביטול';
+    document.body.append(chip);
+    const place = (event) => { chip.style.left = event.clientX + 16 + 'px'; chip.style.top = event.clientY + 20 + 'px'; };
+    if (lastPointer) place(lastPointer);
+    boxes.querySelector(`[data-id="${CSS.escape(id)}"]`)?.classList.add('linking');
+    const check = () => setTimeout(() => {
+      const quote = editorSelectionText();
+      if (!quote || linking?.id !== id) return;
+      stopLinking();
+      setQuote(object, quote);
+    }, 0);
+    const onDown = (event) => {
+      // לחיצה על הערה או מחוץ לדף מבטלת. בדף עצמו מסמנים כרגיל.
+      if (event.target.closest?.('.tali-overlay-box') || !page.contains(event.target)) stopLinking();
+    };
+    const onKey = (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); stopLinking(); return; }
+      if (event.shiftKey) check();
+    };
+    window.addEventListener('pointermove', place, true);
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('mouseup', check, true);
+    window.addEventListener('keyup', onKey, true);
+    window.addEventListener('keydown', onKey, true);
+    linking = {
+      id,
+      stop: () => {
+        window.removeEventListener('pointermove', place, true);
+        window.removeEventListener('pointerdown', onDown, true);
+        window.removeEventListener('mouseup', check, true);
+        window.removeEventListener('keyup', onKey, true);
+        window.removeEventListener('keydown', onKey, true);
+        chip.remove();
+        document.body.classList.remove('tali-linking-quote');
+        boxes.querySelector('.linking')?.classList.remove('linking');
+        linking = null;
+      },
+    };
+  }
+  function stopLinking() { linking?.stop(); }
+
+  // ===== 11.2: הציטוט בדף: מרקר עדין (CSS Custom Highlight, בלי לגעת בטקסט או בקובץ) וסוגר בשוליים =====
+  // עד 11.1 הקו המקווקו נכנס ישר לתוך המילה וחצה את השורה. עכשיו: פס קצר בשולי עמודת הטקסט לגובה
+  // השורות של הציטוט, והקו יוצא ממנו אל ההערה, בלי לעבור על הטקסט.
+  const links = svgEl('g', { class: 'tali-overlay-links' });
+  svg.insertBefore(links, shapes);
+  let hoverId = null, flashRange = null, flashTimer = 0;
+  const canHighlight = typeof Highlight === 'function' && !!globalThis.CSS?.highlights;
+  function drawLinks() {
+    const quiet = [], active = [];
+    const parts = [];
+    if (enabled) {
+      const b = page.getBoundingClientRect();
+      const er = page.querySelector('.ProseMirror')?.getBoundingClientRect();
+      const L = (v) => v / scale;
+      for (const object of objects) {
+        if (object.kind !== 'comment' || !object.quote) continue;
+        const range = quoteRange(object.quote);
+        boxes.querySelector(`[data-id="${CSS.escape(object.id)}"]`)?.classList.toggle('missing', !range);
+        if (!range) continue;
+        const on = isSelected(object.id) || hoverId === object.id;
+        (on ? active : quiet).push(range);
+        const rects = [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+        if (!rects.length || !er) continue;
+        const left = object.x + object.width / 2 < L(er.left + er.width / 2 - b.left);
+        const ax = L((left ? er.left - 12 : er.right + 12) - b.left);
+        const top = L(Math.min(...rects.map((r) => r.top)) - b.top) + 3;
+        const bottom = L(Math.max(...rects.map((r) => r.bottom)) - b.top) - 3;
+        const ay = (top + bottom) / 2;
+        const bracket = svgEl('path', { d: `M${r1(ax)} ${r1(top)} L${r1(ax)} ${r1(bottom)}` });
+        bracket.classList.add('tali-note-bracket');
+        // ההערה בצד: הקו יוצא אופקית אל פס הכותרת שלה. ההערה מתחת לסוגר או מעליו (חלון צר, בלי שוליים):
+        // הקו יורד או עולה אנכית מקצה הסוגר אל שפת ההערה, ולא חוצה את הטקסט.
+        let d;
+        if (ax <= object.x || ax >= object.x + object.width) {
+          const nx = ax <= object.x ? object.x : object.x + object.width, ny = object.y + 13, mid = (ax + nx) / 2;
+          d = `M${r1(ax)} ${r1(ay)} C${r1(mid)} ${r1(ay)}, ${r1(mid)} ${r1(ny)}, ${r1(nx)} ${r1(ny)}`;
+        } else {
+          const below = object.y >= ay;
+          const sy = below ? bottom : top, ny = below ? object.y : object.y + object.height, mid = (sy + ny) / 2;
+          d = `M${r1(ax)} ${r1(sy)} C${r1(ax)} ${r1(mid)}, ${r1(ax)} ${r1(mid)}, ${r1(ax)} ${r1(ny)}`;
+        }
+        const line = svgEl('path', { d });
+        line.classList.add('tali-comment-connector');
+        for (const el of [bracket, line]) {
+          el.setAttribute('stroke', object.color);
+          el.classList.toggle('on', on);
+        }
+        parts.push(line, bracket);
+      }
+      if (placing?.quote) { const range = quoteRange(placing.quote); if (range) active.push(range); }
+    }
+    links.replaceChildren(...parts);
+    if (!canHighlight) return;
+    CSS.highlights.set('tali-note-quote', new Highlight(...quiet));
+    CSS.highlights.set('tali-note-quote-on', new Highlight(...active));
+    if (flashRange) CSS.highlights.set('tali-note-quote-flash', new Highlight(flashRange));
+    else CSS.highlights.delete('tali-note-quote-flash');
+  }
+  let linksFrame = 0;
+  const scheduleLinks = () => {
+    if (linksFrame) return;
+    linksFrame = requestAnimationFrame(() => { linksFrame = 0; drawLinks(); });
+  };
+  // הקו והמרקר זזים עם הטקסט: הקלדה, גלילה פנימית, שינוי רוחב
+  if (editorEl) new MutationObserver(() => { if (enabled && objects.some((o) => o.kind === 'comment' && o.quote)) scheduleLinks(); })
+    .observe(editorEl, { subtree: true, childList: true, characterData: true });
+  window.addEventListener('resize', scheduleLinks);
+  // מעבר לציטוט: גלילה אליו והבהוב קצר של המרקר
+  function flashQuote(object) {
+    const range = quoteRange(object.quote);
+    if (!range) return false;
+    const el = range.startContainer.parentElement;
+    const r = range.getBoundingClientRect();
+    const wrap = page.closest('#pageWrap') || page.parentElement;
+    const w = wrap.getBoundingClientRect();
+    if (r.top < w.top + 40 || r.bottom > w.bottom - 40) el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    flashRange = range;
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => { flashRange = null; drawLinks(); }, 1400);
+    drawLinks();
+    return true;
+  }
+  function deleteComment(object) {
+    objects = objects.filter((o) => o.id !== object.id);
+    setSelection([...selection].filter((id) => id !== object.id));
+    if (hoverId === object.id) hoverId = null;
+    render(); notify();
   }
 
   // ===== ציור הצורות =====
@@ -628,7 +874,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
   // 8.3: לחיצה על ישות (שרטוט, תיבה או תמונה). Shift/Ctrl: הוספה לבחירה או הוצאה ממנה.
   // ישות שכבר בתוך בחירה מרובה: הגרירה מזיזה את כל הבחירה. Alt+גרירה: גוררים עותק (המקור נשאר).
   function grabObject(object, event, { drag = true } = {}) {
-    if (!session) { session = true; mode = 'select'; }
+    // 11.2: הזזת הערת שוליים לא פותחת את סרגל השרטוט
+    if (!session && object.kind !== 'comment') { session = true; mode = 'select'; }
     if (event.shiftKey || event.ctrlKey || event.metaKey) { select(object.id, { add: true }); return; }
     const inside = selectedObjects().some((o) => o.id === object.id);
     if (!inside) select(object.id);
@@ -697,20 +944,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     handle('se', b.x + b.w + pad, b.y + b.h + pad);
   }
   function drawShapes() {
-    const bounds = page.getBoundingClientRect();
-    const connectors = objects.filter((object) => object.kind === 'comment').map((object) => {
-      const rect = quoteRect(object.quote);
-      if (!rect) return null;
-      const anchorX = (object.side === 'start' ? rect.left - bounds.left : rect.right - bounds.left) / scale;
-      const anchorY = (rect.top - bounds.top + rect.height / 2) / scale;
-      const noteX = object.side === 'start' ? object.x + object.width : object.x;
-      const noteY = object.y + 31;
-      const path = svgEl('path', { d: `M${anchorX} ${anchorY} C${(anchorX + noteX) / 2} ${anchorY}, ${(anchorX + noteX) / 2} ${noteY}, ${noteX} ${noteY}` });
-      path.classList.add('tali-comment-connector');
-      path.setAttribute('stroke', object.color);
-      return path;
-    }).filter(Boolean);
-    shapes.replaceChildren(...connectors, ...objects.filter((object) => shapeKinds.includes(object.kind)).map(shapeElement));
+    shapes.replaceChildren(...objects.filter((object) => shapeKinds.includes(object.kind)).map(shapeElement));
     drawHandles();
   }
   // עדכון של צורה אחת בלבד (בזמן ציור וגרירה): בלי לבנות מחדש את כל השכבה
@@ -740,6 +974,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     for (const element of boxes.children) {
       element.classList.toggle('selected', isSelected(element.dataset.id));
     }
+    drawLinks();
   }
   function placeBox(object, element) {
     element.style.left = object.x + 'px';
@@ -776,7 +1011,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
           if (p.item.kind === 'comment') p.item.side = p.item.x + p.item.width / 2 < PW() / 2 ? 'start' : 'end';
         }
       }
-      if (members.some((m) => m.kind === 'comment')) drawShapes(); else drawHandles();
+      if (members.some((m) => m.kind === 'comment')) drawLinks();
+      drawHandles();
       const bottom = Math.max(...members.map((m) => boundsOf(m).y + boundsOf(m).h));
       if (bottom + 300 > PH()) { liveBottom = bottom; fitPage(); }
     };
@@ -907,12 +1143,50 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
       placeBox(object, element);
       const head = document.createElement('div');
       head.tabIndex = 0;
+      let downAt = null;
       if (object.kind === 'comment') {
-        head.className = 'tali-overlay-grip';
-        head.innerHTML = icon('move', 15) + '<span></span>';
-        head.querySelector('span').textContent = object.quote
-          ? `„${object.quote.slice(0, 64)}${object.quote.length > 64 ? '…' : ''}“`
-          : 'הערה'; // 8.0: הערת שוליים בלי ציטוט
+        // 11.2: כותרת ההערה: ידית הזזה, הציטוט (לחיצה: מעבר אליו בדף), קישור/ניתוק ומחיקה
+        head.className = 'tali-overlay-grip tali-note-head';
+        head.innerHTML = icon('move', 14);
+        const label = document.createElement('span');
+        label.className = 'tali-note-quote' + (object.quote ? ' linked' : '');
+        label.textContent = object.quote ? shortQuote(object.quote) : 'הערה';
+        if (object.quote) label.dataset.tip = 'לחיצה: מעבר לציטוט בדף · גרירה: הזזת ההערה';
+        label.addEventListener('click', (event) => {
+          if (!object.quote || !downAt || Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) >= CLICK_SLOP) return;
+          if (!flashQuote(object)) label.dataset.tip = 'הציטוט כבר לא נמצא במסמך (הטקסט השתנה). אפשר לקשר מחדש';
+        });
+        const tools = document.createElement('span');
+        tools.className = 'tali-note-tools';
+        const tool = (name, tip, run) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'tali-note-tool';
+          b.innerHTML = icon(name, 14);
+          b.dataset.tip = tip;
+          b.setAttribute('aria-label', tip);
+          b.addEventListener('pointerdown', (event) => { event.preventDefault(); event.stopPropagation(); });
+          b.addEventListener('click', (event) => { event.stopPropagation(); run(b); });
+          tools.append(b);
+          return b;
+        };
+        if (object.quote) tool('unlink', 'ניתוק ההערה מהציטוט', () => setQuote(object, ''));
+        else tool('link', 'קישור לציטוט: מסמנים טקסט בדף', () => startLinking(object.id));
+        let armed = 0;
+        tool('trash', 'מחיקת ההערה', (b) => {
+          // הערה עם תוכן: לחיצה ראשונה מבקשת אישור (הכפתור נצבע), השנייה מוחקת
+          if (object.text.trim() && !armed) {
+            b.classList.add('confirm');
+            b.dataset.tip = 'לחיצה נוספת מוחקת את ההערה';
+            armed = setTimeout(() => { armed = 0; b.classList.remove('confirm'); b.dataset.tip = 'מחיקת ההערה'; }, 2500);
+            return;
+          }
+          clearTimeout(armed);
+          deleteComment(object);
+        });
+        head.append(label, tools);
+        element.addEventListener('pointerenter', () => { hoverId = object.id; drawLinks(); });
+        element.addEventListener('pointerleave', () => { if (hoverId === object.id) { hoverId = null; drawLinks(); } });
       } else {
         // 7.7: בלי פס כותרת. ידית הזזה קטנה מעל התיבה, רק בריחוף או כשהיא נבחרה
         head.className = 'tali-overlay-grip tali-box-move';
@@ -923,6 +1197,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
         if (event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
+        downAt = { x: event.clientX, y: event.clientY };
         grabObject(object, event);
         head.focus({ preventScroll: true });
       });
@@ -933,7 +1208,13 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
       const pageDir = () => getComputedStyle(page).direction === 'ltr' ? 'ltr' : 'rtl';
       const setDir = () => { field.dir = field.value.trim() ? 'auto' : pageDir(); };
       field.spellcheck = true;
-      field.placeholder = object.kind === 'comment' ? 'הערה לציטוט…' : 'כתוב כאן…';
+      field.placeholder = object.kind !== 'comment' ? 'כתוב כאן…' : object.quote ? 'הערה לציטוט…' : 'הערה…';
+      // 11.2: Esc בהערה מחוץ לסשן שרטוט: יציאה מהתיבה וביטול הבחירה
+      if (object.kind === 'comment') field.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || session) return;
+        event.preventDefault(); event.stopPropagation();
+        field.blur(); select(null);
+      });
       field.value = object.text;
       setDir();
       field.addEventListener('focus', () => { if (!(selection.size === 1 && isSelected(object.id))) select(object.id); });
@@ -1276,6 +1557,13 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     window.addEventListener('pointercancel', up);
   }
 
+  // 11.2: מחוץ לסשן שרטוט (הערה שנבחרה): לחיצה מחוץ לתיבות מבטלת את הבחירה
+  window.addEventListener('pointerdown', (event) => {
+    if (!enabled || session || !selection.size || placing) return;
+    if (event.target.closest?.('.tali-overlay-box')) return;
+    setSelection([]); markBoxes(); drawHandles();
+  }, true);
+
   window.addEventListener('keydown', (event) => {
     if (!enabled || !session) return;
     // בתיבת טקסט על הדף ובשדות של הסרגל המקלדת שייכת לשדה. העורך עצמו לא נחשב: בזמן סשן ציור
@@ -1332,6 +1620,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     setItems: (items, { pageWidth } = {}) => {
       refWidth = Number.isFinite(pageWidth) && pageWidth >= 200 ? pageWidth : cssPageWidth();
       root.style.width = '';
+      stopPlacement(); stopLinking(); hoverId = null;
       objects = cleanOverlayObjects(items);
       setSelection([]); mode = null; session = false; drawing = null; sessionPen = null; marquee = null; render();
       resetHistory();
@@ -1339,6 +1628,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     setEnabled: (value) => {
       enabled = !!value;
       root.hidden = !enabled;
+      if (!enabled) { stopPlacement(); stopLinking(); hoverId = null; }
       if (!enabled) { mode = null; session = false; setSelection([]); drawing = null; sessionPen = null; marquee = null; }
       render();
     },
@@ -1365,8 +1655,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     },
     addImage,
     addNote,
+    startPlacement,
     exportShapes,
     openDrawing,
-    addComment,
   };
 }

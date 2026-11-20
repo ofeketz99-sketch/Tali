@@ -186,15 +186,22 @@ export function buildToolbar(container, editorApi, actions = {}) {
         ['symbol', 'סמל מיוחד (α ∀ →)', ed.symbol],
         ['link', 'קישור למסמך', ed.link],
         ['draw', 'ציור (נשמר כתמונה)', ed.drawing],
-        ['quote', 'מסגרת סביב טקסט', ed.textBox],
-        ['pen', 'שרטוט חופשי על הדף', ed.pageDrawing],
-        ['textBox', 'תיבת טקסט שזזה חופשי', ed.floatingBox],
-        ['comment', 'הערת שוליים לטקסט המסומן', ed.marginComment],
+        ['rect', 'מסגרת סביב טקסט', ed.textBox],
         ['code', 'בלוק קוד', ed.codeBlock],
         ['rule', 'קו מפריד', ed.rule],
         ['taskSection', 'משימות להמשך', ed.taskSection],
+        // 11.2: כמו בתפריט הימני: קודם מה שנכנס לטקסט, ואחרי קו מה שזז חופשי על הדף
+        'חופשי על הדף',
+        ['comment', 'הערת שוליים', ed.marginComment],
+        ['textBox', 'תיבת טקסט שזזה חופשי', ed.floatingBox],
+        ['pen', 'שרטוט חופשי על הדף', ed.pageDrawing],
       ];
-      for (const [ic, name, run] of items) {
+      for (const item of items) {
+        if (typeof item === 'string') {
+          m.append(Object.assign(document.createElement('div'), { className: 'tb-menu-heading', textContent: item }));
+          continue;
+        }
+        const [ic, name, run] = item;
         const it = document.createElement('button');
         it.type = 'button';
         it.className = 'tb-menu-item with-icon';
@@ -224,7 +231,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
   // ===== 8.3 (רשות): ציור שנשמר כתמונה והערת שוליים =====
   const gDrawExtra = group('', 'drawExtra');
   button(gDrawExtra, { id: 'drawing', html: icon('draw'), tip: 'ציור (נשמר כתמונה)', run: () => ed.drawing() });
-  button(gDrawExtra, { id: 'comment', html: icon('comment'), tip: 'הערת שוליים לטקסט המסומן', run: () => ed.marginComment() });
+  button(gDrawExtra, { id: 'comment', html: icon('comment'), tip: 'הערת שוליים: הלחיצה הבאה בדף קובעת את מקומה. טקסט מסומן נקשר אליה', run: () => ed.marginComment() });
 
   // ===== 8.3 (רשות): ייצוא =====
   const gExport = group('', 'export');
@@ -344,6 +351,9 @@ export function buildToolbar(container, editorApi, actions = {}) {
     run: (b) => swatchMenu(b, HIGHLIGHTS, (c) => (c ? chain().setHighlight({ color: c }).run() : chain().unsetHighlight().run()), () => editor.getAttributes('highlight').color),
   });
   bb({ html: icon('code', 17), tip: 'קוד בשורה', run: () => chain().toggleCode().run(), active: () => editor.isActive('code') });
+  // 11.2: הדרך הקצרה להערה על ציטוט: מסמנים, לוחצים כאן, ולוחצים בשוליים במקום שבו ההערה תופיע
+  bubble.append(Object.assign(document.createElement('span'), { className: 'tb-bubble-sep' }));
+  bb({ html: icon('comment', 17), tip: 'הערת שוליים על הטקסט המסומן: הלחיצה הבאה קובעת את מקומה', run: () => { bubble.hidden = true; ed.marginComment(); } });
 
   let selecting = false; // בזמן גרירת בחירה עם העכבר: מחכים לשחרור
   editor.view.dom.addEventListener('mousedown', () => { selecting = true; bubble.hidden = true; });

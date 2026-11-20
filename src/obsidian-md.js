@@ -401,6 +401,27 @@ export const ObsidianMarkdown = Extension.create({
               li.className = 'task-list-item';
               li.innerHTML = `<input class="task-list-item-checkbox" type="checkbox"${m[1] === ' ' ? '' : ' checked'}>`;
             }
+            // 11.2: רשימה מעורבת ("- פריט" ואחריו "- [ ] משימה") נפתחה כמשימה ריקה מיותרת, רשימה רגילה ומשימות.
+            // מפצלים לרצפים: פריטים רגילים ← רשימה רגילה, משימות ← רשימת משימות, באותו סדר.
+            for (const ul of element.querySelectorAll('ul.contains-task-list')) {
+              const items = [...ul.children];
+              if (items.every((li) => li.classList.contains('task-list-item'))) continue;
+              const runs = [];
+              for (const li of items) {
+                const task = li.classList.contains('task-list-item');
+                if (!runs.length || runs[runs.length - 1].task !== task) runs.push({ task, items: [] });
+                runs[runs.length - 1].items.push(li);
+              }
+              for (const run of runs) {
+                const part = element.ownerDocument.createElement('ul');
+                // data-tight וכו' עוברים לכל חלק, אחרת רשימה צפופה נשמרת עם שורות ריקות בין הפריטים
+                for (const attr of ul.attributes) if (attr.name !== 'class') part.setAttribute(attr.name, attr.value);
+                if (run.task) part.className = 'contains-task-list';
+                part.append(...run.items);
+                ul.before(part);
+              }
+              ul.remove();
+            }
           },
         },
       },
