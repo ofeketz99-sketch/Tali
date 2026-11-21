@@ -1,8 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseCanvas, serializeCanvas, bestSides, nearestSide, edgeGeometry, drawingNode, scaleDrawing, vaultRelative, colorValue, isDrawing, boundsOf,
+  parseCanvas, serializeCanvas, bestSides, nearestSide, edgeGeometry, drawingNode, scaleDrawing, vaultRelative, colorValue, isDrawing, boundsOf, eraseDrawing,
 } from '../src/canvas-doc.js';
+
+test('the eraser removes only the pen stroke it touches, and a shape when it touches its outline', () => {
+  const pen = drawingNode({ kind: 'pen', points: [[[0, 0], [100, 0]], [[0, 50], [100, 50]]], width: 3 });
+  const left = eraseDrawing(pen, { x: 50, y: 1 }, 4);
+  assert.equal(left.id, pen.id);
+  assert.equal(left.taliDrawing.strokes.length, 1);
+  assert.equal(eraseDrawing(pen, { x: 50, y: 25 }, 4), null); // between the strokes
+  assert.equal(eraseDrawing(left, { x: 50, y: 50 }, 4), 'remove'); // last stroke
+  const rect = drawingNode({ kind: 'rect', points: [[0, 0], [100, 60]], width: 3 });
+  assert.equal(eraseDrawing(rect, { x: 50, y: 30 }, 4), null); // inside, away from the outline
+  assert.equal(eraseDrawing(rect, { x: 50, y: 0 }, 4), 'remove');
+  const text = { id: 't', type: 'text', text: 'x', x: 0, y: 0, width: 100, height: 100 };
+  assert.equal(eraseDrawing(text, { x: 10, y: 10 }, 4), null); // cards are never erased
+});
 
 test('an Obsidian canvas is read and written back without losing unknown fields', () => {
   const src = JSON.stringify({

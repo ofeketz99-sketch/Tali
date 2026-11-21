@@ -389,6 +389,10 @@ dialog { border: 1px solid var(--floating-border); border-radius: 14px; padding:
 dialog::backdrop { background: color-mix(in srgb, var(--text) 30%, transparent); backdrop-filter: blur(2px); }
 #dlg label, .paint-confirm label { font-weight: 600; }
 #dlg menu, .paint-confirm menu { justify-content: flex-end; }
+/* 11.4: כפתור שלישי (מחיקה), בקצה השני של השורה */
+#dlg .dlg-extra { margin-inline-end: auto; color: #c24545; }
+#dlg .dlg-extra:hover { background: color-mix(in srgb, #e06c6c 13%, var(--page-bg)); }
+#dlg .dlg-extra[hidden] { display: none; }
 dialog label { display: block; margin-bottom: 8px; }
 dialog input { width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); }
 dialog menu { display: flex; gap: 8px; justify-content: flex-start; padding: 0; margin: 14px 0 0; }
@@ -2271,6 +2275,7 @@ body[data-doc="canvas"] #pageWrap { position: relative; overflow: hidden; paddin
 .cv.panning .cv-viewport { cursor: grabbing; }
 .cv[data-tool="pen"] .cv-viewport, .cv[data-tool="line"] .cv-viewport, .cv[data-tool="arrow"] .cv-viewport,
 .cv[data-tool="rect"] .cv-viewport, .cv[data-tool="ellipse"] .cv-viewport, .cv[data-tool="text"] .cv-viewport { cursor: crosshair; }
+.cv[data-tool="eraser"] .cv-viewport { cursor: cell; }
 .cv-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .cv-layer { position: absolute; left: 0; top: 0; }
 .cv-edges, .cv-draft { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
@@ -2284,8 +2289,11 @@ body[data-doc="canvas"] #pageWrap { position: relative; overflow: hidden; paddin
 .cv-node { position: absolute; box-sizing: border-box; }
 .cv-text, .cv-file, .cv-link {
   border: 2px solid var(--cv-color, var(--border)); border-radius: 10px; background: var(--page-bg);
-  box-shadow: var(--shadow-soft); overflow: hidden; cursor: default;
+  /* 11.4: overflow גלוי: עד 11.3 הפינה המעוגלת חתכה את ידית שינוי הגודל (ואת חצי מנקודות החיבור).
+     התוכן עצמו נחתך ב־.cv-content */
+  box-shadow: var(--shadow-soft); overflow: visible; cursor: default;
 }
+.cv-text > .cv-content, .cv-file > .cv-content, .cv-link > .cv-content { border-radius: 8px; }
 .cv-node.colored.cv-text, .cv-node.colored.cv-file, .cv-node.colored.cv-link { background: color-mix(in srgb, var(--cv-color) 9%, var(--page-bg)); }
 .cv-group { border: 2px dashed var(--cv-color, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--cv-color, var(--text)) 4%, transparent); }
 .cv-group-label { position: absolute; bottom: 100%; inset-inline-start: 0; padding: 2px 6px 4px; font-size: 14px; font-weight: 600; color: var(--muted); white-space: nowrap; }
@@ -2307,7 +2315,13 @@ body[data-doc="canvas"] #pageWrap { position: relative; overflow: hidden; paddin
 .cv-drawing.selected { outline-style: dashed; }
 .cv-node.drop { outline: 3px solid var(--accent); outline-offset: 3px; }
 .cv-node.editing { outline: 2px solid var(--accent); }
-.cv-resize { position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px; border-radius: 50%; background: var(--page-bg); border: 2px solid var(--accent); cursor: nwse-resize; display: none; z-index: 2; }
+/* הידית בגודל קבוע על המסך גם בזום קטן (תמונה גדולה שהודבקה נראית מוקטנת): מחולקת ב־--cv-z */
+.cv-resize {
+  --s: calc(14px / var(--cv-z, 1));
+  position: absolute; right: calc(var(--s) / -2); bottom: calc(var(--s) / -2); width: var(--s); height: var(--s); box-sizing: border-box;
+  border-radius: 50%; background: var(--page-bg); border: calc(2px / var(--cv-z, 1)) solid var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  cursor: nwse-resize; display: none; z-index: 3;
+}
 .cv-node.selected .cv-resize { display: block; }
 .cv-port { position: absolute; width: 12px; height: 12px; margin: -6px; border-radius: 50%; background: var(--accent); border: 2px solid var(--page-bg); cursor: crosshair; opacity: 0; transition: opacity .12s var(--ease), transform .12s var(--ease); z-index: 2; }
 .cv-port-top { left: 50%; top: 0; } .cv-port-bottom { left: 50%; top: 100%; }

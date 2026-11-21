@@ -1109,11 +1109,16 @@ function showToast(text, actionText, action) {
 }
 
 // ===== דיאלוג קטן לשם / אישור =====
-function ask(label, defaultValue = '', { confirmOnly = false, okText = 'אישור', cancelText = 'ביטול' } = {}) {
+// extraText (11.4): כפתור שלישי, למשל "מחיקה" בחלון השם ביציאה. לחיצה עליו מחזירה ASK_EXTRA
+const ASK_EXTRA = Symbol('ask-extra');
+function ask(label, defaultValue = '', { confirmOnly = false, okText = 'אישור', cancelText = 'ביטול', extraText = null } = {}) {
   const dlg = $('dlg');
   $('dlgLabel').textContent = label;
   dlg.querySelector('button[value="ok"]').textContent = okText;
   dlg.querySelector('button[value="cancel"]').textContent = cancelText;
+  const extra = $('dlgExtra');
+  extra.hidden = !extraText;
+  extra.textContent = extraText || '';
   const input = $('dlgInput');
   input.hidden = confirmOnly;
   input.value = defaultValue;
@@ -1123,6 +1128,7 @@ function ask(label, defaultValue = '', { confirmOnly = false, okText = 'אישו
   };
   return new Promise((resolve) => {
     dlg.addEventListener('close', () => {
+      if (dlg.returnValue === 'extra' && extraText) { resolve(ASK_EXTRA); return; }
       resolve(dlg.returnValue === 'ok' ? (confirmOnly ? true : input.value.trim()) : null);
     }, { once: true });
     dlg.returnValue = '';
@@ -2273,18 +2279,28 @@ async function nameOnLeave(next) {
     const canvas = isCanvas(p);
     const body = canvas ? canvasText(text) : text.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/, '').trim();
     const blank = canvas ? canvasEmpty(text) : !body;
-    if (blank) {
-      try { await window.api.remove(p); } catch { return null; }
+    // מסמך ריק, או "מחיקה" בחלון השם (11.4): עובר לסל המחזור והכרטיסייה נסגרת (afterLeave)
+    const removeUntitled = async () => {
+      try { await window.api.remove(p); } catch (err) { setStatus(err.message); return false; }
       setUntitled(p, false);
       meta.drop(p);
       const keep = (x) => x !== p;
       state.back = state.back.filter(keep);
       state.forward = state.forward.filter(keep);
       state.recent = state.recent.filter(keep);
+      return true;
+    };
+    if (blank) {
+      if (!(await removeUntitled())) return null;
       setStatus(canvas ? 'מסמך גרפי ריק בלי שם הועבר לסל המחזור' : 'מסמך ריק בלי שם הועבר לסל המחזור');
       return { removed: p };
     }
-    const name = await ask(canvas ? 'איך לקרוא למסמך הגרפי?' : 'איך לקרוא למסמך?', suggestName(body) || noteName(p), { okText: 'שמירה', cancelText: `להשאיר "${noteName(p)}"` });
+    const name = await ask(canvas ? 'איך לקרוא למסמך הגרפי?' : 'איך לקרוא למסמך?', suggestName(body) || noteName(p), { okText: 'שמירה', cancelText: `להשאיר "${noteName(p)}"`, extraText: 'מחיקה' });
+    if (name === ASK_EXTRA) {
+      if (!(await removeUntitled())) return null;
+      setStatus(canvas ? 'המסמך הגרפי הועבר לסל המחזור' : 'המסמך הועבר לסל המחזור');
+      return { removed: p };
+    }
     // רק אחרי תשובה (גם "להשאיר"): אם האפליקציה נסגרה באמצע, השאלה תחזור ביציאה הבאה
     setUntitled(p, false);
     const clean = (name || '').trim();

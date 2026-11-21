@@ -5,7 +5,7 @@
 import { icon } from './icons.js';
 import {
   parseCanvas, serializeCanvas, newId, isDrawing, colorValue, PRESET_COLORS, SIDES,
-  sidePoint, nearestSide, bestSides, edgeGeometry, edgePath, boundsOf, drawingNode, scaleDrawing, vaultRelative,
+  sidePoint, nearestSide, bestSides, edgeGeometry, edgePath, boundsOf, drawingNode, scaleDrawing, vaultRelative, eraseDrawing,
 } from './canvas-doc.js';
 import { freehandSvgPath, simplifyStroke } from './stroke-smoothing.js';
 
@@ -20,6 +20,7 @@ const TOOLS = [
   ['arrow', 'arrow', 'חץ (A)', 'KeyA'],
   ['rect', 'rect', 'מלבן (R)', 'KeyR'],
   ['ellipse', 'ellipse', 'עיגול (O)', 'KeyO'],
+  ['eraser', 'eraser', 'מחק (E): גרירה על ציור מוחקת את הקו שנוגעים בו', 'KeyE'],
 ];
 const MIN_ZOOM = 0.1, MAX_ZOOM = 4;
 const CANVAS_GRID = 11; // הרווח בין נקודות הרשת הקטנה, ביחידות הקנבס
@@ -609,6 +610,9 @@ export function createCanvasView({ host, api, readOnly = false }) {
   viewport.addEventListener('pointerdown', (e) => {
     if (readOnly) return;
     if (e.target.closest('.cv-editor')) return;
+    // 11.4: בלי preventDefault, לחיצה על כרטיס שלא נבחר מציירת אותו מחדש (render), האלמנט שמתחת לעכבר
+    // יוצא מהדף, וברירת המחדל של mousedown מעבירה את הפוקוס ל־body. אז Delete לא הגיע לקנבס.
+    e.preventDefault();
     host.focus({ preventScroll: true });
     const p = toWorld(e);
     // הזזת המשטח: כפתור אמצעי, רווח, או כלי היד
@@ -625,6 +629,12 @@ export function createCanvasView({ host, api, readOnly = false }) {
       e.preventDefault();
       gesture = { kind: 'draw', start: p, points: [[p.x, p.y]], shift: e.shiftKey };
       viewport.setPointerCapture(e.pointerId);
+      return;
+    }
+    if (tool === 'eraser') {
+      gesture = { kind: 'erase', hit: false };
+      viewport.setPointerCapture(e.pointerId);
+      eraseAt(p);
       return;
     }
     if (tool === 'text') {
@@ -714,6 +724,8 @@ export function createCanvasView({ host, api, readOnly = false }) {
       const b = to ? sidePoint(to, toSide) : p;
       draft.replaceChildren(svg('path', { d: edgePath(a, gesture.side, b, toSide || opposite(gesture.side)).d, class: 'cv-edge-draft' }));
       for (const box of nodeEls.values()) box.classList.toggle('drop', !!to && box.dataset.id === to.id);
+    } else if (gesture.kind === 'erase') {
+      for (const ev of e.getCoalescedEvents?.() || [e]) eraseAt(toWorld(ev));
     } else if (gesture.kind === 'draw') {
       if (tool === 'pen') gesture.points.push([p.x, p.y]);
       else gesture.points = [[gesture.start.x, gesture.start.y], constrain(gesture.start, p, e.shiftKey)];
@@ -730,6 +742,22 @@ export function createCanvasView({ host, api, readOnly = false }) {
       for (const [id, nb] of nodeEls) nb.classList.toggle('selected', selected.has(id));
     }
   });
+  // 11.4: מחק. כל ציור שהמחק נוגע בו: משיכת עט נמחקת, צורה נמחקת כולה. צעד ביטול אחד לכל גרירה (endGesture)
+  function eraseAt(p) {
+    const r = 6 / view.z;
+    let touched = false;
+    for (const n of [...doc.nodes]) {
+      const res = eraseDrawing(n, p, r);
+      if (!res) continue;
+      touched = true;
+      if (res === 'remove') {
+        doc.nodes = doc.nodes.filter((x) => x.id !== n.id);
+        selected.delete(n.id);
+        if (penNode === n.id) penNode = null;
+      } else Object.assign(n, res);
+    }
+    if (touched) { gesture.hit = true; render(); }
+  }
   // שחרור על כרטיס: קרוב לשפה, הצד הקרוב; באמצע הכרטיס, הצד שפונה אל הכרטיס שממנו יצא הקו
   function dropSide(from, to, p) {
     const inner = Math.abs(p.x - (to.x + to.width / 2)) < to.width * 0.3 && Math.abs(p.y - (to.y + to.height / 2)) < to.height * 0.3;
@@ -773,6 +801,7 @@ export function createCanvasView({ host, api, readOnly = false }) {
     const p = toWorld(e);
     if (g.kind === 'move' && g.moved) changed();
     else if (g.kind === 'resize') changed();
+    else if (g.kind === 'erase') { if (g.hit) changed(); }
     else if (g.kind === 'marquee') render();
     else if (g.kind === 'connect') {
       const target = hitNode(document.elementFromPoint(e.clientX, e.clientY));

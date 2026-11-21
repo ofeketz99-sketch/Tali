@@ -139,6 +139,51 @@ export function scaleDrawing(node, width, height) {
   return { ...node, width: num(width), height: num(height), taliDrawing: { ...d, ...(d.strokes ? { strokes: d.strokes.map((st) => st.map(s)) } : {}), ...(d.points ? { points: d.points.map(s) } : {}) } };
 }
 
+// 11.4: מחק בקנבס. p: נקודה בקואורדינטות הקנבס, r: רדיוס המחק.
+// עט: משיכה שהמחק נוגע בה נמחקת כולה (כמו המחק בשכבת השרטוט). צורה (קו, חץ, מלבן, עיגול): נגיעה בקו המתאר מוחקת אותה.
+// מחזיר null (לא נגע), 'remove' (למחוק את הצומת), או צומת חדש עם המשיכות שנשארו (אותו id).
+const segDist = (p, a, b) => {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const L = dx * dx + dy * dy;
+  const t = L ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L)) : 0;
+  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+};
+const polyDist = (p, pts, closed = false) => {
+  if (pts.length === 1) return Math.hypot(p[0] - pts[0][0], p[1] - pts[0][1]);
+  let d = Infinity;
+  for (let i = 1; i < pts.length; i++) d = Math.min(d, segDist(p, pts[i - 1], pts[i]));
+  if (closed && pts.length > 2) d = Math.min(d, segDist(p, pts[pts.length - 1], pts[0]));
+  return d;
+};
+export function eraseDrawing(node, p, r) {
+  if (!isDrawing(node)) return null;
+  const d = node.taliDrawing;
+  const w = d.width || 3;
+  const reach = r + w / 2;
+  // מחוץ למסגרת של הצומת (עם המרווח): לא נוגע
+  if (p.x < node.x - reach || p.y < node.y - reach || p.x > node.x + node.width + reach || p.y > node.y + node.height + reach) return null;
+  const q = [p.x - node.x, p.y - node.y];
+  if (d.kind === 'pen') {
+    const strokes = d.strokes || [];
+    const keep = strokes.filter((st) => polyDist(q, st) > reach);
+    if (keep.length === strokes.length) return null;
+    if (!keep.length) return 'remove';
+    const n = drawingNode({ kind: 'pen', points: keep.map((st) => st.map(([x, y]) => [x + node.x, y + node.y])), color: d.color, width: w, dash: d.dash });
+    return { ...node, x: n.x, y: n.y, width: n.width, height: n.height, taliDrawing: { ...d, strokes: n.taliDrawing.strokes } };
+  }
+  let dist;
+  if (d.kind === 'line' || d.kind === 'arrow') dist = polyDist(q, d.points || [[0, 0], [node.width, node.height]]);
+  else if (d.kind === 'rect') {
+    const h = w / 2;
+    dist = polyDist(q, [[h, h], [node.width - h, h], [node.width - h, node.height - h], [h, node.height - h]], true);
+  } else {
+    const cx = node.width / 2, cy = node.height / 2, rx = Math.max(0, cx - w / 2), ry = Math.max(0, cy - w / 2);
+    const pts = Array.from({ length: 48 }, (_, i) => [cx + rx * Math.cos((i / 48) * Math.PI * 2), cy + ry * Math.sin((i / 48) * Math.PI * 2)]);
+    dist = polyDist(q, pts, true);
+  }
+  return dist <= reach ? 'remove' : null;
+}
+
 // נתיב יחסי בכספת (עם /), כמו שאובסידיאן שומר ב־file
 export function vaultRelative(root, p) {
   const a = String(root).replace(/\\/g, '/').replace(/\/$/, '');

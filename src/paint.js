@@ -12,8 +12,75 @@ import { icon } from './icons.js';
 // [כלי, אייקון, הסבר]
 const TOOLS = [
   ['pen', 'pen', 'עט'], ['marker', 'highlight', 'מרקר (שקוף למחצה)'], ['line', 'line', 'קו (Shift: ישר)'],
-  ['arrow', 'arrow', 'חץ'], ['rect', 'rect', 'מלבן (Shift: ריבוע)'], ['ellipse', 'ellipse', 'עיגול (Shift: מעגל)'], ['eraser', 'eraser', 'מחק'],
+  ['arrow', 'arrow', 'חץ'], ['rect', 'rect', 'מלבן (Shift: ריבוע)'], ['ellipse', 'ellipse', 'עיגול (Shift: מעגל)'],
+  ['fill', 'fill', 'דלי מילוי (לחיצה ממלאת אזור סגור)'], ['eraser', 'eraser', 'מחק'],
 ];
+
+// 11.4: דלי מילוי. ממלא את האזור הרציף שבצבע של הנקודה (עם סבילות קטנה), ואז מרחיב פיקסל אחד
+// אל קצוות הקו המוחלקים (anti-aliasing) ומצייר אותו מאחוריהם, כדי שלא יישאר "הילה" לבנה סביב המילוי.
+// data: ImageData (נערך במקום). [r,g,b,a]: צבע המילוי. מחזיר false אם אין מה למלא.
+export function floodFill(data, x0, y0, [fr, fg, fb, fa], tolerance = 48) {
+  const { width: w, height: h, data: px } = data;
+  x0 = Math.floor(x0); y0 = Math.floor(y0);
+  if (x0 < 0 || y0 < 0 || x0 >= w || y0 >= h) return false;
+  const i0 = (y0 * w + x0) * 4;
+  const tr = px[i0], tg = px[i0 + 1], tb = px[i0 + 2], ta = px[i0 + 3];
+  if (Math.abs(tr - fr) + Math.abs(tg - fg) + Math.abs(tb - fb) + Math.abs(ta - fa) < 4) return false;
+  // פיקסל שקוף: הצבע שלו לא משנה, רק השקיפות
+  const near = (i) => {
+    const a = px[i + 3];
+    if (ta < 8 && a < 8) return true;
+    return Math.abs(px[i] - tr) + Math.abs(px[i + 1] - tg) + Math.abs(px[i + 2] - tb) + Math.abs(a - ta) * 1.5 <= tolerance * 3;
+  };
+  const mask = new Uint8Array(w * h); // 1 = האזור, 2 = שפה מורחבת
+  const stack = [x0, y0];
+  while (stack.length) {
+    const y = stack.pop(), x = stack.pop();
+    let l = x;
+    while (l >= 0 && !mask[y * w + l] && near((y * w + l) * 4)) l--;
+    l++;
+    let up = false, down = false;
+    for (let r = l; r < w && !mask[y * w + r] && near((y * w + r) * 4); r++) {
+      mask[y * w + r] = 1;
+      if (y > 0) {
+        const ok = !mask[(y - 1) * w + r] && near(((y - 1) * w + r) * 4);
+        if (ok && !up) stack.push(r, y - 1);
+        up = ok;
+      }
+      if (y < h - 1) {
+        const ok = !mask[(y + 1) * w + r] && near(((y + 1) * w + r) * 4);
+        if (ok && !down) stack.push(r, y + 1);
+        down = ok;
+      }
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (mask[y * w + x] !== 1) continue;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx >= 0 && ny >= 0 && nx < w && ny < h && !mask[ny * w + nx]) mask[ny * w + nx] = 2;
+      }
+    }
+  }
+  const A = fa / 255;
+  for (let k = 0; k < mask.length; k++) {
+    if (!mask[k]) continue;
+    const i = k * 4;
+    if (mask[k] === 1) { px[i] = fr; px[i + 1] = fg; px[i + 2] = fb; px[i + 3] = fa; continue; }
+    // שפה: הפיקסל הקיים מעל המילוי (source-over כשהמילוי מתחת)
+    const sa = px[i + 3] / 255;
+    const oa = sa + A * (1 - sa);
+    if (oa <= 0) continue;
+    for (let c = 0; c < 3; c++) px[i + c] = Math.round((px[i + c] * sa + [fr, fg, fb][c] * A * (1 - sa)) / oa);
+    px[i + 3] = Math.round(oa * 255);
+  }
+  return true;
+}
+const hexRgba = (hex) => {
+  const v = parseInt(String(hex).replace('#', '').padEnd(6, '0').slice(0, 6), 16);
+  return [v >> 16, (v >> 8) & 255, v & 255, 255];
+};
 const COLORS = ['#1f2328', '#e5484d', '#f2994a', '#f2c94c', '#3fb27f', '#4a9ee0', '#8e6fd8', '#ffffff'];
 const SIZES = [[2, 'דק'], [5, 'בינוני'], [12, 'עבה']];
 
@@ -109,8 +176,7 @@ function build() {
   for (const c of COLORS) {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'pt-swatch'; b.style.background = c; b.dataset.color = c; b.title = c;
-    b.addEventListener('click', () => { color = c; if (tool === 'eraser') tool = 'pen'; mark(); });
-    colors.append(b);
+    b.addEventListener('click', () => { color = c; if (tool === 'eraser') tool = 'pen'; mark(); });    colors.append(b);
   }
   const custom = document.createElement('input');
   custom.type = 'color'; custom.title = 'צבע אחר';
@@ -196,6 +262,16 @@ function build() {
     over.focus({ preventScroll: true });
     // צורה שמחכה ללחיצה השנייה: הלחיצה הזו קובעת את הסוף
     if (drawing?.pending) { drawing.points.push(pos(e)); drawing.pending = false; finish(e); return; }
+    if (tool === 'fill') {
+      const p = pos(e);
+      const img = snapshot();
+      const before = { img: snapshot(), w: W, h: H };
+      if (floodFill(img, p.x * dpr, p.y * dpr, hexRgba(color))) {
+        undo.push(before); if (undo.length > 40) undo.shift(); redo = []; dirty = true; markPreset();
+        mctx.putImageData(img, 0, 0);
+      }
+      return;
+    }
     over.setPointerCapture(e.pointerId);
     pushUndo();
     const p = pos(e);
