@@ -25,6 +25,11 @@ export const DEFAULTS = {
   pageLook: true,          // דף "מודפס" עם צל, או טקסט ישר על הרקע
   docTitleSize: 26,        // כותרת המסמך שמעל הדף; יכולה להיות גדולה גם מ־H1
   docTitleStyle: 'clean',  // clean | strong | underline | label
+  // 11.7: סגנון הכותרות לפי רמה (styles.css, data-h1..data-h4; h4 חל גם על H5 ו־H6)
+  headingStyleH1: 'bar',   // plain | rule | bar | underline | side | band | caps
+  headingStyleH2: 'rule',
+  headingStyleH3: 'plain',
+  headingStyleH4: 'plain',
   showBacklinks: true,
   newNoteLocation: 'root',  // root | folder (תיקיית מסמכים חדשים) | selected (התיקייה שנבחרה בעץ). 11.0: ברירת המחדל root
   newNoteFolder: 'מסמכים חדשים', // נתיב יחסי לתיקיית העבודה; נוצר בעת הצורך
@@ -97,6 +102,10 @@ export function applyPrefs({ animate = false } = {}) {
   root.style.setProperty('--doc-line', String(prefs.lineHeight));
   root.style.setProperty('--page-width', WIDTHS[prefs.pageWidth] || WIDTHS.normal);
   root.style.setProperty('--doc-title-size', Math.max(20, Math.min(64, Number(prefs.docTitleSize) || 26)) + 'px');
+  for (const n of [1, 2, 3, 4]) {
+    const v = prefs['headingStyleH' + n];
+    root.dataset['h' + n] = HEADING_STYLES.some(([k]) => k === v) ? v : DEFAULTS['headingStyleH' + n];
+  }
   root.dataset.docTitleStyle = ['clean', 'strong', 'underline', 'label'].includes(prefs.docTitleStyle) ? prefs.docTitleStyle : 'clean';
   if (prefs.pageLook) delete root.dataset.page; else root.dataset.page = 'flat';
   root.dataset.textdir = prefs.textDir;
@@ -151,6 +160,9 @@ function el(tag, attrs = {}, ...kids) {
   for (const k of kids) e.append(k);
   return e;
 }
+
+// 11.7: סגנונות הכותרות בהגדרות (הערך, השם בכפתור)
+const HEADING_STYLES = [['plain', 'פשוט'], ['rule', 'קו ליד'], ['bar', 'קו קצר'], ['underline', 'קו מתחת'], ['side', 'פס בצד'], ['band', 'רקע'], ['caps', 'תווית']];
 
 function row(title, hint, control) {
   const label = el('label', {}, title);
@@ -296,6 +308,14 @@ function buildDialog() {
       el('div', { class: 'preview' },
         el('div', { style: 'font-family:var(--font-heading);font-weight:700;font-size:1.3em;margin-bottom:4px' }, 'כותרת לדוגמה'),
         'כך ייראה הטקסט במסמכים. The quick brown fox jumps over the lazy dog.')),
+    card('כותרות',
+      row('כותרת 1', null, seg('headingStyleH1', HEADING_STYLES)),
+      row('כותרת 2', 'בכותרת ממורכזת "קו ליד" נמתח לשני הצדדים', seg('headingStyleH2', HEADING_STYLES)),
+      row('כותרת 3', null, seg('headingStyleH3', HEADING_STYLES)),
+      row('כותרות 4 עד 6', null, seg('headingStyleH4', HEADING_STYLES)),
+      el('div', { class: 'preview heading-preview ProseMirror', 'aria-hidden': 'true' },
+        el('h1', {}, 'כותרת 1'), el('h2', {}, 'כותרת 2'), el('h2', { style: 'text-align: center' }, 'כותרת 2 ממורכזת'),
+        el('h3', {}, 'כותרת 3'), el('h4', {}, 'כותרת 4'), el('h5', {}, 'כותרת 5'), el('h6', {}, 'כותרת 6'))),
     card('דף',
       row('רוחב הדף', null, seg('pageWidth', [['narrow', 'צר'], ['normal', 'רגיל'], ['wide', 'רחב'], ['full', 'מלא']])),
       row('מראה דף', 'דף עם צל, כמו במסמך Word', check('pageLook'))),

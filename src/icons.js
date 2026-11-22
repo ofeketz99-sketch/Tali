@@ -8,7 +8,7 @@ import {
   BetweenVerticalStart, BetweenVerticalEnd, Heading, Pen, Slash, MoveUpRight, Square, Circle, Eraser,
   ArrowRight, ArrowLeft, GripVertical, Move, TextCursorInput, RectangleHorizontal, ArrowDownToLine, Paperclip, TriangleAlert, Rows3, Columns3, Baseline, Bold, Italic, Underline, Strikethrough,
   PanelRightClose, PanelRightOpen, Waypoints, Ghost, Hash, FileDown, FileType, ListChecks, ListTree, Info, Reply, Ellipsis, Focus, Minimize2,
-  Archive, ArchiveRestore, Sigma, SquareSigma, Omega, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag, Keyboard, MessageSquareText, Braces, Moon, MousePointer2, SquareDashed, PaintBucket,
+  Archive, ArchiveRestore, Sigma, SquareSigma, Omega, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Heading4, Heading5, Heading6, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag, Keyboard, MessageSquareText, Braces, Moon, MousePointer2, SquareDashed, PaintBucket,
   Unlink, FolderInput, Merge,
   TextWrap, Scaling, Crop, RotateCw, RotateCcw, FlipHorizontal2, FlipVertical2, Frame, Type, Lock, LockOpen, ImageDown, PenTool, Combine, Ratio,
   Group, Ungroup, LayoutDashboard, RemoveFormatting, SquareCode, BringToFront, SendToBack, Pin, PinOff,
@@ -34,7 +34,7 @@ const ICONS = {
   // סרגל: עוד, מצב מיקוד
   more: Ellipsis, focus: Focus, focusExit: Minimize2,
   // תפריט הלחיצה הימנית ונוסחאות
-  math: Sigma, mathBlock: SquareSigma, symbol: Omega, h1: Heading1, h2: Heading2, h3: Heading3, paragraph: Pilcrow,
+  math: Sigma, mathBlock: SquareSigma, symbol: Omega, h1: Heading1, h2: Heading2, h3: Heading3, h4: Heading4, h5: Heading5, h6: Heading6, paragraph: Pilcrow,
   cut: Scissors, paste: ClipboardPaste, selectAll: TextSelect, chevronLeft: ChevronLeft, chevronRight: ChevronRight, flag: Flag, arrowRight: ArrowRight, arrowLeft: ArrowLeft, grip: GripVertical,
   // טבלה
   rowBefore: BetweenHorizontalStart, rowAfter: BetweenHorizontalEnd,

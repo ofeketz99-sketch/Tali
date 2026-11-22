@@ -100,7 +100,8 @@ export const EXPORT_CSS = `
 body { font-family: Calibri, "Segoe UI", Arial, sans-serif; font-size: 12pt; line-height: 1.6; color: #1f2328; direction: rtl; unicode-bidi: plaintext; }
 .doc-title { font-size: 22pt; margin: 0 0 14pt; padding-bottom: 6pt; border-bottom: 2px solid #c9dbf0; }
 h1 { font-size: 18pt; } h2 { font-size: 15pt; } h3 { font-size: 13pt; }
-h1, h2, h3, h4 { color: #1d3d5c; margin: 16pt 0 6pt; page-break-after: avoid; }
+h1, h2, h3, h4, h5, h6 { color: #1d3d5c; margin: 16pt 0 6pt; page-break-after: avoid; }
+h5 { font-size: 10.5pt; } h6 { font-size: 10pt; color: #4a5a6a; }
 p { margin: 0 0 8pt; }
 img { max-width: 100%; height: auto; }
 .embed-image, .embed { display: inline-block; max-width: 100%; }

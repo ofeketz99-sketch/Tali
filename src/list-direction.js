@@ -101,7 +101,7 @@ export const DirectionTaskList = TaskList.extend({
 export const LIST_TYPES = ['bulletList', 'orderedList', 'taskList'];
 
 
-// H2 במצב "אוטומטי" (data-textdir="auto"): dir="auto" על הכותרת, כקישוט תצוגה בלבד. כך הכיוון של
+// 11.7: כל הכותרות (עד 11.6 רק H2; מ־11.7 לכל רמה אפשר לבחור את סגנון "קו ליד"). כותרת במצב "אוטומטי" (data-textdir="auto"): dir="auto" על הכותרת, כקישוט תצוגה בלבד. כך הכיוון של
 // הכותרת עצמה (ולא רק של הטקסט, כמו ב־unicode-bidi: plaintext) נקבע לפי השפה שלה, והקו שאחרי הטקסט
 // (h2::after ב־styles.css, logical properties) נמתח לצד הנכון גם בכותרת באנגלית. הקובץ לא משתנה.
 // במצבי rtl/ltr אין קישוט, ולכן גם הייצוא (שמעתיק את ה־DOM) לא משתנה.
@@ -116,7 +116,7 @@ export const HeadingDirection = Extension.create({
           if (document.documentElement.dataset.textdir !== 'auto') return null;
           const out = [];
           state.doc.descendants((node, pos) => {
-            if (node.type.name === 'heading' && node.attrs.level === 2) out.push(Decoration.node(pos, pos + node.nodeSize, { dir: 'auto' }));
+            if (node.type.name === 'heading') out.push(Decoration.node(pos, pos + node.nodeSize, { dir: 'auto' }));
             return node.isBlock && !node.isTextblock;
           });
           return DecorationSet.create(state.doc, out);
