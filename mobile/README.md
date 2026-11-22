@@ -38,6 +38,8 @@
 
 **למה `drive` ולא `drive.file`:** `drive.file` רואה רק קבצים שהאפליקציה עצמה יצרה, ולא את הכספת הקיימת. `drive` נותן גישה לכל ה־Drive של החשבון; בפועל האפליקציה נוגעת רק בתיקייה שנבחרה. במצב Testing Google מציג אזהרה "האפליקציה לא אומתה" בהתחברות; זה צפוי.
 
+**הכתובת (מ־22.11.2026): https://taliwrite.netlify.app/app/** — Netlify (האתר `taliwrite`) בונה אותה מ־`main` בכל push (`netlify.toml`). ב־Google Cloud: JavaScript origin `https://taliwrite.netlify.app`, Redirect URI `https://taliwrite.netlify.app/app/oauth.html`. בחשבון Netlify יש מכסת קרדיטים חודשית וכל build עולה ממנה: שינוי בתיעוד בלבד אפשר לדחוף עם `[skip netlify]` בהודעת ה־commit.
+
 **לטלפון צריך כתובת HTTPS קבועה** (Google לא מקבל http חוץ מ־localhost, ו־PWA צריך HTTPS). ראו "אחסון באינטרנט" בהחלטות הפתוחות.
 
 ## ארכיטקטורה
