@@ -18,14 +18,38 @@ const bgAttr = {
     renderHTML: (a) => (a.backgroundColor ? { style: `background-color: ${a.backgroundColor}` } : {}),
   },
 };
-export const WordTableCell = TableCell.extend({ addAttributes() { return { ...this.parent?.(), ...bgAttr }; } });
-export const WordTableHeader = TableHeader.extend({ addAttributes() { return { ...this.parent?.(), ...bgAttr }; } });
+// 11.5: יישור עמודה מ־Markdown (`:---`, `---:`, `:---:`). markdown-it שם אותו על התא (style="text-align: …"),
+// ועד עכשיו התא לא הכיר אותו: היישור לא הוצג ונמחק בשמירה הראשונה. נשמר על התא ונכתב בחזרה לשורת ההפרדה.
+const ALIGNS = ['left', 'right', 'center'];
+const alignAttr = {
+  align: {
+    default: null,
+    parseHTML: (el) => { const a = (el.style.textAlign || el.getAttribute('align') || '').toLowerCase(); return ALIGNS.includes(a) ? a : null; },
+    renderHTML: (a) => (a.align ? { style: `text-align: ${a.align}`, 'data-align': a.align } : {}),
+  },
+};
+export const WordTableCell = TableCell.extend({ addAttributes() { return { ...this.parent?.(), ...bgAttr, ...alignAttr }; } });
+export const WordTableHeader = TableHeader.extend({ addAttributes() { return { ...this.parent?.(), ...bgAttr, ...alignAttr }; } });
+
+// היישור של כל עמודה לפי שורת הכותרת (כמו ב־Markdown: יישור הוא של עמודה, לא של תא)
+export function columnAligns(table) {
+  const out = [];
+  table.firstChild?.forEach((cell) => out.push(cell.attrs.align || null));
+  return out;
+}
+export function separatorRow(aligns) {
+  const mark = (a) => (a === 'left' ? ':---' : a === 'right' ? '---:' : a === 'center' ? ':---:' : '---');
+  return '| ' + aligns.map(mark).join(' | ') + ' |';
+}
 
 // האם אפשר לשמור את הטבלה כ־Markdown בלי לאבד כלום
 function isPlain(table) {
   let ok = true;
+  const aligns = columnAligns(table);
   table.forEach((row, _o, r) => {
-    row.forEach((cell) => {
+    row.forEach((cell, _p, c) => {
+      // יישור של תא בודד ששונה מהעמודה שלו: אין לזה Markdown
+      if ((cell.attrs.align || null) !== (aligns[c] ?? null)) ok = false;
       const a = cell.attrs;
       if (a.colspan > 1 || a.rowspan > 1 || a.backgroundColor || (a.colwidth && a.colwidth.some(Boolean))) ok = false;
       if ((cell.type.name === 'tableHeader') !== (r === 0)) ok = false;
@@ -59,7 +83,7 @@ export const WordTable = Table.extend({
             state.write(' |');
             state.ensureNewLine();
             if (i === 0) {
-              state.write('| ' + Array.from({ length: row.childCount }, () => '---').join(' | ') + ' |');
+              state.write(separatorRow(columnAligns(node)));
               state.ensureNewLine();
             }
           });
@@ -209,6 +233,8 @@ export function attachTableBar(editor, scroller) {
     colorBtn.disabled = !editor.can().setCellAttribute('backgroundColor', null);
     bar.hidden = false;
     const r = table.getBoundingClientRect();
+    // 11.5: לא רחב מהטבלה (אם צריך, שתי שורות). עד עכשיו הסרגל חרג מהדף וכיסה את הסרגל השמאלי (לוח ההקשר)
+    bar.style.maxWidth = Math.max(300, Math.min(r.width, window.innerWidth - 16)) + 'px';
     const top = Math.max(r.top - bar.offsetHeight - 6, 60);
     bar.style.top = top + 'px';
     bar.style.left = Math.max(8, Math.min(r.right - bar.offsetWidth, window.innerWidth - bar.offsetWidth - 8)) + 'px';

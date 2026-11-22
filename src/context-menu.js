@@ -4,6 +4,7 @@
 // • בשדה טקסט (חיפוש, מאפיינים, תצוגת Markdown וכו'): גזירה, העתקה, הדבקה ובחירת הכול.
 // • בכל מקום אחר לא מתערבים: לעץ המסמכים יש תפריט משלו (renderer.js).
 // התפריט לא לוקח פוקוס: העורך שומר את הבחירה, והמקלדת נתפסת בשלב הלכידה כל עוד התפריט פתוח.
+import { TextSelection } from '@tiptap/pm/state';
 import { icon } from './icons.js';
 import { moveBlock } from './list-keys.js';
 import { findTaliBox, deleteTaliBox, unwrapTaliBox } from './text-box.js';
@@ -231,6 +232,14 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
     ];
   }
 
+  function taskAtSelection() {
+    const $from = editor.state.selection.$from;
+    for (let d = $from.depth; d > 0; d--) {
+      const node = $from.node(d);
+      if (node.type.name === 'taskItem') return { node, pos: $from.before(d) };
+    }
+    return null;
+  }
   function editorItems(target) {
     const empty = sel().empty;
     const wiki = link && target?.closest?.('[data-wikilink]')?.getAttribute('data-wikilink');
@@ -241,9 +250,17 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
       { label: 'מחיקת המסגרת והטקסט שבה', icon: 'trash', danger: true, run: () => deleteTaliBox(editor) },
       'sep',
     ] : [];
+    // 11.5: לחיצה על משימה: סימון כבוצעה או ביטול, בראש התפריט
+    const task = taskAtSelection();
+    const taskItems = task ? [
+      { label: task.node.attrs.checked ? 'ביטול הסימון "בוצע"' : 'סימון כבוצעה', icon: 'check',
+        run: () => editor.view.dispatch(editor.state.tr.setNodeMarkup(task.pos, null, { ...task.node.attrs, checked: !task.node.attrs.checked })) },
+      'sep',
+    ] : [];
     return [
       ...(wiki ? linkItems(wiki) : []),
       ...(has('table') ? tableItems() : []),
+      ...taskItems,
       ...boxItems,
       { label: 'גזירה', icon: 'cut', keys: 'Ctrl+X', disabled: empty, run: () => clipboard('cut') },
       { label: 'העתקה', icon: 'copy', keys: 'Ctrl+C', disabled: empty, run: () => clipboard('copy') },
@@ -352,7 +369,11 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
     // לחיצה מחוץ לבחירה: הסמן עובר למקום הלחיצה. בתוך הבחירה: הבחירה נשמרת והפעולה חלה עליה.
     const pos = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
     const { from, to } = sel();
-    if (pos && (pos.pos < from || pos.pos > to || from === to)) editor.commands.setTextSelection(pos.pos);
+    // 11.5: TextSelection.near: מקום הלחיצה יכול להיות בקצה של פריט משימה (לא בתוך טקסט), ואז setTextSelection הזהיר בקונסול
+    if (pos && (pos.pos < from || pos.pos > to || from === to)) {
+      const { state } = editor.view;
+      editor.view.dispatch(state.tr.setSelection(TextSelection.near(state.doc.resolve(Math.min(pos.pos, state.doc.content.size)))));
+    }
     // (בשוליים posAtCoords מחזיר את המקום הקרוב ביותר בטקסט)
     editor.commands.focus(undefined, { scrollIntoView: false });
     openMenu(e.clientX, e.clientY, editorItems(t));

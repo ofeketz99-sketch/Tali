@@ -97,7 +97,9 @@ export function createCanvasView({ host, api, readOnly = false }) {
     for (const c of [null, '1', '2', '3', '4', '5', '6']) {
       const s = el('button', 'cv-swatch' + (c ? '' : ' none'));
       s.type = 'button';
-      s.dataset.tip = c ? 'צבע' : 'צבע ברירת מחדל';
+      // 11.5: שם לכל צבע (עד עכשיו לכולם "צבע"). הסדר של JSON Canvas: 1 אדום ... 6 סגול
+      s.dataset.tip = c ? 'צבע: ' + ({ 1: 'אדום', 2: 'כתום', 3: 'צהוב', 4: 'ירוק', 5: 'תכלת', 6: 'סגול' })[c] : 'צבע ברירת מחדל';
+      s.setAttribute('aria-label', s.dataset.tip);
       if (c) s.style.background = PRESET_COLORS[c];
       s.addEventListener('mousedown', (e) => e.preventDefault());
       s.addEventListener('click', () => { setColor(c); host.focus({ preventScroll: true }); });
@@ -851,7 +853,11 @@ export function createCanvasView({ host, api, readOnly = false }) {
 
   viewport.addEventListener('dblclick', (e) => {
     if (readOnly) return;
-    const box = hitNode(e.target);
+    // 11.5: הלחיצה הראשונה על כרטיס שלא היה בחור מציירת אותו מחדש (render), ולכן ה־dblclick מגיע לפעמים
+    // אל המשטח ולא אל הכרטיס. עד עכשיו זה יצר כרטיס ריק חדש מעליו במקום לערוך אותו, ו־Delete מחק רק
+    // את החדש (נראה כאילו Delete לא עובד). לכן מחפשים את הכרטיס גם לפי המיקום על המסך.
+    const box = hitNode(e.target) ||
+      document.elementsFromPoint(e.clientX, e.clientY).map(hitNode).find((b) => b && viewport.contains(b)) || null;
     if (e.target.closest('.cv-editor')) return;
     if (e.target.dataset?.role === 'edge') {
       const edge = edgeById(e.target.dataset.id);

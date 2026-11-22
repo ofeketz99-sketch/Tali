@@ -236,6 +236,12 @@ const tabs = createTabs({
   flushSave: () => flushSave(),
   // 10.9: סגירת הכרטיסייה האחרונה היא יציאה מהמסמך: קודם שם למסמך שעוד אין לו
   showEmpty: async () => { const left = await nameOnLeave(null); showEmpty(); await afterLeave(left); },
+  // 11.5: סגירת כרטיסייה של מסמך "ללא שם" שאינו פתוח עכשיו: אותה שאלה (שם, להשאיר, מחיקה) כמו ביציאה ממנו
+  beforeClose: async (p) => {
+    const left = await nameOnLeave(undefined, p);
+    if (left?.removed) await refreshTree();
+    return left?.renamed || p;
+  },
   renderPreview: async (el, p) => {
     if (isCanvas(p)) { await renderCanvasPreview(el, p); return; }
     try { el.innerHTML = renderNoteHtml(await window.api.read(p), { resolve: resolveTarget, fileUrl }); }
@@ -298,6 +304,9 @@ const home = createHome({
 });
 // on: בלי מסמך פתוח. לפני שנבחרה תיקייה מוצג רק כפתור הבחירה (#empty)
 function setHome(on) {
+  // 11.5: בלי מסמך פתוח כפתורי העריכה בסרגל כבויים (styles.css: body[data-nodoc]). עד עכשיו הם נלחצו בלי
+  // תוצאה, ו־Markdown נדלק בשקט, כך שהמסמך הבא נפתח כטקסט גולמי
+  document.body.toggleAttribute('data-nodoc', on);
   const show = on && !!state.root;
   $('home').hidden = !show;
   document.querySelector('.home-bg').hidden = !show;
@@ -591,9 +600,18 @@ document.addEventListener('pointerdown', (e) => {
 let sidebarMode = store.get('tali:sidebar-mode', 'expanded');
 if (sidebarMode === 'hidden') sidebarMode = 'compact';
 if (!['expanded', 'compact'].includes(sidebarMode)) sidebarMode = 'expanded';
+// 11.5: בחלון צר (עד 900px) הסרגל מתקפל לבד לפס אייקונים, בלי לשנות את ההעדפה השמורה. הכפתור פותח אותו
+// זמנית; ביציאה מהמצב הצר חוזרים להעדפה. עד עכשיו בחלון של 760px הסרגל תפס כ־40% והדף נמחץ.
+const narrowWindow = matchMedia('(max-width: 900px)');
+let narrowOpen = false;
 function setSidebarMode(next) {
-  sidebarMode = next;
-  store.set('tali:sidebar-mode', next);
+  if (narrowWindow.matches) narrowOpen = next === 'expanded';
+  else { sidebarMode = next; store.set('tali:sidebar-mode', next); }
+  applySidebarMode();
+}
+narrowWindow.addEventListener('change', () => { narrowOpen = false; applySidebarMode(); });
+function applySidebarMode() {
+  const next = narrowWindow.matches && !narrowOpen ? 'compact' : narrowWindow.matches ? 'expanded' : sidebarMode;
   document.body.dataset.sidebarMode = next;
   const min = $('btnSidebarMin');
   min.innerHTML = icon(next === 'compact' ? 'panelExpand' : 'panelCollapse', 18);
@@ -601,7 +619,7 @@ function setSidebarMode(next) {
   min.setAttribute('aria-label', min.dataset.tip);
   min.setAttribute('aria-expanded', next === 'expanded' ? 'true' : 'false');
 }
-$('btnSidebarMin').addEventListener('click', () => setSidebarMode(sidebarMode === 'compact' ? 'expanded' : 'compact'));
+$('btnSidebarMin').addEventListener('click', () => setSidebarMode(document.body.dataset.sidebarMode === 'compact' ? 'expanded' : 'compact'));
 
 // רוחב הסרגל בגרירת הקצה (200–520px), נשמר ב־tali:sidebar-width. לחיצה כפולה: חזרה ל־280.
 {
@@ -631,7 +649,7 @@ $('btnSidebarMin').addEventListener('click', () => setSidebarMode(sidebarMode ==
   });
   handle.addEventListener('dblclick', () => { setW(SIDEBAR_DEFAULT); store.set('tali:sidebar-width', SIDEBAR_DEFAULT); });
 }
-setSidebarMode(sidebarMode);
+applySidebarMode();
 
 // ===== ציורים =====
 function drawingStamp() {
@@ -886,7 +904,18 @@ document.addEventListener('paste', (event) => {
   if (pasteImage(event.clipboardData)) { event.preventDefault(); event.stopPropagation(); }
 }, true);
 
-function setStatus(text) { $('status').textContent = text; }
+// 11.5: הודעה (ייצוא, שגיאה, "הועבר לסל"…) חוזרת אחרי 6 שניות לשורת המצב הרגילה: הנתיב של המסמך הפתוח, או
+// התיקייה. עד עכשיו "הייצוא הושלם" נשאר שם גם אחרי מעבר בין מסמכים.
+let statusTimer = null;
+function baseStatus() {
+  if (state.currentPath) return prettyPath(state.currentPath);
+  return state.root ? 'תיקיית המסמכים: ' + $('vaultName').textContent : '';
+}
+function setStatus(text) {
+  $('status').textContent = text;
+  clearTimeout(statusTimer);
+  if (text && text !== baseStatus()) statusTimer = setTimeout(() => { if ($('status').textContent === text) $('status').textContent = baseStatus(); }, 6000);
+}
 
 // שם המסמך הפתוח, מעל הדף. לחיצה: שינוי שם (כמו F2)
 // ולידו (#docMeta): התיקייה (לחיצה מראה בעץ) ותאריך היצירה.
@@ -901,13 +930,31 @@ const measureTitle = () => {
 new ResizeObserver(measureTitle).observe($('docTitle'));
 // 11.2: ליד התיקייה: העברת המסמך לתיקייה אחרת (moveToFolder), בלי לחפש אותו בעץ
 $('dmMove').addEventListener('click', () => moveToFolder());
+// 11.5: מסמך שנפתח בכותרת H1 זהה לשם הקובץ: השם שמעל הדף מוצג קטן, כדי שאותו שם לא יופיע פעמיים בגדול.
+// התוכן לא משתנה, והשורה עדיין לחיצה לשינוי שם. נבדק בכל שינוי (הכותרת יכולה להשתנות תוך כדי כתיבה).
+function markDupTitle() {
+  const p = state.currentPath;
+  const first = !state.canvas && !editorApi.isRaw() ? editorApi.editor.state.doc.firstChild : null;
+  const dup = !!(p && first?.type.name === 'heading' && first.attrs.level === 1 && first.textContent.trim() === noteName(p).trim());
+  $('docTitle').classList.toggle('dup-h1', dup);
+}
+editorApi.editor.on('update', () => requestAnimationFrame(markDupTitle));
+$('cvDocName').addEventListener('click', () => { if (state.currentPath) renameNode(currentNode()); });
 function updateDocTitle() {
   const p = state.currentPath;
-  $('docTitle').textContent = p ? noteName(p) : '';
+  const title = $('docTitle');
+  // בזמן עריכת השם לא דורסים את מה שהמשתמש מקליד (טעינה מחדש מהדיסק וכו')
+  if (!titleEditing) title.querySelector('.dt-text').textContent = p ? noteName(p) : '';
+  title.hidden = !p;
   // 10.9: מסמך חדש שעוד אין לו שם: השם דהוי, והשאלה תגיע ביציאה ממנו
   const untitled = isUntitled(p);
-  $('docTitle').classList.toggle('untitled', untitled);
-  $('docTitle').dataset.tip = untitled ? 'השם ייקבע ביציאה מהמסמך. לחיצה: לתת שם עכשיו (F2)' : 'שינוי שם (F2)';
+  title.classList.toggle('untitled', untitled);
+  markDupTitle();
+  // 11.5: גם השם שבפינת הקנבס
+  const cvName = $('cvDocName');
+  cvName.hidden = !(p && state.canvas);
+  if (!cvName.hidden) { cvName.textContent = noteName(p); cvName.classList.toggle('untitled', untitled); }
+  if (!titleEditing) title.dataset.tip = untitled ? 'השם ייקבע ביציאה מהמסמך. לחיצה: לתת שם עכשיו (F2)' : 'לחיצה: שינוי שם (F2)';
   measureTitle();
   const meta = $('docMeta');
   meta.hidden = !p;
@@ -963,7 +1010,70 @@ function updateDocTitle() {
     window.api.fileTimes(p).then((t) => show(Math.min(t.birth || t.mtime, t.mtime), 'נוצר (לפי הקובץ)')).catch(() => {});
   }
 }
-$('docTitle').addEventListener('click', () => { if (state.currentPath) renameNode(currentNode()); });
+// 11.5 (לבקשת המשתמש): שינוי השם במקום, על שורת הכותרת עצמה, בלי חלון. לחיצה בכל מקום בשורה
+// (גם בחלק הריק שליד השם) הופכת את השם לשדה הקלדה: על השם עצמו הסמן נכנס בנקודת הלחיצה, בחלק הריק
+// לסוף השם, וב"ללא שם" כל השם מסומן כדי שההקלדה תחליף אותו. Enter או יציאה מהשדה שומרים
+// (renameNode עם השם החדש), Esc מבטל. שם ריק או זהה: חוזר לשם הקיים. גם F2 על המסמך הפתוח מגיע לכאן.
+var titleEditing = false;
+function startTitleEdit({ caretAtEnd = true } = {}) {
+  const title = $('docTitle');
+  const text = title.querySelector('.dt-text');
+  if (!state.currentPath || state.canvas || title.hidden || titleEditing) return;
+  titleEditing = true;
+  title.classList.add('editing');
+  delete title.dataset.tip;
+  try { text.contentEditable = 'plaintext-only'; } catch { text.contentEditable = 'true'; }
+  text.focus();
+  const sel = getSelection();
+  if (isUntitled(state.currentPath)) sel.selectAllChildren(text);
+  else if (caretAtEnd) { sel.selectAllChildren(text); sel.collapseToEnd(); }
+}
+async function endTitleEdit(save) {
+  if (!titleEditing) return;
+  const text = $('docTitle').querySelector('.dt-text');
+  const name = text.textContent.replace(/\s+/g, ' ').trim();
+  const node = currentNode();
+  titleEditing = false;
+  text.contentEditable = 'false';
+  text.removeAttribute('contenteditable');
+  $('docTitle').classList.remove('editing');
+  const current = node && noteName(node.path);
+  if (save && node && name && name !== current) {
+    text.textContent = name;
+    await renameNode(node, name);
+  }
+  updateDocTitle(); // שם שנכשל (תו אסור, שם תפוס): חוזר לשם שבדיסק, וההודעה בשורת המצב
+}
+{
+  const title = $('docTitle');
+  const text = title.querySelector('.dt-text');
+  // mousedown ולא click: על השם הדפדפן ממקם את הסמן בנקודת הלחיצה רק אם השדה כבר ניתן לעריכה
+  title.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || !state.currentPath) return;
+    const onText = text.contains(e.target);
+    // כבר בעריכה: לחיצה בחלק הריק לא מוציאה מהשדה (blur היה שומר וסוגר), רק מעבירה את הסמן לסוף
+    if (titleEditing) {
+      if (!onText) { e.preventDefault(); const sel = getSelection(); sel.selectAllChildren(text); sel.collapseToEnd(); }
+      return;
+    }
+    if (!onText) e.preventDefault(); // חלק ריק בשורה: הסמן לסוף השם (startTitleEdit)
+    startTitleEdit({ caretAtEnd: !onText });
+  });
+  text.addEventListener('keydown', (e) => {
+    if (!titleEditing) return;
+    if (e.key === 'Enter') { e.preventDefault(); endTitleEdit(true).then(() => editorApi.editor.commands.focus()); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); endTitleEdit(false).then(() => editorApi.editor.commands.focus()); }
+    else if (e.key === 'Tab') { e.preventDefault(); endTitleEdit(true).then(() => editorApi.editor.commands.focus('start')); }
+  });
+  text.addEventListener('blur', () => { endTitleEdit(true); });
+  // הדבקה: טקסט רגיל בשורה אחת
+  text.addEventListener('paste', (e) => {
+    if (!titleEditing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    document.execCommand('insertText', false, (e.clipboardData.getData('text/plain') || '').replace(/\s+/g, ' '));
+  });
+}
 
 // ספירת מילים בשורת המצב (בתצוגה המעוצבת: הטקסט המוצג, ב־Markdown: הטקסט הגולמי)
 function updateWordCount() {
@@ -1386,6 +1496,7 @@ function leaveCanvas() {
   state.canvas = false;
   delete document.body.dataset.doc;
   $('canvasView').hidden = true;
+  $('cvDocName').hidden = true;
 }
 async function openCanvas(p, { history = true, newTab = false } = {}) {
   let text;
@@ -1572,6 +1683,8 @@ const currentNode = () => state.currentPath && { path: state.currentPath, name: 
 
 async function renameNode(node, preset) {
   if (!node) return;
+  // 11.5: המסמך הפתוח (לא קנבס): עריכה במקום, על שורת הכותרת
+  if (preset == null && node.path === state.currentPath && !state.canvas && !$('docTitle').hidden) { startTitleEdit(); return; }
   const current = node.name.replace(/\.md$/i, '');
   const name = preset ?? await ask('שם חדש:', current);
   if (!name || name === current) return;
@@ -1596,6 +1709,7 @@ async function renameNode(node, preset) {
     else { setStatus(prettyPath(state.currentPath)); updateDocTitle(); }
     const others = changed.filter((p) => p !== to).length;
     if (others) setStatus(`הקישורים עודכנו ב־${others} מסמכים`);
+    return to;
   } catch (err) { setStatus(err.message); }
 }
 
@@ -1840,7 +1954,7 @@ function renderFlagged() {
   const order = FLAG_LIST.map((x) => x.id);
   const list = [...state.flags.entries()]
     .filter(([, c]) => !flaggedFilter || c === flaggedFilter)
-    .sort((a, b) => order.indexOf(a[1]) - order.indexOf(b[1]) || noteName(a[0]).localeCompare(noteName(b[0]), 'he'));
+    .sort((a, b) => order.indexOf(a[1]) - order.indexOf(b[1]) || noteName(a[0]).localeCompare(noteName(b[0]), 'he', { numeric: true }));
   if (!list.length) {
     const e = document.createElement('div');
     e.className = 'fl-empty';
@@ -2265,8 +2379,8 @@ let naming = false;
 // יציאה מהמסמך הפתוח (מעבר למסמך אחר, מסך הבית, סגירת כרטיסייה): אם עוד אין לו שם, שואלים עכשיו,
 // עם הצעה מהשורה הראשונה. "להשאיר" שומר את "ללא שם" ולא שואל שוב. מסמך ריק לגמרי עובר לסל המחזור בשקט,
 // כדי שלא יצטברו "ללא שם" ריקים. מחזיר { removed } לניקוי הכרטיסייה אחרי המעבר (afterLeave).
-async function nameOnLeave(next) {
-  const p = state.currentPath;
+// 11.5: p = מסמך אחר (כרטיסייה ברקע שנסגרת); ברירת המחדל: המסמך הפתוח. מחזיר גם { renamed: נתיב חדש }
+async function nameOnLeave(next, p = state.currentPath) {
   if (!p || p === next || naming || !isUntitled(p)) return null;
   naming = true;
   try {
@@ -2304,7 +2418,10 @@ async function nameOnLeave(next) {
     // רק אחרי תשובה (גם "להשאיר"): אם האפליקציה נסגרה באמצע, השאלה תחזור ביציאה הבאה
     setUntitled(p, false);
     const clean = (name || '').trim();
-    if (clean && clean !== noteName(p)) await renameNode({ path: p, name: noteName(p) + (canvas ? '.canvas' : '.md') }, clean);
+    if (clean && clean !== noteName(p)) {
+      const to = await renameNode({ path: p, name: noteName(p) + (canvas ? '.canvas' : '.md') }, clean);
+      if (to) return { renamed: to };
+    }
     return null;
   } finally { naming = false; }
 }
@@ -2354,11 +2471,17 @@ async function newNoteFromTemplate({ dir } = {}) {
   if (!state.root) return;
   const tpl = await pickTemplate('תבנית למסמך החדש…');
   if (!tpl) return;
-  const name = await ask('שם המסמך:');
-  if (!name) return;
+  // 11.5: כמו מסמך חדש רגיל: נפתח מיד כ"ללא שם", והשם נקבע ביציאה (nameOnLeave). רק תבנית שמשתמשת בשם
+  // ({{title}}) צריכה אותו מראש, ולכן רק אז שואלים. עד עכשיו חלון השם קפץ תמיד לפני הפתיחה.
+  const needsName = /\{\{\s*title\s*\}\}/i.test(tpl.text);
+  const name = needsName ? await ask('שם המסמך:') : null;
+  if (needsName && !name) return;
   try {
-    const text = fillTemplate(tpl.text, { title: name, dateFormat: tpl.conf.dateFormat, timeFormat: tpl.conf.timeFormat });
-    const file = await window.api.createNote(await noteTargetDir(dir), name, text);
+    const target = await noteTargetDir(dir);
+    const fill = (title) => fillTemplate(tpl.text, { title, dateFormat: tpl.conf.dateFormat, timeFormat: tpl.conf.timeFormat });
+    const file = needsName ? await window.api.createNote(target, name, fill(name))
+      : await createUntitled((n) => window.api.createNote(target, n, fill(n)));
+    if (!file) return;
     await refreshTree();
     await openNote(file);
     editorApi.editor.commands.focus('end');
@@ -2558,7 +2681,7 @@ function revealInTree() { if (state.currentPath) revealPath(state.currentPath); 
 function revealPath(p) {
   if (!p) return;
   if ($('search').value) { $('search').value = ''; }
-  if (sidebarMode === 'compact') setSidebarMode('expanded');
+  if (document.body.dataset.sidebarMode === 'compact') setSidebarMode('expanded');
   for (const d of allDirs()) if (p.startsWith(d + '\\') || p.startsWith(d + '/')) state.collapsed.delete(d);
   saveCollapsed();
   drawTree();
@@ -2583,7 +2706,7 @@ $('btnTreeCollapse').addEventListener('click', () => { collapseAll(); $('tree').
 // פותח תיקייה בעץ (וכל מה שמעליה), גולל אליה ומבליט אותה לרגע. התיקייה הראשית: גלילה לראש העץ.
 function revealDir(dir) {
   if ($('search').value) $('search').value = '';
-  if (sidebarMode === 'compact') setSidebarMode('expanded');
+  if (document.body.dataset.sidebarMode === 'compact') setSidebarMode('expanded');
   for (const d of allDirs()) if (dir === d || dir.startsWith(d + '\\') || dir.startsWith(d + '/')) state.collapsed.delete(d);
   saveCollapsed();
   drawTree();
@@ -2685,7 +2808,7 @@ function openSwitcher() {
         // בלי חיפוש: האחרונות שנפתחו, ואחריהן כל השאר לפי א"ב
         list = notes
           .filter((n) => n.path !== state.currentPath)
-          .sort((a, b) => (recentRank.get(a.path) ?? 1e6) - (recentRank.get(b.path) ?? 1e6) || a.name.localeCompare(b.name, 'he'))
+          .sort((a, b) => (recentRank.get(a.path) ?? 1e6) - (recentRank.get(b.path) ?? 1e6) || a.name.localeCompare(b.name, 'he', { numeric: true }))
           .map((n) => ({ title: n.name, hint: folder(n), run: () => openNote(n.path) }));
       } else {
         list = [];
@@ -2836,7 +2959,7 @@ window.addEventListener('keydown', (e) => {
     const hotkey = commandHotkey(c, getPrefs());
     if (!hotkey || !matchesHotkey(e, hotkey)) continue;
     // ניווט ב־Ctrl+חצים: לא בתוך שדה קלט קטן (חיפוש, שם, מאפיינים), שם החצים מזיזים את הסמן
-    if (c.nav && e.target instanceof HTMLInputElement) return;
+    if (c.nav && (e.target instanceof HTMLInputElement || titleEditing)) return;
     // בתוך חלון החיפוש המהיר עובדים רק המעברים בינו לבין לוח הפקודות
     if (isPaletteOpen() && c.run !== openSwitcher && c.run !== openCommands) return;
     e.preventDefault();

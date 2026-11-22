@@ -205,7 +205,7 @@ function createVaultIndex({
         count: hits.length,
       });
     }
-    out.sort((a, b) => a.name.localeCompare(b.name, 'he'));
+    out.sort((a, b) => a.name.localeCompare(b.name, 'he', { numeric: true }));
     return out;
   }
 

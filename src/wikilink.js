@@ -178,7 +178,7 @@ function suggestPlugin(ext) {
       else if (rel.includes(q)) score = 3;
       if (score >= 0) scored.push([score, n]);
     }
-    scored.sort((a, b) => a[0] - b[0] || a[1].name.localeCompare(b[1].name, 'he'));
+    scored.sort((a, b) => a[0] - b[0] || a[1].name.localeCompare(b[1].name, 'he', { numeric: true }));
     const list = scored.slice(0, 8).map(([, n]) => ({ ...n, isNew: false }));
     if (q && !list.some((n) => n.name.toLowerCase() === q)) {
       list.push({ name: query.trim(), rel: '', isNew: true });
@@ -210,7 +210,10 @@ function suggestPlugin(ext) {
     const c = view.coordsAtPos(active.from);
     box.hidden = false;
     const w = box.offsetWidth;
-    box.style.top = c.bottom + 4 + 'px';
+    // 11.5: אין מקום מתחת לסמן (קרוב לתחתית החלון): נפתח מעליו. עד עכשיו הרשימה נחתכה בקצה החלון
+    const h = box.offsetHeight;
+    const below = window.innerHeight - c.bottom - 8;
+    box.style.top = (below < h + 4 && c.top - 8 > below ? Math.max(8, c.top - h - 4) : c.bottom + 4) + 'px';
     box.style.left = Math.max(8, Math.min(c.right - w, window.innerWidth - w - 8)) + 'px';
     box.querySelector('.selected')?.scrollIntoView({ block: 'nearest' });
   }
@@ -267,7 +270,16 @@ function suggestPlugin(ext) {
         if (e.key === 'ArrowDown') { index = (index + 1) % items.length; draw(view); return true; }
         if (e.key === 'ArrowUp') { index = (index - 1 + items.length) % items.length; draw(view); return true; }
         if (e.key === 'Enter' || e.key === 'Tab') { choose(view, index); return true; }
-        if (e.key === 'Escape') { dismissedAt = active.from; close(); return true; }
+        if (e.key === 'Escape') {
+          // 11.5: Esc מיד אחרי "[[" (בלי טקסט): מבטל את הקישור כולו. עד עכשיו "[[" יתום נשאר בטקסט ובקובץ
+          if (!active.query.trim() && view.state.doc.textBetween(active.from, active.to) === '[[') {
+            const { from, to } = active;
+            close();
+            view.dispatch(view.state.tr.delete(from, to));
+            return true;
+          }
+          dismissedAt = active.from; close(); return true;
+        }
         return false;
       },
       handleDOMEvents: {

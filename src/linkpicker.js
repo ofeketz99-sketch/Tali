@@ -38,7 +38,7 @@ export function openLinkPicker({ title, notes, selected = [], onSave }) {
     const q = input.value.trim();
     if (!q) {
       // בלי חיפוש: המסומנים קודם, ואחריהם הכל לפי א"ב
-      return [...notes].sort((a, b) => (chosen.has(b.path) - chosen.has(a.path)) || a.name.localeCompare(b.name, 'he')).map((n) => ({ n, marks: [] }));
+      return [...notes].sort((a, b) => (chosen.has(b.path) - chosen.has(a.path)) || a.name.localeCompare(b.name, 'he', { numeric: true })).map((n) => ({ n, marks: [] }));
     }
     const out = [];
     for (const n of notes) {

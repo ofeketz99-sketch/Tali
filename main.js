@@ -166,7 +166,7 @@ async function readTree(dir) {
   }));
   const out = parts.map((part) => part.node).filter(Boolean);
   out.sort((a, b) =>
-    a.type === b.type ? a.name.localeCompare(b.name, 'he') : a.type === 'dir' ? -1 : 1);
+    a.type === b.type ? a.name.localeCompare(b.name, 'he', { numeric: true }) : a.type === 'dir' ? -1 : 1);
   return { tree: out, attachments: parts.flatMap((part) => part.attachments) };
 }
 

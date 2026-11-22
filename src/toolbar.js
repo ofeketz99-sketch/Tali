@@ -33,6 +33,8 @@ function openMenu(anchor, fill, onClose) {
   closeMenu();
   const m = document.createElement('div');
   m.className = 'tb-menu';
+  // 11.5: תפריט שנפתח מהסרגל הצף (צבע וכו') לא מסתיר אותו; כל תפריט אחר כן (styles.css)
+  if (anchor.closest?.('.tb-bubble')) m.classList.add('from-bubble');
   fill(m);
   document.body.append(m);
   openMenuOnClose = onClose || null;

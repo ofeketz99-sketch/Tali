@@ -8,7 +8,7 @@
 // renderer.js קורא ל־opened() מתוך openNote, ול־remap/drop בשינוי שם, העברה ומחיקה.
 import { icon } from './icons.js';
 
-export function createTabs({ navEl, $, store, getRoot, getCurrent, openNote, flushSave, showEmpty, renderPreview, noteName, onContext, onHome, onNewNote, onNewCanvas, fileIcon, flagOf, backgroundOf }) {
+export function createTabs({ navEl, $, store, getRoot, getCurrent, openNote, flushSave, showEmpty, renderPreview, noteName, onContext, onHome, onNewNote, onNewCanvas, fileIcon, flagOf, backgroundOf, beforeClose }) {
   const bar = $('tabBar');
   const panesEl = $('panes');
   const pane0 = $('pane0');
@@ -147,9 +147,13 @@ export function createTabs({ navEl, $, store, getRoot, getCurrent, openNote, flu
   }
 
   async function close(p) {
-    const i = list.indexOf(p);
-    if (i < 0) return;
+    if (!list.includes(p)) return;
     await flushSave();
+    // 11.5: כרטיסייה שאינה המסמך הפתוח (למשל "ללא שם" ברקע): beforeClose יכול לשאול על שם ולשנות אותו,
+    // ואז מחזיר את הנתיב החדש (remap כבר עדכן את הרשימה)
+    if (beforeClose && p !== getCurrent()) p = (await beforeClose(p)) || p;
+    const i = list.indexOf(p);
+    if (i < 0) { render(); save(); return; }
     list.splice(i, 1);
     pinned.delete(p);
     if (panes.length > 1 && panes[other()] === p) { unsplit(); render(); save(); return; }

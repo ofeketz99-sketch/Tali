@@ -419,7 +419,8 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
     const mt = api.getMtime();
     if (mt) stat('שונה לאחרונה', new Date(mt).toLocaleString('he-IL', { dateStyle: 'medium', timeStyle: 'short' }));
     body.append(grid);
-    const tags = extractTags(md);
+    // 11.5: extractTags מחזירה { tag, index }; עד עכשיו הוצג "#[object Object]", ותגית חוזרת הופיעה כמה פעמים
+    const tags = [...new Set(extractTags(md).map((t) => t.tag))];
     if (tags.length) {
       body.append(el('div', 'dc-label', 'תגיות'));
       const chips = el('div', 'dc-tags');

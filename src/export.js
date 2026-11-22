@@ -61,6 +61,32 @@ export function exportHtml(proseMirrorElement, floats = []) {
       if (!p.textContent.trim() && !p.querySelector('img')) p.remove();
     } else e.replaceWith(box);
   }
+  // 11.5: callout (> [!note] כותרת). בעורך הסימון [!note] מוסתר בעיצוב, אבל הוא בתוך ה־DOM, ולכן עד עכשיו
+  // יצא ל־PDF ול־Word כטקסט ("]!note[" בעברית). מסירים אותו, והכותרת הופכת לשורה מודגשת בראש התיבה.
+  // מסגרת (TALI-BOX): שורת הסימון כולה נעלמת.
+  for (const bq of root.querySelectorAll('blockquote.callout')) {
+    const type = (bq.getAttribute('data-callout') || 'note').toLowerCase();
+    for (const m of bq.querySelectorAll('.callout-marker')) {
+      const titleEl = m.parentElement?.querySelector(':scope > .callout-title');
+      const title = titleEl?.textContent.trim() || '';
+      const p = m.parentElement;
+      // ירידת השורה שאחרי הכותרת שייכת לסימון
+      const after = (titleEl || m).nextSibling;
+      if (after?.nodeName === 'BR') after.remove();
+      titleEl?.remove();
+      m.remove();
+      if (type !== 'tali-box') {
+        const head = document.createElement('p');
+        head.className = 'callout-head';
+        const strong = document.createElement('strong');
+        strong.textContent = title || type.charAt(0).toUpperCase() + type.slice(1);
+        head.append(strong);
+        p.before(head);
+      }
+      if (p && !p.textContent.trim() && !p.querySelector('img, math')) p.remove();
+    }
+    bq.classList.add('callout-' + type.replace(/[^a-z0-9-]/g, ''));
+  }
   for (const el of root.querySelectorAll('[contenteditable], [draggable], [data-placeholder]')) {
     el.removeAttribute('contenteditable'); el.removeAttribute('draggable'); el.removeAttribute('data-placeholder');
   }
@@ -83,8 +109,14 @@ td, th { border: 1px solid #b8c4d0; padding: 4pt 7pt; vertical-align: top; text-
 td p, th p { text-align: inherit; }
 th { background: #eef3f8; }
 blockquote { margin: 8pt 0; padding: 4pt 12pt; border-inline-start: 3px solid #9fbfe6; background: #f5f8fc; color: #3a4a5a; }
-code { font-family: Consolas, monospace; background: #f1f3f5; padding: 0 3pt; border-radius: 3pt; }
-pre { font-family: Consolas, monospace; background: #f1f3f5; padding: 8pt; border-radius: 4pt; direction: ltr; white-space: pre-wrap; }
+blockquote.callout { border-radius: 4pt; border-inline-start-width: 4px; color: #1f2328; }
+.callout-head { margin: 2pt 0 4pt; }
+blockquote.callout-tip, blockquote.callout-success { border-color: #34b98a; background: #eef8f3; }
+blockquote.callout-warning, blockquote.callout-caution { border-color: #e8a33d; background: #fdf5e8; }
+blockquote.callout-danger, blockquote.callout-error { border-color: #e06c6c; background: #fcefef; }
+blockquote.callout-tali-box { border: 1px solid #b8c4d0; background: none; border-radius: 6pt; }
+code { font-family: Consolas, "Cascadia Mono", "Segoe UI", Arial, sans-serif; background: #f1f3f5; padding: 0 3pt; border-radius: 3pt; }
+pre { font-family: Consolas, "Cascadia Mono", "Segoe UI", Arial, sans-serif; background: #f1f3f5; padding: 8pt; border-radius: 4pt; direction: ltr; white-space: pre-wrap; }
 ul[data-type="taskList"] { list-style: none; padding-inline-start: 4pt; }
 li.task-item { display: flex; gap: 6pt; align-items: baseline; } li.task-item > div { flex: 1; } li.task-item p { margin: 0 0 3pt; }
 li.done > div > p { color: #6b7785; text-decoration: line-through; }

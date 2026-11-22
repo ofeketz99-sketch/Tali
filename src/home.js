@@ -53,7 +53,8 @@ export function createHome({ el, store, api }) {
       ]);
       const index = await api.vaultIndex().catch(() => ({ notes: [] }));
       let board = null;
-      try { board = await api.read(boardPath()); } catch { /* עוד לא נוצר */ }
+      // 11.5: קודם בודקים שהקובץ קיים: קריאה של קובץ חסר כתבה ליומן של main.js שגיאת ENOENT ארוכה בכל ציור
+      if (api.exists(boardPath())) try { board = await api.read(boardPath()); } catch { /* נמחק בינתיים */ }
       if (my !== token) return;
       cache = { index, board, info: cache?.info || null };
       draw(cache.index, cache.board, cache.info);
@@ -323,7 +324,7 @@ export function createHome({ el, store, api }) {
       try {
         const p = boardPath();
         let cur = null;
-        try { cur = await api.read(p); } catch { /* חדש */ }
+        if (api.exists(p)) try { cur = await api.read(p); } catch { /* חדש */ }
         if (cur == null) await api.createNote(api.getRoot(), BOARD_NAME, `${line}\n`);
         else await api.write(p, cur.replace(/\s*$/, '\n') + line + '\n');
         api.onChanged?.(p);

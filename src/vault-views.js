@@ -459,7 +459,8 @@ export function openGraph({ index, current, root, onOpen, store, meta }) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const n of nodes) { minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x); minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y); }
     const w = canvas.clientWidth - 120, h = canvas.clientHeight - 120;
-    const k = Math.max(0.25, Math.min(2.4, w / Math.max(1, maxX - minX), h / Math.max(1, maxY - minY)));
+    // 11.5: עד 3.2 (היה 2.4): בכספת קטנה הגרף נשאר קטן באמצע החלון, ומעל 2.1 גם כיתובים לכל הנקודות
+    const k = Math.max(0.25, Math.min(3.2, w / Math.max(1, maxX - minX), h / Math.max(1, maxY - minY)));
     const nextX = -(minX + maxX) / 2 * k;
     const nextY = -(minY + maxY) / 2 * k;
     view.k = k;

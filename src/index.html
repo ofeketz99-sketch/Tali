@@ -76,11 +76,21 @@
         <small>סורק מסמכים, קישורים וקבצים מצורפים</small>
       </div>
       <div id="empty" class="empty" aria-label="מסך הבית">
-        <button id="btnPickBig" class="primary">בחירת תיקייה</button>
+        <!-- 11.5: הפעלה ראשונה: מה זה, ומה לבחור (עד עכשיו רק הכפתור) -->
+        <div class="welcome">
+          <img class="welcome-logo" src="logo.png" alt="" />
+          <h1>ברוכים הבאים ל־Tali</h1>
+          <p>Tali עובדת מול תיקייה רגילה של קבצי Markdown במחשב: כל מסמך הוא קובץ <span dir="ltr">.md</span> שאפשר לפתוח גם באובסידיאן ובכל עורך אחר.</p>
+          <button id="btnPickBig" class="primary">בחירת תיקייה</button>
+          <ul class="welcome-hints">
+            <li>יש כספת של אובסידיאן? בוחרים את התיקייה שלה, והכול נשאר כמו שהוא.</li>
+            <li>מתחילים מאפס? בחלון הבחירה יוצרים תיקייה חדשה (למשל "המסמכים שלי") ובוחרים בה.</li>
+          </ul>
+        </div>
       </div>
       <div id="home" hidden aria-label="מסך הבית"></div>
       <div id="page" hidden>
-        <button type="button" id="docTitle" data-tip="שינוי שם (F2)"></button>
+        <div id="docTitle" data-tip="שינוי שם (F2)" hidden><span class="dt-text" spellcheck="false"></span></div>
         <div id="docMeta" hidden><span class="dm-folder" data-icon="folder"><span></span></span><button type="button" id="dmMove" class="dm-move" data-icon="moveToFolder" data-tip="העברה לתיקייה אחרת (Ctrl+Shift+M)" aria-label="העברה לתיקייה אחרת"></button><span class="dm-date" data-icon="calendar"><span></span></span></div>
         <!-- המאפיינים מוצגים בלוח ההקשר (לשונית "מאפיינים"); context-panel.js מעביר את המיכל לשם -->
         <div id="propsHost" class="dc-props" hidden><textarea id="props" hidden spellcheck="false" title="מאפיינים (frontmatter)"></textarea></div>
@@ -90,6 +100,8 @@
       </div>
       <!-- 10.4: מסמך גרפי (.canvas), canvas-view.js. במקום #page כשהמסמך הפתוח הוא קנבס -->
       <div id="canvasView" hidden></div>
+      <!-- 11.5: שם המסמך הגרפי (לחיצה: שינוי שם). בקנבס #page ושם המסמך שבו מוסתרים -->
+      <button type="button" id="cvDocName" class="cv-doc-name" data-tip="לחיצה: שינוי שם (F2)" hidden></button>
       <aside id="docCtx" hidden></aside>
     </div>
     </div></div>

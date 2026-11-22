@@ -152,8 +152,11 @@ function mathOrText(m) {
 export async function buildDocx({ title, html, rtlDefault = true, fetchImage = null }) {
   const root = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html').body;
   // התמונות קודם (אסינכרוני), כדי שהמעבר על המסמך יהיה סינכרוני
+  // 11.5: המפתח הוא מספר ב־data-tali-img ולא האלמנט עצמו: פריט ברשימה וטקסט חופשי עוברים cloneNode,
+  // ועד עכשיו תמונה בתוך רשימה לא נמצאה ויצאה כ"[תמונה: …]"
   const images = new Map();
-  for (const img of root.querySelectorAll('img')) images.set(img, await imageData(img, fetchImage));
+  let imgN = 0;
+  for (const img of root.querySelectorAll('img')) { img.dataset.taliImg = String(++imgN); images.set(img.dataset.taliImg, await imageData(img, fetchImage)); }
 
   let listInstance = 0;
 
@@ -171,7 +174,7 @@ export async function buildDocx({ title, html, rtlDefault = true, fetchImage = n
         verticalPosition: { relative: VerticalPositionRelativeFrom.PARAGRAPH, offset: Math.round(info.dy * k * EMU) },
       };
       if (info.kind === 'image') {
-        const im = images.get(el.querySelector('img'));
+        const im = images.get(el.querySelector('img')?.dataset.taliImg);
         if (!im) continue;
         const w = Math.max(8, Math.round(info.w * k)), h = Math.max(8, Math.round(info.h * k));
         runs.push(new ImageRun({ ...im, transformation: { width: w, height: h },
@@ -229,7 +232,7 @@ export async function buildDocx({ title, html, rtlDefault = true, fetchImage = n
     const f = { ...fmt };
     if (tag === 'BR') { out.push(new TextRun({ break: 1 })); return out; }
     if (tag === 'IMG') {
-      const im = images.get(node);
+      const im = images.get(node.dataset?.taliImg);
       if (im) out.push(new ImageRun(im));
       else {
         // תמונה שלא נמצאה (קובץ חסר, בלי רשת): לפחות השם שלה, כדי שלא תיעלם בשקט
@@ -248,7 +251,7 @@ export async function buildDocx({ title, html, rtlDefault = true, fetchImage = n
     if (tag === 'S' || tag === 'DEL' || tag === 'STRIKE') f.strike = true;
     if (tag === 'SUB') f.subScript = true;
     if (tag === 'SUP') f.superScript = true;
-    if (tag === 'CODE') { f.font = 'Consolas'; f.shading = { type: ShadingType.CLEAR, color: 'auto', fill: 'F0F0F0' }; }
+    if (tag === 'CODE') { f.font = { ascii: 'Consolas', hAnsi: 'Consolas', cs: 'Segoe UI' }; f.shading = { type: ShadingType.CLEAR, color: 'auto', fill: 'F0F0F0' }; }
     if (tag === 'MARK') f.shading = { type: ShadingType.CLEAR, color: 'auto', fill: hex(node.style.backgroundColor) || hex(node.getAttribute('data-color')) || 'FFF59D' };
     const color = hex(node.style.color);
     if (color) f.color = color;
@@ -310,10 +313,13 @@ export async function buildDocx({ title, html, rtlDefault = true, fetchImage = n
       else if (tag === 'BLOCKQUOTE') {
         // פס בצד שבו הטקסט מתחיל: מימין בעברית, משמאל באנגלית
         const side = isRtl(node.textContent, rtlDefault) ? 'right' : 'left';
-        out.push(...blocks(node, { ...ctx, para: { ...ctx.para, indent: { start: 360 }, border: { [side]: { style: BorderStyle.SINGLE, size: 12, color: 'B0B8C4', space: 8 } } }, fmt: { ...ctx.fmt, color: '555555' } }));
+        // 11.5: callout (אחרי exportHtml: בלי [!note], עם כותרת מודגשת) מקבל רקע בהיר וטקסט רגיל, כמו בעורך
+        const callout = node.classList?.contains('callout');
+        const shading = callout && !node.classList.contains('callout-tali-box') ? { shading: { type: ShadingType.CLEAR, color: 'auto', fill: 'F3F7FB' } } : {};
+        out.push(...blocks(node, { ...ctx, para: { ...ctx.para, ...shading, indent: { start: 360 }, border: { [side]: { style: BorderStyle.SINGLE, size: callout ? 18 : 12, color: callout ? '7AA7D6' : 'B0B8C4', space: 8 } } }, fmt: callout ? ctx.fmt : { ...ctx.fmt, color: '555555' } }));
       } else if (tag === 'PRE') {
         for (const line of node.textContent.replace(/\n$/, '').split('\n')) {
-          out.push(new Paragraph({ bidirectional: false, shading: { type: ShadingType.CLEAR, color: 'auto', fill: 'F4F4F4' }, spacing: { before: 0, after: 0 }, children: [new TextRun({ text: line || ' ', font: 'Consolas', size: 19 })] }));
+          out.push(new Paragraph({ bidirectional: false, shading: { type: ShadingType.CLEAR, color: 'auto', fill: 'F4F4F4' }, spacing: { before: 0, after: 0 }, children: [new TextRun({ text: line || ' ', font: { ascii: 'Consolas', hAnsi: 'Consolas', cs: 'Segoe UI' }, size: 19 })] }));
         }
       } else if (tag === 'TABLE') out.push(table(node), new Paragraph({}));
       else if (tag === 'HR') out.push(new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'BBBBBB', space: 1 } } }));
@@ -373,6 +379,10 @@ export async function buildDocx({ title, html, rtlDefault = true, fetchImage = n
         tableHeader: !!tr.querySelector('th') && tr === rows[0],
         children: [...tr.children].filter((c) => c.tagName === 'TD' || c.tagName === 'TH').map((cell) => {
           const fill = hex(cell.style.backgroundColor) || (cell.tagName === 'TH' ? 'EEF2F6' : null);
+          // 11.5: יישור עמודה מ־Markdown (data-align) עובר לפסקאות שבתא, ו־para() ממיר אותו לפי הכיוון של כל פסקה.
+          // יישור מפורש של פסקה גובר; בלי יישור: מרכז (10.2)
+          const al = cell.getAttribute('data-align');
+          if (al) for (const cp of cell.querySelectorAll(':scope > p')) if (!cp.style.textAlign) cp.style.textAlign = al;
           const kids = blocks(cell, { fmt: cell.tagName === 'TH' ? { bold: true } : {}, para: { alignment: AlignmentType.CENTER } });
           return new TableCell({
             children: kids.length ? kids : [new Paragraph({})],

@@ -613,6 +613,14 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
         stopPlacement();
         return;
       }
+      // 11.5: לחיצה על לוח ההקשר (שיושב בשוליים, בדיוק איפה שמחפשים מקום) לא מבטלת: הכרטיס נשאר ומסביר.
+      // עד עכשיו היא ביטלה בשקט ("הוספת ההערה בוטלה"), ובחלון רגיל כמעט לא נשאר מקום משמאל לדף.
+      const onRail = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('#docCtx');
+      if (event.button === 0 && onRail) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        ghost.querySelector('.tali-note-ghost-body').firstChild.textContent = 'כאן לוח ההקשר. לחיצה על הדף או ליד הטקסט ממקמת את ההערה';
+        return;
+      }
       if (event.button !== 0 || !allowed(event)) { stopPlacement(); return; } // הלחיצה ממשיכה כרגיל
       event.preventDefault(); event.stopImmediatePropagation();
       const spot = noteSpot(event.clientX, event.clientY);
