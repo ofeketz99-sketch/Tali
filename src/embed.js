@@ -6,6 +6,7 @@ import { Node } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
 import { icon } from './icons.js';
 import { renderNoteHtml } from './note-render.js';
+import { isMiddleClick, linkOpenOptions } from './link-open.js';
 import { parseEmbedTarget, formatEmbedTarget, cleanFormat, layoutFromWrapAttr, wrapAttrFromLayout, parseCropAttr, LAYOUTS } from './image-format.js';
 import { renderPicture, pictureToolbar } from './image-format-ui.js';
 
@@ -346,8 +347,15 @@ export const Embed = Node.create({
         dom.addEventListener('mousedown', (event) => { if (event.button === 0) event.preventDefault(); });
         dom.addEventListener('click', (event) => {
           const link = event.target.closest('.np-link');
-          if (link) this.options.onOpen(link.dataset.target);
-          else if (event.target.closest('.en-head')) this.options.onOpen(initial.name);
+          const opts = linkOpenOptions(event);
+          if (link) this.options.onOpen(link.dataset.target, opts);
+          else if (event.target.closest('.en-head')) this.options.onOpen(initial.name, opts);
+        });
+        dom.addEventListener('auxclick', (event) => {
+          if (!isMiddleClick(event)) return;
+          const link = event.target.closest('.np-link');
+          const target = link?.dataset.target || (event.target.closest('.en-head') ? initial.name : null);
+          if (target) { event.preventDefault(); this.options.onOpen(target, linkOpenOptions(event)); }
         });
         return { dom, stopEvent: () => true, ignoreMutation: () => true };
       }
@@ -357,7 +365,10 @@ export const Embed = Node.create({
       dom.querySelector('span').textContent = initial.name;
       dom.title = path ? 'לחיצה לפתיחה' : 'הקובץ לא נמצא';
       dom.addEventListener('mousedown', (event) => { if (event.button === 0) event.preventDefault(); });
-      dom.addEventListener('click', () => this.options.onOpen(initial.name));
+      dom.addEventListener('click', (event) => this.options.onOpen(initial.name, linkOpenOptions(event)));
+      dom.addEventListener('auxclick', (event) => {
+        if (isMiddleClick(event)) { event.preventDefault(); this.options.onOpen(initial.name, linkOpenOptions(event)); }
+      });
       return { dom };
     };
   }

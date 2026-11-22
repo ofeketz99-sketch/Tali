@@ -1,6 +1,6 @@
 {
   "name": "tali",
-  "version": "12.1.0",
+  "version": "12.2.0",
   "productName": "Tali",
   "description": "Tali: אפליקציית הערות אישית. אובסידיאן פוגש וורד",
   "main": "main.js",
@@ -11,7 +11,7 @@
     "watch": "esbuild src/renderer.js --bundle --outfile=dist/renderer.js --sourcemap --watch",
     "mobile:build": "node tools/build-mobile.js",
     "mobile:serve": "node tools/build-mobile.js && npx --yes http-server@14.1.1 mobile/www -p 8090 -c-1",
-    "test": "node --test tests/archive.test.mjs tests/canvas-doc.test.mjs tests/editor-behavior.test.mjs tests/graph-model.test.mjs tests/hotkeys.test.mjs tests/image-format.test.mjs tests/launcher-update.test.mjs tests/list-direction.test.mjs tests/math.test.mjs tests/mobile-drive.test.mjs tests/mobile-sync.test.mjs tests/merge-notes.test.mjs tests/new-note-folder.test.mjs tests/overlay-data.test.mjs tests/overlay-merge.test.mjs tests/paint-fill.test.mjs tests/paste-images.test.mjs tests/png-meta.test.mjs tests/overlay-geometry.test.mjs tests/release-manifest.test.mjs tests/safe-write.test.mjs tests/stroke-smoothing.test.mjs tests/task-layout.test.mjs tests/theme-core.test.mjs tests/toolbar-layout.test.mjs tests/vault-data.test.mjs tests/vault-index.test.mjs tests/vault-meta.test.mjs",
+    "test": "node --test tests/archive.test.mjs tests/canvas-doc.test.mjs tests/editor-behavior.test.mjs tests/graph-model.test.mjs tests/hotkeys.test.mjs tests/image-format.test.mjs tests/launcher-update.test.mjs tests/link-open.test.mjs tests/list-direction.test.mjs tests/math.test.mjs tests/mobile-drive.test.mjs tests/mobile-sync.test.mjs tests/merge-notes.test.mjs tests/new-note-folder.test.mjs tests/overlay-data.test.mjs tests/overlay-merge.test.mjs tests/paint-fill.test.mjs tests/paste-images.test.mjs tests/png-meta.test.mjs tests/overlay-geometry.test.mjs tests/release-manifest.test.mjs tests/safe-write.test.mjs tests/stroke-smoothing.test.mjs tests/task-layout.test.mjs tests/theme-core.test.mjs tests/toolbar-layout.test.mjs tests/vault-data.test.mjs tests/vault-index.test.mjs tests/vault-meta.test.mjs",
     "check": "node --check main.js && node --check preload.js && node --check links.js && node --check vault-data.js && node --check vault-index.js && node --check safe-write.js && node --check new-note-folder.js && node --check merge-notes.js && node --check launcher/index.js && node --check launcher/update-core.js && node --check launcher/updater.js && node --check launcher/update-on-open.js && node --check launcher/update-on-close.js && node --check tools/make-exe.js && node --check tools/release-manifest.js && node --check tools/build-mobile.js && npm run build && npm test",
     "splash:emblem": "electron tools/splash-render/main.js -- emblem",
     "splash:preview": "electron tools/splash-render/main.js -- preview",

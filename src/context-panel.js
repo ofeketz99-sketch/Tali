@@ -9,6 +9,7 @@
 import { extractTargets, extractTags, extractTasks, FOLLOW_UP, isFollowUpHeading } from '../vault-data.js';
 import { FLAG_LIST } from './flags.js';
 import { getFrontmatterLinks } from '../links.js';
+import { isMiddleClick, linkOpenOptions } from './link-open.js';
 
 const TABS = [
   // 8.8: קישורים החוצה ופנימה באותו לוח, עם קו הפרדה (עד 8.7: שתי לשוניות, 'links' ו־'back')
@@ -203,8 +204,12 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
     r.append(txt);
     if (extra) r.append(extra);
     if (onClick) {
-      r.addEventListener('click', (e) => { if (!e.target.closest('.dc-x, .dc-link-mention')) onClick(); });
-      r.addEventListener('keydown', (e) => { if (e.key === 'Enter') onClick(); });
+      r.addEventListener('click', (e) => { if (!e.target.closest('.dc-x, .dc-link-mention')) onClick(linkOpenOptions(e)); });
+      r.addEventListener('auxclick', (e) => {
+        if (!isMiddleClick(e) || e.target.closest('.dc-x, .dc-link-mention')) return;
+        e.preventDefault(); onClick(linkOpenOptions(e));
+      });
+      r.addEventListener('keydown', (e) => { if (e.key === 'Enter') onClick({ newTab: false }); });
     }
     return r;
   }
@@ -234,7 +239,7 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
       body.append(row({
         iconName: l.path ? 'file' : 'ghost', name, i,
         sub: [heading && '# ' + heading, !l.path && 'עוד לא נוצר', l.front && 'קשור'].filter(Boolean).join(' · '),
-        cls: l.path ? '' : 'missing', extra, onClick: () => api.openLink(l.target),
+        cls: l.path ? '' : 'missing', extra, onClick: (opts) => api.openLink(l.target, opts),
       }));
     });
     const actions = el('div', 'dc-actions');
@@ -257,7 +262,7 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
     if (!backList.length) empty('אין מסמכים שמקשרים לכאן.');
     backList.forEach((b, i) => body.append(row({
       iconName: 'file', i, name: b.count > 1 ? `${b.name} (${b.count})` : b.name, sub: b.snippet, cls: 'back',
-      onClick: () => api.openNote(b.path),
+      onClick: (opts) => api.openNote(b.path, opts),
     })));
     renderMentions();
   }
@@ -281,7 +286,7 @@ export function createContextPanel({ root, wrap, icon, store, api, propsHost = n
         mentions.path = null; // לטעון מחדש
         refreshBacklinks();
       });
-      body.append(row({ iconName: 'file', i, name: m.name, sub: m.snippet, cls: 'back mention', extra: btn, onClick: () => api.openNote(m.path) }));
+      body.append(row({ iconName: 'file', i, name: m.name, sub: m.snippet, cls: 'back mention', extra: btn, onClick: (opts) => api.openNote(m.path, opts) }));
     });
   }
   // 10.9: חיווי חיפוש בסגנון Lucide (קווים של 2px, קצוות מעוגלים): זכוכית מגדלת שעוברת על שורות של דף,

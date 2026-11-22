@@ -8,6 +8,7 @@ import {
   sidePoint, nearestSide, bestSides, edgeGeometry, edgePath, boundsOf, drawingNode, scaleDrawing, vaultRelative, eraseDrawing,
 } from './canvas-doc.js';
 import { freehandSvgPath, simplifyStroke } from './stroke-smoothing.js';
+import { isMiddleClick, linkOpenOptions } from './link-open.js';
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i;
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -959,7 +960,11 @@ export function createCanvasView({ host, api, readOnly = false }) {
   // קישור [[...]] בתוך כרטיס: Ctrl+לחיצה פותחת (לחיצה רגילה בוחרת את הכרטיס)
   viewport.addEventListener('click', (e) => {
     const link = e.target.closest?.('.np-link');
-    if (link && (e.ctrlKey || readOnly)) api.openLink(link.dataset.target);
+    if (link && (e.ctrlKey || readOnly)) api.openLink(link.dataset.target, linkOpenOptions(e));
+  });
+  viewport.addEventListener('auxclick', (e) => {
+    const link = e.target.closest?.('.np-link');
+    if (link && isMiddleClick(e)) { e.preventDefault(); api.openLink(link.dataset.target, linkOpenOptions(e)); }
   });
 
   viewport.addEventListener('wheel', (e) => {

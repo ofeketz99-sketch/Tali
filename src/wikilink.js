@@ -1,6 +1,7 @@
 // קישורי [[הערה]] בעורך: צומת קישור, קריאה ושמירה כ־Markdown, והשלמה אוטומטית אחרי [[.
 import { Node, InputRule } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { isMiddleClick, linkOpenOptions } from './link-open.js';
 
 // ===== markdown-it: הופך [[...]] לתגית שהעורך מזהה =====
 function wikilinkMarkdownIt(md) {
@@ -121,13 +122,13 @@ export const WikiLink = Node.create({
       dom.addEventListener('click', (e) => {
         e.preventDefault();
         // Ctrl+לחיצה: בכרטיסייה חדשה
-        this.options.onOpen(node.attrs.target, { newTab: e.ctrlKey || e.metaKey });
+        this.options.onOpen(node.attrs.target, linkOpenOptions(e));
       });
       // 8.2: לחיצה אמצעית (כפתור הגלגלת) על קישור: בכרטיסייה חדשה
       dom.addEventListener('auxclick', (e) => {
-        if (e.button !== 1) return;
+        if (!isMiddleClick(e)) return;
         e.preventDefault();
-        this.options.onOpen(node.attrs.target, { newTab: true });
+        this.options.onOpen(node.attrs.target, linkOpenOptions(e));
       });
       return { dom, update: (n) => n.type === node.type && n.attrs.target === node.attrs.target && n.attrs.alias === node.attrs.alias && (mark(), true) };
     };

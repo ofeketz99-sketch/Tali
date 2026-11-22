@@ -2,6 +2,7 @@
 // ריחוף של כחצי שנייה פותח חלונית קטנה עם תחילת ההערה. לחיצה עליה פותחת את ההערה.
 import { renderNoteHtml } from './note-render.js';
 import { icon } from './icons.js';
+import { isMiddleClick, linkOpenOptions } from './link-open.js';
 
 const SELECTOR = '.ProseMirror .wikilink, .np-link, .embed-note .en-head';
 
@@ -37,7 +38,8 @@ export function setupHoverPreview({ resolve, read, fileUrl, onOpen, isNote }) {
     head.innerHTML = `${icon('file', 15)}<span></span>${icon('chevron', 13)}`;
     head.querySelector('span').textContent = name.split('/').pop() + (heading ? ' › ' + heading : '');
     head.dataset.tip = 'פתיחת המסמך';
-    head.addEventListener('click', () => { hide(); onOpen(name); });
+    head.addEventListener('click', (e) => { hide(); onOpen(name, linkOpenOptions(e)); });
+    head.addEventListener('auxclick', (e) => { if (isMiddleClick(e)) { e.preventDefault(); hide(); onOpen(name, linkOpenOptions(e)); } });
     const body = document.createElement('div');
     body.className = 'np-body';
     body.innerHTML = renderNoteHtml(entry.text, { resolve, fileUrl, heading, limit: 1800 });
@@ -67,7 +69,11 @@ export function setupHoverPreview({ resolve, read, fileUrl, onOpen, isNote }) {
   pop.addEventListener('mouseleave', scheduleHide);
   pop.addEventListener('click', (e) => {
     const link = e.target.closest('.np-link');
-    if (link) { hide(); onOpen(link.dataset.target); }
+    if (link) { hide(); onOpen(link.dataset.target, linkOpenOptions(e)); }
+  });
+  pop.addEventListener('auxclick', (e) => {
+    const link = e.target.closest('.np-link');
+    if (link && isMiddleClick(e)) { e.preventDefault(); hide(); onOpen(link.dataset.target, linkOpenOptions(e)); }
   });
   document.addEventListener('mousedown', (e) => { if (!e.target.closest?.('.note-preview')) hide(); }, true);
   document.addEventListener('keydown', hide, true);
