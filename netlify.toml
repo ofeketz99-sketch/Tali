@@ -1,4 +1,21 @@
 [build]
   publish = "website"
+  # The static website, plus TALI Mobile (the phone PWA) built into website/app, i.e. <site>/app.
+  # Not the Electron app: it is never built here. Electron's binary download is skipped (not needed).
+  command = "npm ci --no-audit --no-fund && npm run mobile:build -- --out website/app"
 
-# Publish only the static website, not the Electron source.
+[build.environment]
+  NODE_VERSION = "22"
+  ELECTRON_SKIP_BINARY_DOWNLOAD = "1"
+
+# The service worker and the OAuth return page must never be served stale,
+# otherwise a phone keeps an old app version or an old sign-in page.
+[[headers]]
+  for = "/app/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+[[headers]]
+  for = "/app/oauth.html"
+  [headers.values]
+    Cache-Control = "no-store"
+    Referrer-Policy = "no-referrer"

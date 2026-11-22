@@ -1,12 +1,16 @@
 // בנייה של TALI Mobile (PWA) לתיקייה mobile/www (מחוץ ל־Git): npm run mobile:build
 // הקוד המשותף (העורך, שכבת השרטוט, השמירה הנאמנה) נלקח מ־src/ כמו שהוא, בלי עותק.
+// --out <תיקייה>: יעד אחר. Netlify בונה כך ל־website/app (ראו netlify.toml), כלומר <האתר>/app.
 const fs = require('fs');
 const path = require('path');
 const esbuild = require('esbuild');
 
 const root = path.join(__dirname, '..');
 const src = path.join(root, 'mobile');
-const out = path.join(src, 'www');
+const outArg = process.argv.indexOf('--out');
+const out = outArg > 0 && process.argv[outArg + 1] ? path.resolve(root, process.argv[outArg + 1]) : path.join(src, 'www');
+// הגנה: לא למחוק בטעות תיקייה מחוץ למאגר או את website עצמה
+if (!out.startsWith(root + path.sep) || out === path.join(root, 'website') || out === root) throw new Error(`יעד לא תקין: ${out}`);
 const watch = process.argv.includes('--watch');
 
 async function main() {
