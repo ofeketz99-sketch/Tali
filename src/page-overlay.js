@@ -1010,7 +1010,9 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
         const line = svgEl('path', { d });
         line.classList.add('tali-comment-connector');
         for (const el of [bracket, line]) {
-          el.setAttribute('stroke', object.color);
+          // The note-to-quote relationship belongs to the active UI theme, not to
+          // the drawing colour that happened to be selected when the note was made.
+          el.setAttribute('stroke', 'var(--accent)');
           el.classList.toggle('on', on);
         }
         parts.push(line, bracket);
