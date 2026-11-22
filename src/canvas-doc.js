@@ -118,7 +118,7 @@ export function boundsOf(nodes) {
 }
 
 // ציור חופשי ← צומת: המסגרת סביב הנקודות (בתוספת חצי עובי), והנקודות יחסית לפינה שלה
-export function drawingNode({ kind, points, color, width = 3, dash = false, fill = false }) {
+export function drawingNode({ kind, points, color, width = 3, dash = false, fill = false, fillColor, fillOpacity }) {
   const pts = kind === 'pen' ? points.flat() : points;
   const pad = width / 2 + 2;
   const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
@@ -126,8 +126,13 @@ export function drawingNode({ kind, points, color, width = 3, dash = false, fill
   let w = Math.max(...xs) + pad - x, h = Math.max(...ys) + pad - y;
   if (kind === 'rect' || kind === 'ellipse') { w = Math.max(w, 8); h = Math.max(h, 8); }
   const rel = (p) => [num(p[0] - x), num(p[1] - y)];
+  const canFill = fill && ['pen', 'rect', 'ellipse'].includes(kind);
   const d = { kind, color: color || null, width, ...(dash ? { dash: true } : {}),
-    ...(fill && ['pen', 'rect', 'ellipse'].includes(kind) ? { fill: 'tint' } : {}) };
+    ...(canFill ? {
+      fill: 'tint',
+      ...(colorValue(fillColor) ? { fillColor: colorValue(fillColor) } : {}),
+      ...(Number.isFinite(fillOpacity) ? { fillOpacity: Math.max(0, Math.min(1, num(fillOpacity))) } : {}),
+    } : {}) };
   if (kind === 'pen') d.strokes = points.map((s) => s.map(rel));
   else d.points = points.map(rel);
   return { id: newId(), type: 'group', label: '', x: num(x), y: num(y), width: num(w), height: num(h), taliDrawing: d };

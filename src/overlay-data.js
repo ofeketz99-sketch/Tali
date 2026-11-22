@@ -60,9 +60,13 @@ export function cleanOverlayObjects(input, { parts = false } = {}) {
       weight: bounded(object.weight, 2.4, 1, 20),
       // 8.3: any drawn shape (not only pens) can belong to a group: "merge into one" in the drawing toolbar
       ...(!parts && SHAPES.has(object.kind) && /^[a-z0-9_-]{1,80}$/i.test(object.group || '') ? { group: object.group } : {}),
-      // 6.9: a dashed outline for lines and shapes, and a light fill for rectangles and ellipses (optional fields)
+      // 6.9/12.1: optional outline and bucket fill. Old fills without colour/opacity keep their old 16% stroke tint.
       ...(object.dash === true && ['line', 'arrow', 'rect', 'ellipse'].includes(object.kind) ? { dash: true } : {}),
-      ...(object.fill === 'tint' && ['pen', 'rect', 'ellipse'].includes(object.kind) ? { fill: 'tint' } : {}),
+      ...(object.fill === 'tint' && ['pen', 'rect', 'ellipse'].includes(object.kind) ? {
+        fill: 'tint',
+        ...(/^#[0-9a-f]{6}$/i.test(object.fillColor || '') ? { fillColor: object.fillColor } : {}),
+        ...(finite(object.fillOpacity) ? { fillOpacity: bounded(object.fillOpacity, .16, 0, 1) } : {}),
+      } : {}),
     };
     if (object.kind === 'image') {
       const src = cleanSrc(object.src);

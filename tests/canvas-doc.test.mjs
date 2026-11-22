@@ -72,8 +72,10 @@ test('a drawing is stored as a group node that Obsidian keeps, with points relat
   assert.deepEqual(n.taliDrawing.points[0], [4, 4]);
   const pen = drawingNode({ kind: 'pen', points: [[[0, 0], [10, 10]], [[20, 0], [30, 5]]] });
   assert.equal(pen.taliDrawing.strokes.length, 2);
-  const filled = drawingNode({ kind: 'ellipse', points: [[0, 0], [40, 30]], fill: true });
+  const filled = drawingNode({ kind: 'ellipse', points: [[0, 0], [40, 30]], fill: true, fillColor: '#d0453f', fillOpacity: .42 });
   assert.equal(filled.taliDrawing.fill, 'tint');
+  assert.equal(filled.taliDrawing.fillColor, '#d0453f');
+  assert.equal(filled.taliDrawing.fillOpacity, .42);
   assert.equal(drawingNode({ kind: 'line', points: [[0, 0], [40, 30]], fill: true }).taliDrawing.fill, undefined);
   const big = scaleDrawing(n, n.width * 2, n.height);
   assert.deepEqual(big.taliDrawing.points[1], [n.taliDrawing.points[1][0] * 2, n.taliDrawing.points[1][1]]);

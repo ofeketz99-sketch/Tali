@@ -975,6 +975,10 @@ dialog { border-radius: 18px; }
 .tali-overlay-swatch:hover { transform: scale(1.15); }
 .tali-overlay-swatch.on { box-shadow: 0 0 0 2px var(--accent); }
 .tali-page-overlay[data-mode="eraser"] > svg { cursor: cell; }
+.tali-page-overlay[data-mode="fill"] > svg { cursor: crosshair; }
+.tali-overlay-fill { gap: 7px; }
+.tali-fill-opacity { width: 86px; accent-color: var(--accent); cursor: pointer; }
+.tali-fill-percent { min-width: 34px; color: var(--muted); font-size: 11px; text-align: center; white-space: nowrap; }
 .tali-margin-comment { background: color-mix(in srgb, var(--panel-bg) 94%, var(--accent)); border-inline-start: 3px solid var(--accent); }
 .tali-margin-comment .tali-overlay-grip { justify-content: flex-start; min-width: 0; }
 .tali-margin-comment .tali-overlay-grip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2284,6 +2288,7 @@ body[data-doc="canvas"] #pageWrap { position: relative; overflow: hidden; paddin
 .cv.panning .cv-viewport { cursor: grabbing; }
 .cv[data-tool="pen"] .cv-viewport, .cv[data-tool="line"] .cv-viewport, .cv[data-tool="arrow"] .cv-viewport,
 .cv[data-tool="rect"] .cv-viewport, .cv[data-tool="ellipse"] .cv-viewport, .cv[data-tool="text"] .cv-viewport { cursor: crosshair; }
+.cv[data-tool="fill"] .cv-viewport { cursor: crosshair; }
 .cv[data-tool="eraser"] .cv-viewport { cursor: cell; }
 .cv-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .cv-layer { position: absolute; left: 0; top: 0; }
@@ -2351,6 +2356,12 @@ body[data-doc="canvas"] #pageWrap { position: relative; overflow: hidden; paddin
 .cv-swatch { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 2px solid var(--page-bg); box-shadow: 0 0 0 1px var(--border); cursor: pointer; }
 .cv-swatch.none { background: linear-gradient(135deg, var(--page-bg) 45%, var(--muted) 47%, var(--muted) 53%, var(--page-bg) 55%); }
 .cv-swatch.on { box-shadow: 0 0 0 2px var(--accent); }
+.cv-fill-controls { display: inline-flex; align-items: center; gap: 6px; flex: none; padding-inline: 4px; }
+.cv-fill-controls[hidden] { display: none; }
+.cv-fill-picker { position: relative; width: 22px; height: 22px; border-radius: 50%; overflow: hidden; border: 1px solid var(--border); cursor: pointer; }
+.cv-fill-picker input { position: absolute; inset: -4px; width: 30px; height: 30px; padding: 0; border: 0; cursor: pointer; }
+.cv-fill-opacity { width: 82px; accent-color: var(--accent); cursor: pointer; }
+.cv-fill-percent { min-width: 30px; color: var(--muted); font-size: 11px; text-align: center; }
 .cv-zoom-label { min-width: 72px; height: 28px; padding-inline: 7px; border: 1px solid transparent; background: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; cursor: pointer; border-radius: 7px; flex: none; }
 .cv-zoom-label:hover { background: var(--accent-hover); color: var(--text); }
 .cv-zoom-label.far { background: var(--accent-tint); border-color: var(--accent-line); color: var(--accent-strong); font-weight: 700; }

@@ -20,6 +20,7 @@ const TOOLS = [
   ['arrow', 'arrow', 'חץ (A)', 'KeyA'],
   ['rect', 'rect', 'מלבן (R)', 'KeyR'],
   ['ellipse', 'ellipse', 'עיגול (O)', 'KeyO'],
+  ['fill', 'fill', 'דלי מילוי (F): לחיצה על צורה קיימת', 'KeyF'],
   ['eraser', 'eraser', 'מחק (E): גרירה על ציור מוחקת את הקו שנוגעים בו', 'KeyE'],
 ];
 const MIN_ZOOM = 0.1, MAX_ZOOM = 4;
@@ -52,8 +53,14 @@ export function createCanvasView({ host, api, readOnly = false }) {
   let view = { x: 0, y: 0, z: 1 };
   let tool = 'select';
   let color = null; // צבע לציור חדש ולצמתים חדשים: null = ברירת המחדל, או "1".."6"
-  let fill = false; // דלי מילוי: צורות וציור חופשי סגור
-  let fillButton = null;
+  let fillColor = '#4b80bd', fillOpacity = .25; // לדלי בלבד; לא משפיע על ציורים חדשים
+  try {
+    const savedColor = localStorage.getItem('tali:canvas-fill-color');
+    const savedOpacityText = localStorage.getItem('tali:canvas-fill-opacity');
+    const savedOpacity = savedOpacityText == null ? NaN : Number(savedOpacityText);
+    if (isHex(savedColor)) fillColor = savedColor;
+    if (Number.isFinite(savedOpacity) && savedOpacity >= 0 && savedOpacity <= 1) fillOpacity = savedOpacity;
+  } catch { /* Nonessential preference. */ }
   let selected = new Set(); // מזהי צמתים וקווים
   let editing = null; // מזהה הכרטיס שבעריכה
   let editBase = null; // הקנבס לפני העריכה: כל ההקלדה בכרטיס היא צעד ביטול אחד
@@ -84,6 +91,7 @@ export function createCanvasView({ host, api, readOnly = false }) {
   // ===== סרגל הכלים של הקנבס =====
   const toolBtns = {};
   let swatchBtns = [];
+  let fillControls = null;
   const bar = el('div', 'cv-bar');
   const zoomLabel = el('button', 'cv-zoom-label');
   if (!readOnly) {
@@ -119,8 +127,28 @@ export function createCanvasView({ host, api, readOnly = false }) {
     // 10.7: עיצוב הקנבס (רקע, דוגמה, רשת), בחלונית שנפתחת מהסרגל
     const styleBtn = btn('palette', 'עיצוב הקנבס: רקע ורשת', (b) => toggleStylePanel(b));
     styleBtn.dataset.style = '1';
-    fillButton = btn('fill', 'דלי מילוי (עיגול, מלבן או ציור חופשי סגור)', () => setFill(!fill));
-    bar.append(swatches, fillButton, sep(), styleBtn, sep(),
+    fillControls = el('span', 'cv-fill-controls');
+    fillControls.hidden = true;
+    const fillPickerLabel = el('label', 'cv-fill-picker');
+    fillPickerLabel.dataset.tip = 'צבע המילוי';
+    const fillPicker = el('input');
+    fillPicker.type = 'color'; fillPicker.value = fillColor; fillPicker.setAttribute('aria-label', 'צבע המילוי');
+    fillPicker.addEventListener('input', () => {
+      fillColor = fillPicker.value;
+      try { localStorage.setItem('tali:canvas-fill-color', fillColor); } catch { /* Nonessential preference. */ }
+    });
+    fillPickerLabel.append(fillPicker);
+    const fillRange = el('input');
+    fillRange.className = 'cv-fill-opacity'; fillRange.type = 'range'; fillRange.min = '0'; fillRange.max = '100'; fillRange.step = '5'; fillRange.value = String(Math.round(fillOpacity * 100));
+    fillRange.setAttribute('aria-label', 'אטימות המילוי (Opacity)');
+    const fillPercent = el('span', 'cv-fill-percent', fillRange.value + '%');
+    fillRange.addEventListener('input', () => {
+      fillOpacity = Number(fillRange.value) / 100;
+      fillPercent.textContent = fillRange.value + '%';
+      try { localStorage.setItem('tali:canvas-fill-opacity', String(fillOpacity)); } catch { /* Nonessential preference. */ }
+    });
+    fillControls.append(fillPickerLabel, fillRange, fillPercent);
+    bar.append(swatches, fillControls, sep(), styleBtn, sep(),
       btn('trash', 'מחיקת הנבחר (Delete)', () => deleteSelection()),
       sep(),
       btn('undo', 'ביטול (Ctrl+Z)', () => undo()),
@@ -276,6 +304,7 @@ export function createCanvasView({ host, api, readOnly = false }) {
     tool = t;
     penNode = null;
     for (const [id, b] of Object.entries(toolBtns)) b.classList.toggle('on', id === t);
+    if (fillControls) fillControls.hidden = t !== 'fill';
     host.dataset.tool = t;
   }
   function setColor(c) {
@@ -292,19 +321,19 @@ export function createCanvasView({ host, api, readOnly = false }) {
     }
     if (any) { render(); changed(); }
   }
-  function setFill(on) {
-    fill = !!on;
-    fillButton?.classList.toggle('on', fill);
-    fillButton?.setAttribute('aria-pressed', fill ? 'true' : 'false');
-    penNode = null;
-    let any = false;
-    for (const id of selected) {
-      const n = nodeById(id);
-      if (!n || !isDrawing(n) || !['pen', 'rect', 'ellipse'].includes(n.taliDrawing.kind)) continue;
-      if (fill) n.taliDrawing.fill = 'tint'; else delete n.taliDrawing.fill;
-      any = true;
+  function bucketNode(n) {
+    if (!n || !isDrawing(n) || !['pen', 'rect', 'ellipse'].includes(n.taliDrawing.kind)) return false;
+    const d = n.taliDrawing;
+    if (d.kind === 'pen' && !(d.strokes || []).some((stroke) => closedStrokePath(stroke, d.width || 3))) return false;
+    if (fillOpacity <= 0) {
+      if (d.fill !== 'tint') return false;
+      delete d.fill; delete d.fillColor; delete d.fillOpacity;
+    } else {
+      d.fill = 'tint'; d.fillColor = fillColor; d.fillOpacity = fillOpacity;
     }
-    if (any) { render(); changed(); }
+    selected = new Set([n.id]); penNode = null;
+    render(); changed();
+    return true;
   }
 
   // ===== תצוגה =====
@@ -372,7 +401,7 @@ export function createCanvasView({ host, api, readOnly = false }) {
     if (d.kind === 'pen') {
       for (const st of d.strokes || []) {
         const filled = d.fill === 'tint' && closedStrokePath(st, w);
-        if (filled) s.append(svg('path', { d: filled, fill: stroke, 'fill-opacity': '.16', stroke: 'none' }));
+        if (filled) s.append(svg('path', { d: filled, fill: d.fillColor || stroke, 'fill-opacity': Number.isFinite(d.fillOpacity) ? d.fillOpacity : .16, stroke: 'none' }));
         s.append(svg('path', { d: freehandSvgPath(st, w), fill: stroke }));
       }
     } else if (d.kind === 'line' || d.kind === 'arrow') {
@@ -388,8 +417,8 @@ export function createCanvasView({ host, api, readOnly = false }) {
     } else {
       const h = w / 2;
       const filled = d.fill === 'tint';
-      const attrs = { stroke, 'stroke-width': w, fill: filled ? stroke : 'none',
-        ...(filled ? { 'fill-opacity': '.16' } : {}), ...(dash ? { 'stroke-dasharray': dash } : {}) };
+      const attrs = { stroke, 'stroke-width': w, fill: filled ? (d.fillColor || stroke) : 'none',
+        ...(filled ? { 'fill-opacity': Number.isFinite(d.fillOpacity) ? d.fillOpacity : .16 } : {}), ...(dash ? { 'stroke-dasharray': dash } : {}) };
       s.append(d.kind === 'rect'
         ? svg('rect', { x: h, y: h, width: Math.max(0, n.width - w), height: Math.max(0, n.height - w), rx: 4, ...attrs })
         : svg('ellipse', { cx: n.width / 2, cy: n.height / 2, rx: Math.max(0, n.width / 2 - h), ry: Math.max(0, n.height / 2 - h), ...attrs }));
@@ -669,6 +698,11 @@ export function createCanvasView({ host, api, readOnly = false }) {
     }
     if (e.button !== 0) return;
     if (editing) finishEditing();
+    if (tool === 'fill') {
+      const box = hitNode(e.target);
+      if (box) bucketNode(nodeById(box.dataset.id));
+      return;
+    }
     if (['pen', 'line', 'arrow', 'rect', 'ellipse'].includes(tool)) {
       e.preventDefault();
       gesture = { kind: 'draw', start: p, points: [[p.x, p.y]], shift: e.shiftKey };
@@ -825,8 +859,7 @@ export function createCanvasView({ host, api, readOnly = false }) {
     if (tool === 'pen') draft.replaceChildren(svg('path', { d: freehandSvgPath(g.points, 3, { last: false }), fill: c }));
     else {
       const [a, b] = g.points.length > 1 ? g.points : [g.points[0], g.points[0]];
-      const attrs = { stroke: c, 'stroke-width': 3, fill: fill && (tool === 'rect' || tool === 'ellipse') ? c : 'none',
-        ...(fill && (tool === 'rect' || tool === 'ellipse') ? { 'fill-opacity': '.16' } : {}) };
+      const attrs = { stroke: c, 'stroke-width': 3, fill: 'none' };
       if (tool === 'line' || tool === 'arrow') draft.replaceChildren(svg('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1], ...attrs, 'stroke-linecap': 'round' }));
       else if (tool === 'rect') draft.replaceChildren(svg('rect', { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), width: Math.abs(b[0] - a[0]), height: Math.abs(b[1] - a[1]), rx: 4, ...attrs }));
       else draft.replaceChildren(svg('ellipse', { cx: (a[0] + b[0]) / 2, cy: (a[1] + b[1]) / 2, rx: Math.abs(b[0] - a[0]) / 2, ry: Math.abs(b[1] - a[1]) / 2, ...attrs }));
@@ -877,7 +910,7 @@ export function createCanvasView({ host, api, readOnly = false }) {
       const prev = penNode && nodeById(penNode);
       let strokes = [pts];
       if (prev) strokes = [...(prev.taliDrawing.strokes || []).map((s) => s.map(([x, y]) => [x + prev.x, y + prev.y])), pts];
-      const n = drawingNode({ kind: 'pen', points: strokes, color: colorValue(color), width: 3, fill });
+      const n = drawingNode({ kind: 'pen', points: strokes, color: colorValue(color), width: 3 });
       if (prev) { n.id = prev.id; Object.assign(prev, n); } else { doc.nodes.push(n); penNode = n.id; }
       render();
       changed();
@@ -886,7 +919,7 @@ export function createCanvasView({ host, api, readOnly = false }) {
     if (g.points.length < 2) return;
     const [a, b] = g.points;
     if (Math.hypot(b[0] - a[0], b[1] - a[1]) * view.z < 4) return;
-    const n = drawingNode({ kind, points: [a, b], color: colorValue(color), width: 3, fill });
+    const n = drawingNode({ kind, points: [a, b], color: colorValue(color), width: 3 });
     doc.nodes.push(n);
     selected = new Set([n.id]);
     setTool('select');

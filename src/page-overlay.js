@@ -20,7 +20,7 @@ import { renderPicture, pictureToolbar, closeMenus } from './image-format-ui.js'
 
 const NS = 'http://www.w3.org/2000/svg';
 const shapeKinds = ['pen', 'line', 'arrow', 'rect', 'ellipse', 'drawing']; // 11.6: drawing = שרטוט ממוזג (ישות אחת)
-const drawTools = ['pen', 'line', 'arrow', 'rect', 'ellipse', 'eraser'];
+const drawTools = ['pen', 'line', 'arrow', 'rect', 'ellipse', 'fill', 'eraser'];
 // [tool, label, icon, key (e.code)]
 const tools = [
   ['select', 'בחירה ועריכה', 'pointer', 'KeyV', 'V'],
@@ -29,6 +29,7 @@ const tools = [
   ['arrow', 'חץ', 'arrow', 'KeyA', 'A'],
   ['rect', 'מלבן', 'rect', 'KeyR', 'R'],
   ['ellipse', 'אליפסה', 'ellipse', 'KeyO', 'O'],
+  ['fill', 'דלי מילוי', 'fill', 'KeyF', 'F'],
   ['eraser', 'מחק', 'eraser', 'KeyE', 'E'],
 ];
 const HINTS = {
@@ -40,6 +41,7 @@ const HINTS = {
   arrow: 'לחיצה ועוד לחיצה, או גרירה · Shift: זווית של 45°',
   rect: 'לחיצה ועוד לחיצה, או גרירה · Shift: ריבוע · Alt: מהמרכז',
   ellipse: 'לחיצה ועוד לחיצה, או גרירה · Shift: עיגול · Alt: מהמרכז',
+  fill: 'דלי מילוי: לוחצים על מלבן, אליפסה או לולאה סגורה קיימת · הצבע והשקיפות נפרדים מצבע הקו',
   eraser: 'גרירה על קו מוחקת אותו',
   eraserPart: 'מחק חלקי: גרירה מוחקת רק את החלק של הקו שנגעת בו',
   editing: 'עריכת שרטוט ממוזג: בוחרים ומשנים חלקים, ומה שמציירים עכשיו מצטרף אליו · Esc או "סיום עריכה" ממזגים בחזרה',
@@ -105,7 +107,15 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
   // 11.6: המחק: 'whole' מוחק משיכה או צורה שלמה, 'part' רק את החלק של המשיכה שנגעו בו
   let eraseMode = 'whole';
   try { if (localStorage.getItem('tali:page-eraser') === 'part') eraseMode = 'part'; } catch { /* Storage can be disabled. */ }
-  let color = '#4b80bd', weight = 3, dash = false, fill = false;
+  let color = '#4b80bd', weight = 3, dash = false;
+  let fillColor = '#4b80bd', fillOpacity = .25; // לדלי בלבד; ציור חדש תמיד מתחיל ללא מילוי
+  try {
+    const savedColor = localStorage.getItem('tali:page-fill-color');
+    const savedOpacityText = localStorage.getItem('tali:page-fill-opacity');
+    const savedOpacity = savedOpacityText == null ? NaN : Number(savedOpacityText);
+    if (/^#[0-9a-f]{6}$/i.test(savedColor || '')) fillColor = savedColor;
+    if (Number.isFinite(savedOpacity) && savedOpacity >= 0 && savedOpacity <= 1) fillOpacity = savedOpacity;
+  } catch { /* Nonessential preference. */ }
   const lastToolKey = 'tali:last-page-drawing-tool';
   let lastTool = 'pen';
   try {
@@ -220,7 +230,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     addButton(toolGroup, { label: `${name} (${letter})`, iconName: ic, tool: kind, action: () => setMode(kind) });
   }
 
-  // מאפייני קו: צבע, עובי, קו מקווקו, מילוי. חלים על הבחירה ועל מה שמציירים מעכשיו.
+  // מאפייני קו: צבע, עובי וקו מקווקו. מילוי הוא כלי עצמאי ולא ברירת מחדל לציור חדש.
   const styleGroup = group('tali-overlay-style');
   const swatches = document.createElement('span');
   swatches.className = 'tali-overlay-swatches';
@@ -258,7 +268,32 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
   }
   styleGroup.append(weightGroup);
   const dashButton = addButton(styleGroup, { label: 'קו מקווקו', iconName: 'dashed', action: () => applyStyle({ dash: !dash }) });
-  const fillButton = addButton(styleGroup, { label: 'דלי מילוי (מלבן, אליפסה או ציור חופשי סגור)', iconName: 'fill', action: () => applyStyle({ fill: !fill }) });
+
+  // 12.1: אפשרויות הדלי מופיעות רק כשהדלי הוא הכלי הפעיל. 0% מסיר מילוי בלחיצה.
+  const fillGroup = group('tali-overlay-fill');
+  const fillSwatches = document.createElement('span');
+  fillSwatches.className = 'tali-overlay-swatches';
+  for (const c of QUICK_COLORS) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'tali-overlay-swatch'; b.dataset.fillColor = c;
+    b.style.setProperty('--swatch', c); b.setAttribute('aria-label', 'צבע מילוי ' + c);
+    b.addEventListener('mousedown', (event) => event.preventDefault());
+    b.addEventListener('click', () => setFillOptions({ color: c }));
+    fillSwatches.append(b);
+  }
+  const fillPickerWrap = document.createElement('label');
+  fillPickerWrap.className = 'tali-overlay-picker'; fillPickerWrap.dataset.tip = 'צבע מילוי אחר';
+  const fillPicker = document.createElement('input');
+  fillPicker.type = 'color'; fillPicker.value = fillColor; fillPicker.setAttribute('aria-label', 'צבע מילוי אחר');
+  fillPicker.addEventListener('input', () => setFillOptions({ color: fillPicker.value }));
+  fillPickerWrap.append(fillPicker); fillSwatches.append(fillPickerWrap);
+  const fillRange = document.createElement('input');
+  fillRange.className = 'tali-fill-opacity'; fillRange.type = 'range'; fillRange.min = '0'; fillRange.max = '100'; fillRange.step = '5'; fillRange.value = String(Math.round(fillOpacity * 100));
+  fillRange.setAttribute('aria-label', 'אטימות המילוי (Opacity)');
+  const fillPercent = document.createElement('span');
+  fillPercent.className = 'tali-fill-percent';
+  fillGroup.append(fillSwatches, fillRange, fillPercent);
+  fillRange.addEventListener('input', () => setFillOptions({ opacity: Number(fillRange.value) / 100 }));
 
   // 11.6: המחק: משיכה שלמה, או רק החלק שנוגעים בו
   const eraserGroup = group();
@@ -461,18 +496,18 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     // 11.6: שרטוט ממוזג מציג את האפשרויות של החלקים שלו
     const kinds = new Set(mode === 'select' || !mode ? sel.flatMap((o) => (o.kind === 'drawing' ? (o.parts || []).map((p) => p.kind) : [o.kind])) : [mode]);
     const has = (...k) => k.some((x) => kinds.has(x));
-    styleGroup.hidden = mode === 'eraser' || (!drawTools.includes(mode) && !sel.length);
+    styleGroup.hidden = mode === 'eraser' || mode === 'fill' || (!drawTools.includes(mode) && !sel.length);
     eraserGroup.hidden = mode !== 'eraser';
+    fillGroup.hidden = mode !== 'fill';
     eraserGroup.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.erase === eraseMode));
     weightGroup.hidden = !has('pen', 'line', 'arrow', 'rect', 'ellipse');
     dashButton.hidden = !has('line', 'arrow', 'rect', 'ellipse');
-    fillButton.hidden = !has('pen', 'rect', 'ellipse');
     swatches.querySelectorAll('.tali-overlay-swatch').forEach((b) => b.classList.toggle('on', b.dataset.color === color));
     pickerWrap.style.setProperty('--picked', color);
     pickerWrap.classList.toggle('on', !QUICK_COLORS.includes(color));
     weightGroup.querySelectorAll('button').forEach((b) => b.classList.toggle('on', Number(b.dataset.weight) === weight));
     dashButton.classList.toggle('on', dash);
-    fillButton.classList.toggle('on', fill);
+    updateFillControls();
     editGroup.hidden = !sel.length;
     const shapesSel = sel.filter((o) => shapeKinds.includes(o.kind));
     // 8.3 groups (older notes) are offered a real merge too: Ctrl+G turns them into one merged drawing
@@ -499,11 +534,30 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
       : oneDrawing && selecting ? HINTS.merged : HINTS[mode || 'select'] || '';
   }
 
+  function updateFillControls() {
+    fillSwatches.querySelectorAll('.tali-overlay-swatch').forEach((b) => b.classList.toggle('on', b.dataset.fillColor === fillColor));
+    fillPicker.value = fillColor;
+    fillPickerWrap.style.setProperty('--picked', fillColor);
+    fillPickerWrap.classList.toggle('on', !QUICK_COLORS.includes(fillColor));
+    const percent = Math.round(fillOpacity * 100);
+    fillRange.value = String(percent);
+    fillPercent.textContent = percent ? percent + '%' : 'ללא מילוי';
+  }
+
+  function setFillOptions({ color: nextColor, opacity } = {}) {
+    if (/^#[0-9a-f]{6}$/i.test(nextColor || '')) fillColor = nextColor;
+    if (Number.isFinite(opacity)) fillOpacity = limit(opacity, 0, 1);
+    try {
+      localStorage.setItem('tali:page-fill-color', fillColor);
+      localStorage.setItem('tali:page-fill-opacity', String(fillOpacity));
+    } catch { /* Nonessential preference. */ }
+    updateFillControls();
+  }
+
   function applyStyle(change) {
     if ('color' in change) { color = change.color; picker.value = color; }
     if ('weight' in change) weight = change.weight;
     if ('dash' in change) dash = change.dash;
-    if ('fill' in change) fill = change.fill;
     // 11.6: בשרטוט ממוזג הסגנון חל על כל החלקים שלו
     const members = selectedObjects().flatMap((o) => (o.kind === 'drawing' ? [o, ...(o.parts || [])] : [o]));
     let changed = false;
@@ -512,10 +566,6 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
       if ('weight' in change && shapeKinds.includes(object.kind)) { object.weight = weight; changed = true; }
       if ('dash' in change && ['line', 'arrow', 'rect', 'ellipse'].includes(object.kind)) {
         if (dash) object.dash = true; else delete object.dash;
-        changed = true;
-      }
-      if ('fill' in change && ['pen', 'rect', 'ellipse'].includes(object.kind)) {
-        if (fill) object.fill = 'tint'; else delete object.fill;
         changed = true;
       }
     }
@@ -529,7 +579,6 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     color = object.color || color; picker.value = color;
     if (shapeKinds.includes(object.kind)) weight = object.weight || weight;
     if (['line', 'arrow', 'rect', 'ellipse'].includes(object.kind)) dash = !!object.dash;
-    if (['pen', 'rect', 'ellipse'].includes(object.kind)) fill = object.fill === 'tint';
   }
 
   // add: Shift/Ctrl+לחיצה מוסיפה לבחירה או מוציאה ממנה (8.3)
@@ -1083,7 +1132,14 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     for (const hit of hits) {
       g.append(hit);
       hit.addEventListener('pointerdown', (event) => {
-        if (!enabled || (mode && mode !== 'select') || event.button !== 0) return;
+        if (!enabled || event.button !== 0) return;
+        if (mode === 'fill') {
+          event.preventDefault(); event.stopPropagation();
+          if (bucketObject(object)) { sessionPen = null; drawShapes(); notify(); }
+          toolbar.focus({ preventScroll: true });
+          return;
+        }
+        if (mode && mode !== 'select') return;
         event.preventDefault();
         event.stopPropagation();
         grabObject(object, event);
@@ -1106,7 +1162,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
       for (const stroke of strokesOf(object)) {
         const live = drawing?.stroke === stroke;
         const fillPath = !live && object.fill === 'tint' && closedStrokePath(stroke, object.weight);
-        if (fillPath) geometry.append(svgEl('path', { d: fillPath, fill: object.color, 'fill-opacity': '.16', stroke: 'none' }));
+        if (fillPath) geometry.append(svgEl('path', { d: fillPath, fill: object.fillColor || object.color, 'fill-opacity': Number.isFinite(object.fillOpacity) ? object.fillOpacity : .16, stroke: 'none' }));
         const path = svgEl('path', { d: freehandSvgPath(stroke, object.weight, { last: !live }), fill: object.color });
         if (live) drawing.path = path;
         geometry.append(path);
@@ -1128,8 +1184,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     geometry.classList.add('tali-overlay-stroke');
     if (object.kind !== 'pen') {
       const filled = object.fill === 'tint';
-      geometry.setAttribute('fill', filled ? object.color : 'none');
-      if (filled) geometry.setAttribute('fill-opacity', '.16');
+      geometry.setAttribute('fill', filled ? (object.fillColor || object.color) : 'none');
+      if (filled) geometry.setAttribute('fill-opacity', Number.isFinite(object.fillOpacity) ? object.fillOpacity : .16);
       geometry.setAttribute('stroke', object.color);
       geometry.setAttribute('stroke-width', object.weight);
       geometry.setAttribute('stroke-linecap', 'round');
@@ -1710,6 +1766,23 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     }
     return false;
   }
+  // דלי הוא פעולה על צורה קיימת. הוא לא משנה את סגנון הציור הבא ולא את צבע קו המתאר.
+  function bucketObject(object) {
+    if (object.kind === 'drawing') {
+      let changed = false;
+      for (const part of object.parts || []) if (bucketObject(part)) changed = true;
+      return changed;
+    }
+    if (!['pen', 'rect', 'ellipse'].includes(object.kind)) return false;
+    if (object.kind === 'pen' && !strokesOf(object).some((stroke) => closedStrokePath(stroke, object.weight))) return false;
+    if (fillOpacity <= 0) {
+      if (object.fill !== 'tint') return false;
+      delete object.fill; delete object.fillColor; delete object.fillOpacity;
+      return true;
+    }
+    object.fill = 'tint'; object.fillColor = fillColor; object.fillOpacity = fillOpacity;
+    return true;
+  }
   // מוחק מצורה אחת (או מחלק של שרטוט ממוזג) את מה שבנקודה (x, y) שיחסית אליה. מחזיר 'gone' (הצורה כולה
   // נמחקה), 'changed' (נמחקו משיכות או חלקים ממשיכה) או null. 11.6: במחק חלקי משיכות העט נחתכות.
   function eraseFrom(object, x, y) {
@@ -1768,6 +1841,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     if (!enabled || !drawTools.includes(mode) || event.button !== 0) return;
     event.preventDefault();
     const p = point(event);
+    // בדלי מטפלים באירוע של הצורה עצמה. לחיצה על שטח ריק אינה מציירת ישות חדשה.
+    if (mode === 'fill') return true;
     // צורה שמחכה ללחיצה השנייה: הלחיצה הזו קובעת את הסוף
     if (drawing?.phase === 'click') {
       Object.assign(drawing.object, dragShape(drawing.object.kind, drawing.start, p, { shift: event.shiftKey, alt: event.altKey }));
@@ -1789,7 +1864,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
         let g;
         if (object) g = object.group || (object.group = groupId());
         object = { id: makeId(), kind: 'pen', x: Math.round(p.x), y: Math.round(p.y), color, weight, strokes: [],
-          ...(fill ? { fill: 'tint' } : {}), ...(g && !editing ? { group: g } : {}) };
+          ...(g && !editing ? { group: g } : {}) };
         objects.push(object);
         joinEditing(object);
         sessionPen = object;
@@ -1798,7 +1873,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
       object.strokes.push(stroke);
     } else {
       object = { id: makeId(), kind: mode, ...dragShape(mode, p, p), color, weight,
-        ...(dash && mode !== 'pen' ? { dash: true } : {}), ...(fill && (mode === 'rect' || mode === 'ellipse') ? { fill: 'tint' } : {}) };
+        ...(dash && mode !== 'pen' ? { dash: true } : {}) };
       objects.push(object);
       joinEditing(object);
     }

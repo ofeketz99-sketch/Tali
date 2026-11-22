@@ -78,13 +78,14 @@ test('margin comments preserve their quote but never join drawing groups', async
 
 test('dash and fill survive a round trip only where they make sense', () => {
   const items = [
-    { id: 'r', kind: 'rect', x: 0, y: 0, dx: 40, dy: 20, color: '#4b80bd', weight: 2, dash: true, fill: 'tint' },
+    { id: 'r', kind: 'rect', x: 0, y: 0, dx: 40, dy: 20, color: '#4b80bd', weight: 2, dash: true, fill: 'tint', fillColor: '#d0453f', fillOpacity: .42 },
     { id: 'l', kind: 'line', x: 0, y: 0, dx: 40, dy: 0, color: '#4b80bd', weight: 2, dash: true, fill: 'tint' },
     { id: 'p', kind: 'pen', x: 0, y: 0, strokes: [[[0, 0], [1.5, 2.5]]], color: '#4b80bd', weight: 2, dash: true, fill: 'tint' },
     { id: 'e', kind: 'ellipse', x: 0, y: 0, dx: 10, dy: 10, color: '#4b80bd', weight: 2, dash: 'yes', fill: 'red' },
   ];
   const [rect, line, pen, ellipse] = splitOverlay(joinOverlay('Note', items)).objects;
   assert.equal(rect.dash, true); assert.equal(rect.fill, 'tint');
+  assert.equal(rect.fillColor, '#d0453f'); assert.equal(rect.fillOpacity, .42);
   assert.equal(line.dash, true); assert.equal(line.fill, undefined);
   assert.equal(pen.dash, undefined);
   assert.equal(pen.fill, 'tint');
