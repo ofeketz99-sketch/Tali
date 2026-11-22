@@ -45,7 +45,8 @@ export function createEditActions(editor, hooks = {}) {
       { type: 'paragraph', content: [{ type: 'text', text: '[!TALI-BOX]' }] },
       { type: 'paragraph', content: [{ type: 'text', text: 'טקסט בתוך התיבה' }] },
     ] }).run(),
-    floatingBox: () => hooks.onOverlayDraw?.('textbox'),
+    // 11.9: יש רק תיבה צפה אחת: הערה. השם הישן נשאר כ־API פנימי כדי שפריסות סרגל שמורות לא יישברו.
+    floatingBox: () => hooks.onMarginComment?.(selectedText()),
     marginComment: () => hooks.onMarginComment?.(selectedText()),
     plainMarkdown: () => hooks.onPlainMarkdown?.(),
     pageDrawing: () => hooks.onOverlayDraw?.(),

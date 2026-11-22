@@ -182,9 +182,9 @@ export async function collectFloats({ proseMirrorElement: pm, pageElement, items
       const f = place(o.x, o.y, o.width, o.height);
       Object.assign(f.info, { kind: 'textbox', text: o.text });
       out.push(f);
-    } else if (o.kind === 'comment' && (String(o.text || '').trim() || o.quote)) {
+    } else if (o.kind === 'comment' && (String(o.text || '').trim() || o.quote || o.title)) {
       const f = place(o.x, o.y, o.width || 0, o.height || 0);
-      Object.assign(f.info, { kind: 'comment', text: o.text || '', quote: o.quote || '' });
+      Object.assign(f.info, { kind: 'comment', title: o.title || '', text: o.text || '', quote: o.quote || '' });
       out.push(f);
     }
   }

@@ -196,8 +196,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
         ['taskSection', 'משימות להמשך', ed.taskSection],
         // 11.2: כמו בתפריט הימני: קודם מה שנכנס לטקסט, ואחרי קו מה שזז חופשי על הדף
         'חופשי על הדף',
-        ['comment', 'הערת שוליים', ed.marginComment],
-        ['textBox', 'תיבת טקסט שזזה חופשי', ed.floatingBox],
+        ['comment', 'תיבת הערה צפה', ed.marginComment],
         ['pen', 'שרטוט חופשי על הדף', ed.pageDrawing],
       ];
       for (const item of items) {
@@ -217,10 +216,11 @@ export function buildToolbar(container, editorApi, actions = {}) {
     }),
   });
 
-  // ===== 8.2: שרטוט על הדף ותיבת טקסט חופשית, תמיד בסרגל (לא רק בתוך "הוספה") =====
+  // ===== שרטוט על הדף ותיבת הערה צפה, תמיד בסרגל (לא רק בתוך "הוספה") =====
   const gDraw = group('', 'draw');
   button(gDraw, { id: 'pageDraw', html: icon('pen'), tip: 'שרטוט על הדף: עט, קווים וצורות שזזים חופשי', run: () => ed.pageDrawing() });
-  button(gDraw, { id: 'floatBox', html: icon('textBox'), tip: 'תיבת טקסט שזזה חופשי על הדף', run: () => ed.floatingBox() });
+  // המזהה floatBox נשמר כדי שפריסות סרגל קיימות ימשיכו לעבוד; הפעולה יוצרת את תיבת ההערה היחידה.
+  button(gDraw, { id: 'floatBox', html: icon('comment'), tip: 'תיבת הערה צפה: אפשר לתת שם ולקשר לטקסט מסומן', run: () => ed.floatingBox() });
 
   // ===== 8.3 (רשות): הוספה מהירה, בלי לפתוח את "הוספה" =====
   const gQuick = group('', 'quickInsert');

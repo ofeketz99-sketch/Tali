@@ -328,8 +328,7 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
       { label: 'קו מפריד', icon: 'rule', run: edit.rule },
       ] },
       { label: 'חופשי על הדף', icon: 'pen', sub: [
-        { label: 'תיבת טקסט שזזה חופשי', icon: 'textBox', run: edit.floatingBox },
-        { label: empty ? 'הערת שוליים' : 'הערת שוליים על הטקסט המסומן', icon: 'comment', run: edit.marginComment },
+        { label: empty ? 'תיבת הערה צפה' : 'תיבת הערה על הטקסט המסומן', icon: 'comment', run: edit.marginComment },
         { label: 'שרטוט על הדף', icon: 'pen', run: edit.pageDrawing },
         'sep',
         { label: 'המרה ל־Markdown רגיל', icon: 'file', run: edit.plainMarkdown },

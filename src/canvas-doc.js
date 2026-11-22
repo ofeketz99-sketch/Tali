@@ -118,7 +118,7 @@ export function boundsOf(nodes) {
 }
 
 // ציור חופשי ← צומת: המסגרת סביב הנקודות (בתוספת חצי עובי), והנקודות יחסית לפינה שלה
-export function drawingNode({ kind, points, color, width = 3, dash = false }) {
+export function drawingNode({ kind, points, color, width = 3, dash = false, fill = false }) {
   const pts = kind === 'pen' ? points.flat() : points;
   const pad = width / 2 + 2;
   const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
@@ -126,7 +126,8 @@ export function drawingNode({ kind, points, color, width = 3, dash = false }) {
   let w = Math.max(...xs) + pad - x, h = Math.max(...ys) + pad - y;
   if (kind === 'rect' || kind === 'ellipse') { w = Math.max(w, 8); h = Math.max(h, 8); }
   const rel = (p) => [num(p[0] - x), num(p[1] - y)];
-  const d = { kind, color: color || null, width, ...(dash ? { dash: true } : {}) };
+  const d = { kind, color: color || null, width, ...(dash ? { dash: true } : {}),
+    ...(fill && ['pen', 'rect', 'ellipse'].includes(kind) ? { fill: 'tint' } : {}) };
   if (kind === 'pen') d.strokes = points.map((s) => s.map(rel));
   else d.points = points.map(rel);
   return { id: newId(), type: 'group', label: '', x: num(x), y: num(y), width: num(w), height: num(h), taliDrawing: d };
@@ -168,7 +169,7 @@ export function eraseDrawing(node, p, r) {
     const keep = strokes.filter((st) => polyDist(q, st) > reach);
     if (keep.length === strokes.length) return null;
     if (!keep.length) return 'remove';
-    const n = drawingNode({ kind: 'pen', points: keep.map((st) => st.map(([x, y]) => [x + node.x, y + node.y])), color: d.color, width: w, dash: d.dash });
+    const n = drawingNode({ kind: 'pen', points: keep.map((st) => st.map(([x, y]) => [x + node.x, y + node.y])), color: d.color, width: w, dash: d.dash, fill: d.fill === 'tint' });
     return { ...node, x: n.x, y: n.y, width: n.width, height: n.height, taliDrawing: { ...d, strokes: n.taliDrawing.strokes } };
   }
   let dist;

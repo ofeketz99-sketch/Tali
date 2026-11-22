@@ -2,7 +2,7 @@
 // the Markdown trailer managed by overlay-data.js. Never draw over the user's actual text.
 //
 // Drawing session (6.9, modelled on Excalidraw and tldraw):
-// - Tools: select, pen, line, arrow, rectangle, ellipse, text box, eraser. Letters V P L A R O T E.
+// - Tools: select, pen, line, arrow, rectangle, ellipse, eraser. Letters V P L A R O E.
 // - Every shape tool takes either a drag, or two clicks (anchor, then the end / the opposite corner,
 //   with a live preview between them). Shift: 45° / square / circle. Alt: a box grows from its centre.
 //   Esc cancels a shape that is waiting for its second click.
@@ -20,7 +20,7 @@ import { renderPicture, pictureToolbar, closeMenus } from './image-format-ui.js'
 
 const NS = 'http://www.w3.org/2000/svg';
 const shapeKinds = ['pen', 'line', 'arrow', 'rect', 'ellipse', 'drawing']; // 11.6: drawing = שרטוט ממוזג (ישות אחת)
-const drawTools = ['pen', 'line', 'arrow', 'rect', 'ellipse', 'textbox', 'eraser'];
+const drawTools = ['pen', 'line', 'arrow', 'rect', 'ellipse', 'eraser'];
 // [tool, label, icon, key (e.code)]
 const tools = [
   ['select', 'בחירה ועריכה', 'pointer', 'KeyV', 'V'],
@@ -29,7 +29,6 @@ const tools = [
   ['arrow', 'חץ', 'arrow', 'KeyA', 'A'],
   ['rect', 'מלבן', 'rect', 'KeyR', 'R'],
   ['ellipse', 'אליפסה', 'ellipse', 'KeyO', 'O'],
-  ['textbox', 'תיבת טקסט', 'textBox', 'KeyT', 'T'],
   ['eraser', 'מחק', 'eraser', 'KeyE', 'E'],
 ];
 const HINTS = {
@@ -41,7 +40,6 @@ const HINTS = {
   arrow: 'לחיצה ועוד לחיצה, או גרירה · Shift: זווית של 45°',
   rect: 'לחיצה ועוד לחיצה, או גרירה · Shift: ריבוע · Alt: מהמרכז',
   ellipse: 'לחיצה ועוד לחיצה, או גרירה · Shift: עיגול · Alt: מהמרכז',
-  textbox: 'לחיצה במקום שבו התיבה תופיע',
   eraser: 'גרירה על קו מוחקת אותו',
   eraserPart: 'מחק חלקי: גרירה מוחקת רק את החלק של הקו שנגעת בו',
   editing: 'עריכת שרטוט ממוזג: בוחרים ומשנים חלקים, ומה שמציירים עכשיו מצטרף אליו · Esc או "סיום עריכה" ממזגים בחזרה',
@@ -75,6 +73,13 @@ const svgEl = (name, attrs = {}) => {
   return element;
 };
 const strokesOf = (object) => object.strokes || (object.points ? [object.points] : []);
+// דלי על עט ממלא רק לולאה שהמשתמש סגר (או כמעט סגר), ולא כל קשקוש פתוח.
+const closedStrokePath = (points, weight = 3) => {
+  if (!Array.isArray(points) || points.length < 3) return '';
+  const a = points[0], b = points[points.length - 1];
+  if (Math.hypot(a[0] - b[0], a[1] - b[1]) > Math.max(18, weight * 6)) return '';
+  return `M${points.map(([x, y]) => `${r1(x)} ${r1(y)}`).join(' L')} Z`;
+};
 
 // resolveImage(object) -> list of URLs to try for a free image (7.8); onReturnImage(object) puts it back into the text.
 // onTextClick(clientX, clientY): a plain click on the text in the select tool returns to writing at that point (8.3).
@@ -253,7 +258,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
   }
   styleGroup.append(weightGroup);
   const dashButton = addButton(styleGroup, { label: 'קו מקווקו', iconName: 'dashed', action: () => applyStyle({ dash: !dash }) });
-  const fillButton = addButton(styleGroup, { label: 'מילוי בהיר (מלבן ואליפסה)', iconName: 'fill', action: () => applyStyle({ fill: !fill }) });
+  const fillButton = addButton(styleGroup, { label: 'דלי מילוי (מלבן, אליפסה או ציור חופשי סגור)', iconName: 'fill', action: () => applyStyle({ fill: !fill }) });
 
   // 11.6: המחק: משיכה שלמה, או רק החלק שנוגעים בו
   const eraserGroup = group();
@@ -461,7 +466,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     eraserGroup.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.erase === eraseMode));
     weightGroup.hidden = !has('pen', 'line', 'arrow', 'rect', 'ellipse');
     dashButton.hidden = !has('line', 'arrow', 'rect', 'ellipse');
-    fillButton.hidden = !has('rect', 'ellipse');
+    fillButton.hidden = !has('pen', 'rect', 'ellipse');
     swatches.querySelectorAll('.tali-overlay-swatch').forEach((b) => b.classList.toggle('on', b.dataset.color === color));
     pickerWrap.style.setProperty('--picked', color);
     pickerWrap.classList.toggle('on', !QUICK_COLORS.includes(color));
@@ -509,7 +514,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
         if (dash) object.dash = true; else delete object.dash;
         changed = true;
       }
-      if ('fill' in change && ['rect', 'ellipse'].includes(object.kind)) {
+      if ('fill' in change && ['pen', 'rect', 'ellipse'].includes(object.kind)) {
         if (fill) object.fill = 'tint'; else delete object.fill;
         changed = true;
       }
@@ -524,7 +529,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     color = object.color || color; picker.value = color;
     if (shapeKinds.includes(object.kind)) weight = object.weight || weight;
     if (['line', 'arrow', 'rect', 'ellipse'].includes(object.kind)) dash = !!object.dash;
-    if (['rect', 'ellipse'].includes(object.kind)) fill = object.fill === 'tint';
+    if (['pen', 'rect', 'ellipse'].includes(object.kind)) fill = object.fill === 'tint';
   }
 
   // add: Shift/Ctrl+לחיצה מוסיפה לבחירה או מוציאה ממנה (8.3)
@@ -1098,6 +1103,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
       geometry = svgEl('g');
       for (const stroke of strokesOf(object)) {
         const live = drawing?.stroke === stroke;
+        const fillPath = !live && object.fill === 'tint' && closedStrokePath(stroke, object.weight);
+        if (fillPath) geometry.append(svgEl('path', { d: fillPath, fill: object.color, 'fill-opacity': '.16', stroke: 'none' }));
         const path = svgEl('path', { d: freehandSvgPath(stroke, object.weight, { last: !live }), fill: object.color });
         if (live) drawing.path = path;
         geometry.append(path);
@@ -1430,8 +1437,10 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
         head.innerHTML = icon('move', 14);
         const label = document.createElement('span');
         label.className = 'tali-note-quote' + (object.quote ? ' linked' : '');
-        label.textContent = object.quote ? shortQuote(object.quote) : 'הערה';
-        if (object.quote) label.dataset.tip = 'לחיצה: מעבר לציטוט בדף · גרירה: הזזת ההערה';
+        label.textContent = object.title || (object.quote ? shortQuote(object.quote) : 'הערה ללא שם');
+        label.dataset.tip = object.quote
+          ? `${object.title ? shortQuote(object.quote) + ' · ' : ''}לחיצה: מעבר לציטוט בדף · גרירה: הזזת ההערה`
+          : 'אפשר לתת שם להערה בכפתור העיפרון · גרירה: הזזת ההערה';
         label.addEventListener('click', (event) => {
           if (!object.quote || !downAt || Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) >= CLICK_SLOP) return;
           if (!flashQuote(object)) label.dataset.tip = 'הציטוט כבר לא נמצא במסמך (הטקסט השתנה). אפשר לקשר מחדש';
@@ -1450,6 +1459,31 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
           tools.append(b);
           return b;
         };
+        tool('edit', object.title ? 'שינוי שם ההערה' : 'הוספת שם להערה', () => {
+          const input = document.createElement('input');
+          input.className = 'tali-note-title-input';
+          input.type = 'text';
+          input.maxLength = 160;
+          input.value = object.title || '';
+          input.placeholder = 'שם ההערה';
+          label.replaceWith(input);
+          input.focus(); input.select();
+          let done = false;
+          const finish = (save) => {
+            if (done) return;
+            done = true;
+            if (save) object.title = input.value.replace(/\s+/g, ' ').trim().slice(0, 160);
+            drawBoxes();
+            if (save) notify();
+          };
+          input.addEventListener('pointerdown', (event) => event.stopPropagation());
+          input.addEventListener('keydown', (event) => {
+            event.stopPropagation();
+            if (event.key === 'Enter') { event.preventDefault(); finish(true); }
+            else if (event.key === 'Escape') { event.preventDefault(); finish(false); }
+          });
+          input.addEventListener('blur', () => finish(true));
+        });
         if (object.quote) tool('unlink', 'ניתוק ההערה מהציטוט', () => setQuote(object, ''));
         else tool('link', 'קישור לציטוט: מסמנים טקסט בדף', () => startLinking(object.id));
         let armed = 0;
@@ -1738,17 +1772,6 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
       finishShape();
       return true;
     }
-    if (mode === 'textbox') {
-      const object = { id: makeId(), kind: 'textbox', x: Math.round(p.x), y: Math.round(p.y),
-        width: 235, height: 110, text: '', color, weight };
-      objects.push(object);
-      mode = 'select';
-      render();
-      select(object.id);
-      boxes.lastElementChild?.querySelector('textarea')?.focus();
-      notify();
-      return true;
-    }
     if (mode === 'eraser') {
       drawing = { pointerId: event.pointerId, eraser: true, erased: false };
       if (event.currentTarget === svg) svg.setPointerCapture(event.pointerId);
@@ -1763,7 +1786,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
         // ישות חדשה באותה קבוצה: כשהעט מלא, או כשהצבע או העובי השתנו באמצע
         let g;
         if (object) g = object.group || (object.group = groupId());
-        object = { id: makeId(), kind: 'pen', x: Math.round(p.x), y: Math.round(p.y), color, weight, strokes: [], ...(g && !editing ? { group: g } : {}) };
+        object = { id: makeId(), kind: 'pen', x: Math.round(p.x), y: Math.round(p.y), color, weight, strokes: [],
+          ...(fill ? { fill: 'tint' } : {}), ...(g && !editing ? { group: g } : {}) };
         objects.push(object);
         joinEditing(object);
         sessionPen = object;
@@ -1995,7 +2019,13 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
       refWidth = Number.isFinite(pageWidth) && pageWidth >= 200 ? pageWidth : cssPageWidth();
       root.style.width = '';
       stopPlacement(); stopLinking(); hoverId = null; editing = null; closeMenus();
-      objects = cleanOverlayObjects(items);
+      // תיבות טקסט צפות מגרסאות ישנות נטענות כתיבות הערה. כך יש בממשק סוג צף אחד בלבד,
+      // בלי לאבד את התוכן או המיקום של מסמכים קיימים.
+      objects = cleanOverlayObjects(items).map((object) => {
+        if (object.kind !== 'textbox') return object;
+        const { fixed: _fixed, anchor: _anchor, ...legacy } = object;
+        return { ...legacy, kind: 'comment', quote: '', side: object.x + object.width / 2 < PW() / 2 ? 'start' : 'end' };
+      });
       setSelection([]); mode = null; session = false; drawing = null; sessionPen = null; marquee = null; render();
       resetHistory();
       // 11.8: אחרי שהעורך צייר את המסמך החדש: מיקום לפי העוגנים (ועיגון של ישויות ממסמכים ישנים)

@@ -480,8 +480,7 @@ const useOverlay = (tool) => {
   if (!state.currentPath) { setStatus('קודם פותחים מסמך'); return; }
   if (editorApi.isRaw()) { setStatus('עבור לתצוגה המעוצבת כדי לשרטט על הדף'); return; }
   pageOverlay.setEnabled(true);
-  if (tool === 'textbox') pageOverlay.setMode('textbox');
-  else pageOverlay.openDrawing();
+  pageOverlay.openDrawing();
   setStatus('שרטוט על הדף: הכלים בסרגל למטה. "סיום" או Esc חוזרים לכתיבה.');
 };
 // 11.2: "הערת שוליים": הלחיצה הבאה בדף או בשוליים קובעת את מקומה. טקסט מסומן נקשר אליה כציטוט,

@@ -203,7 +203,7 @@ export async function buildDocx({ title, html, rtlDefault = true, fetchImage = n
         }));
       } else if (info.kind === 'comment') {
         const id = comments.length;
-        const body = [info.quote ? `«${info.quote}»` : '', info.text || ''].filter(Boolean);
+        const body = [info.title || '', info.quote ? `«${info.quote}»` : '', info.text || ''].filter(Boolean);
         comments.push({ id, author: 'Tali', initials: 'T', date: new Date(),
           children: body.map((line) => new Paragraph({ bidirectional: isRtl(line, rtlDefault), children: [new TextRun({ text: line, rightToLeft: RTL_CHAR.test(line) })] })) });
         wrap.push(id);

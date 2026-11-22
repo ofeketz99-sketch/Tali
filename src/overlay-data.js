@@ -62,7 +62,7 @@ export function cleanOverlayObjects(input, { parts = false } = {}) {
       ...(!parts && SHAPES.has(object.kind) && /^[a-z0-9_-]{1,80}$/i.test(object.group || '') ? { group: object.group } : {}),
       // 6.9: a dashed outline for lines and shapes, and a light fill for rectangles and ellipses (optional fields)
       ...(object.dash === true && ['line', 'arrow', 'rect', 'ellipse'].includes(object.kind) ? { dash: true } : {}),
-      ...(object.fill === 'tint' && ['rect', 'ellipse'].includes(object.kind) ? { fill: 'tint' } : {}),
+      ...(object.fill === 'tint' && ['pen', 'rect', 'ellipse'].includes(object.kind) ? { fill: 'tint' } : {}),
     };
     if (object.kind === 'image') {
       const src = cleanSrc(object.src);
@@ -91,6 +91,7 @@ export function cleanOverlayObjects(input, { parts = false } = {}) {
         height: bounded(object.height, 100, 60, 600),
         text: String(object.text || '').slice(0, 20000),
         ...(object.kind === 'comment' ? {
+          ...(String(object.title || '').trim() ? { title: String(object.title).replace(/[\r\n]/g, ' ').trim().slice(0, 160) } : {}),
           quote: String(object.quote || '').trim().slice(0, 1000),
           side: object.side === 'start' ? 'start' : 'end',
         } : {}),

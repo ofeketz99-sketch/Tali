@@ -38,6 +38,13 @@ const isDarkHex = (c) => {
 };
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const svg = (tag, attrs = {}) => { const e = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+const r1 = (n) => Math.round(n * 10) / 10;
+const closedStrokePath = (points, width = 3) => {
+  if (!Array.isArray(points) || points.length < 3) return '';
+  const a = points[0], b = points[points.length - 1];
+  if (Math.hypot(a[0] - b[0], a[1] - b[1]) > Math.max(18, width * 6)) return '';
+  return `M${points.map(([x, y]) => `${r1(x)} ${r1(y)}`).join(' L')} Z`;
+};
 
 export function createCanvasView({ host, api, readOnly = false }) {
   let doc = { nodes: [], edges: [] };
@@ -45,6 +52,8 @@ export function createCanvasView({ host, api, readOnly = false }) {
   let view = { x: 0, y: 0, z: 1 };
   let tool = 'select';
   let color = null; // צבע לציור חדש ולצמתים חדשים: null = ברירת המחדל, או "1".."6"
+  let fill = false; // דלי מילוי: צורות וציור חופשי סגור
+  let fillButton = null;
   let selected = new Set(); // מזהי צמתים וקווים
   let editing = null; // מזהה הכרטיס שבעריכה
   let editBase = null; // הקנבס לפני העריכה: כל ההקלדה בכרטיס היא צעד ביטול אחד
@@ -110,7 +119,8 @@ export function createCanvasView({ host, api, readOnly = false }) {
     // 10.7: עיצוב הקנבס (רקע, דוגמה, רשת), בחלונית שנפתחת מהסרגל
     const styleBtn = btn('palette', 'עיצוב הקנבס: רקע ורשת', (b) => toggleStylePanel(b));
     styleBtn.dataset.style = '1';
-    bar.append(swatches, sep(), styleBtn, sep(),
+    fillButton = btn('fill', 'דלי מילוי (עיגול, מלבן או ציור חופשי סגור)', () => setFill(!fill));
+    bar.append(swatches, fillButton, sep(), styleBtn, sep(),
       btn('trash', 'מחיקת הנבחר (Delete)', () => deleteSelection()),
       sep(),
       btn('undo', 'ביטול (Ctrl+Z)', () => undo()),
@@ -121,7 +131,7 @@ export function createCanvasView({ host, api, readOnly = false }) {
       btn('plus', 'הגדלה (Ctrl+=)', () => zoomBy(1.2)),
       btn('locate', 'הכול בחלון (Shift+1)', () => zoomToFit()));
     zoomLabel.type = 'button';
-    zoomLabel.dataset.tip = '100%';
+    zoomLabel.dataset.tip = 'איפוס הזום ל־100%';
     zoomLabel.addEventListener('click', () => { const r = viewport.getBoundingClientRect(); zoomAt(1, r.width / 2, r.height / 2); });
     host.append(bar);
     const hint = el('div', 'cv-hint');
@@ -282,12 +292,29 @@ export function createCanvasView({ host, api, readOnly = false }) {
     }
     if (any) { render(); changed(); }
   }
+  function setFill(on) {
+    fill = !!on;
+    fillButton?.classList.toggle('on', fill);
+    fillButton?.setAttribute('aria-pressed', fill ? 'true' : 'false');
+    penNode = null;
+    let any = false;
+    for (const id of selected) {
+      const n = nodeById(id);
+      if (!n || !isDrawing(n) || !['pen', 'rect', 'ellipse'].includes(n.taliDrawing.kind)) continue;
+      if (fill) n.taliDrawing.fill = 'tint'; else delete n.taliDrawing.fill;
+      any = true;
+    }
+    if (any) { render(); changed(); }
+  }
 
   // ===== תצוגה =====
   const applyView = () => {
     world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.z})`;
     host.style.setProperty('--cv-z', view.z);
-    zoomLabel.textContent = Math.round(view.z * 100) + '%';
+    const percent = Math.round(view.z * 100);
+    zoomLabel.textContent = 'זום ' + percent + '%';
+    zoomLabel.dataset.tip = `הזום הנוכחי: ${percent}% · לחיצה: איפוס ל־100%`;
+    zoomLabel.classList.toggle('far', view.z < .5);
     // 10.6: שתי רשתות (styles.css, .cv-viewport): הגדולה כל 4 קטנות. 10.7: הרשת "קופצת" פי 4 כשהנקודות
     // מתקרבות מדי על המסך (פחות מ־8px), כמו בכלי עיצוב. עד 10.6 בזום קטן הן התמזגו למשטח כהה.
     const base = CANVAS_GRID * (style().density === 'sparse' ? 2 : 1);
@@ -327,6 +354,12 @@ export function createCanvasView({ host, api, readOnly = false }) {
     const r = viewport.getBoundingClientRect();
     return { x: (r.width / 2 - view.x) / view.z, y: (r.height / 2 - view.y) / view.z };
   };
+  // כרטיס חדש לא נשאר פצפון כשמוסיפים אותו ממצלמה רחוקה: מתקרבים אליו, בלי לשנות את גודלו בקובץ.
+  function revealNewItem(at) {
+    if (view.z >= .5) return;
+    const screen = { x: at.x * view.z + view.x, y: at.y * view.z + view.y };
+    zoomAt(.75, screen.x, screen.y);
+  }
 
   // ===== ציור הצמתים =====
   const nodeEls = new Map();
@@ -337,7 +370,11 @@ export function createCanvasView({ host, api, readOnly = false }) {
     const w = d.width || 3;
     const dash = d.dash ? `${w * 3} ${w * 2}` : null;
     if (d.kind === 'pen') {
-      for (const st of d.strokes || []) s.append(svg('path', { d: freehandSvgPath(st, w), fill: stroke }));
+      for (const st of d.strokes || []) {
+        const filled = d.fill === 'tint' && closedStrokePath(st, w);
+        if (filled) s.append(svg('path', { d: filled, fill: stroke, 'fill-opacity': '.16', stroke: 'none' }));
+        s.append(svg('path', { d: freehandSvgPath(st, w), fill: stroke }));
+      }
     } else if (d.kind === 'line' || d.kind === 'arrow') {
       const [a, b] = d.points || [[0, 0], [n.width, n.height]];
       s.append(svg('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke, 'stroke-width': w, 'stroke-linecap': 'round', ...(dash ? { 'stroke-dasharray': dash } : {}) }));
@@ -350,7 +387,9 @@ export function createCanvasView({ host, api, readOnly = false }) {
       }
     } else {
       const h = w / 2;
-      const attrs = { stroke, 'stroke-width': w, fill: 'none', ...(dash ? { 'stroke-dasharray': dash } : {}) };
+      const filled = d.fill === 'tint';
+      const attrs = { stroke, 'stroke-width': w, fill: filled ? stroke : 'none',
+        ...(filled ? { 'fill-opacity': '.16' } : {}), ...(dash ? { 'stroke-dasharray': dash } : {}) };
       s.append(d.kind === 'rect'
         ? svg('rect', { x: h, y: h, width: Math.max(0, n.width - w), height: Math.max(0, n.height - w), rx: 4, ...attrs })
         : svg('ellipse', { cx: n.width / 2, cy: n.height / 2, rx: Math.max(0, n.width / 2 - h), ry: Math.max(0, n.height / 2 - h), ...attrs }));
@@ -540,6 +579,7 @@ export function createCanvasView({ host, api, readOnly = false }) {
     const n = { id: newId(), type: 'text', text: '', x: Math.round(at.x - 130), y: Math.round(at.y - 30), width: 260, height: 80, ...(color ? { color } : {}) };
     doc.nodes.push(n);
     selected = new Set([n.id]);
+    revealNewItem(at);
     render();
     changed();
     if (edit) editText(n.id);
@@ -564,6 +604,7 @@ export function createCanvasView({ host, api, readOnly = false }) {
     }
     if (!added.length) return;
     selected = new Set(added);
+    revealNewItem(at);
     render();
     changed();
   }
@@ -575,6 +616,7 @@ export function createCanvasView({ host, api, readOnly = false }) {
     const n = { id: newId(), type: 'file', file: vaultRelative(api.root(), p), x: Math.round(at.x - 200), y: Math.round(at.y - 150), width: 400, height: 300 };
     doc.nodes.push(n);
     selected = new Set([n.id]);
+    revealNewItem(at);
     render();
     changed();
   }
@@ -783,7 +825,8 @@ export function createCanvasView({ host, api, readOnly = false }) {
     if (tool === 'pen') draft.replaceChildren(svg('path', { d: freehandSvgPath(g.points, 3, { last: false }), fill: c }));
     else {
       const [a, b] = g.points.length > 1 ? g.points : [g.points[0], g.points[0]];
-      const attrs = { stroke: c, 'stroke-width': 3, fill: 'none' };
+      const attrs = { stroke: c, 'stroke-width': 3, fill: fill && (tool === 'rect' || tool === 'ellipse') ? c : 'none',
+        ...(fill && (tool === 'rect' || tool === 'ellipse') ? { 'fill-opacity': '.16' } : {}) };
       if (tool === 'line' || tool === 'arrow') draft.replaceChildren(svg('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1], ...attrs, 'stroke-linecap': 'round' }));
       else if (tool === 'rect') draft.replaceChildren(svg('rect', { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), width: Math.abs(b[0] - a[0]), height: Math.abs(b[1] - a[1]), rx: 4, ...attrs }));
       else draft.replaceChildren(svg('ellipse', { cx: (a[0] + b[0]) / 2, cy: (a[1] + b[1]) / 2, rx: Math.abs(b[0] - a[0]) / 2, ry: Math.abs(b[1] - a[1]) / 2, ...attrs }));
@@ -834,7 +877,7 @@ export function createCanvasView({ host, api, readOnly = false }) {
       const prev = penNode && nodeById(penNode);
       let strokes = [pts];
       if (prev) strokes = [...(prev.taliDrawing.strokes || []).map((s) => s.map(([x, y]) => [x + prev.x, y + prev.y])), pts];
-      const n = drawingNode({ kind: 'pen', points: strokes, color: colorValue(color), width: 3 });
+      const n = drawingNode({ kind: 'pen', points: strokes, color: colorValue(color), width: 3, fill });
       if (prev) { n.id = prev.id; Object.assign(prev, n); } else { doc.nodes.push(n); penNode = n.id; }
       render();
       changed();
@@ -843,7 +886,7 @@ export function createCanvasView({ host, api, readOnly = false }) {
     if (g.points.length < 2) return;
     const [a, b] = g.points;
     if (Math.hypot(b[0] - a[0], b[1] - a[1]) * view.z < 4) return;
-    const n = drawingNode({ kind, points: [a, b], color: colorValue(color), width: 3 });
+    const n = drawingNode({ kind, points: [a, b], color: colorValue(color), width: 3, fill });
     doc.nodes.push(n);
     selected = new Set([n.id]);
     setTool('select');
@@ -965,10 +1008,14 @@ export function createCanvasView({ host, api, readOnly = false }) {
     nodeEls.clear();
     setTool('select');
     setColor(null);
+    setFill(false);
     render();
     let stored = null;
     try { stored = !readOnly && JSON.parse(localStorage.getItem('tali:canvas-view:' + p) || 'null'); } catch {}
-    if (stored && Number.isFinite(stored.z)) { view = stored; applyView(); }
+    if (stored && [stored.x, stored.y, stored.z].every(Number.isFinite)) {
+      view = { x: stored.x, y: stored.y, z: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, stored.z)) };
+      applyView();
+    }
     else {
       const r = viewport.getBoundingClientRect();
       if (r.width) zoomToFit(); else pendingFit = true;

@@ -10,10 +10,12 @@ import { withoutLayout } from './image-format.js';
 // הטקסט של תיבה או הערה כפסקאות: הקידומת בשורה הראשונה, שורות ריקות מדולגות
 export function noteParagraphs(object) {
   const text = String(object.text || '').trim();
+  const title = String(object.title || '').trim();
   const prefix = object.kind === 'textbox' ? 'תיבת טקסט: '
-    : object.quote ? `הערה על „${object.quote}“: ` : 'הערה: ';
+    : title ? `${title}${object.quote ? ` (על „${object.quote}“)` : ''}: `
+      : object.quote ? `הערה על „${object.quote}“: ` : 'הערה: ';
   const lines = text ? text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean) : [];
-  if (!lines.length) return object.kind === 'comment' && object.quote ? [prefix.replace(/: $/, '')] : [];
+  if (!lines.length) return object.kind === 'comment' && (object.quote || title) ? [prefix.replace(/: $/, '')] : [];
   return [prefix + lines[0], ...lines.slice(1)];
 }
 

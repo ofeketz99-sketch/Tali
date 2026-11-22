@@ -68,8 +68,9 @@ test('margin comments preserve their quote but never join drawing groups', async
   const source = readFileSync(new URL('../src/overlay-data.js', import.meta.url));
   const { groupedSelection } = await import('data:text/javascript;base64,' + source.toString('base64'));
   const comment = { id: 'c1', kind: 'comment', x: -260, y: 100, width: 220, height: 130,
-    text: 'בדיקה', quote: 'ציטוט מן המסמך', side: 'start', color: '#4b80bd', weight: 2, group: 'session-01' };
+    title: 'שם ההערה', text: 'בדיקה', quote: 'ציטוט מן המסמך', side: 'start', color: '#4b80bd', weight: 2, group: 'session-01' };
   const restored = splitOverlay(joinOverlay('Note', [comment])).objects[0];
+  assert.equal(restored.title, comment.title);
   assert.equal(restored.quote, comment.quote);
   assert.equal(restored.group, undefined);
   assert.deepEqual(groupedSelection([restored], 'c1'), [restored]);
@@ -79,13 +80,14 @@ test('dash and fill survive a round trip only where they make sense', () => {
   const items = [
     { id: 'r', kind: 'rect', x: 0, y: 0, dx: 40, dy: 20, color: '#4b80bd', weight: 2, dash: true, fill: 'tint' },
     { id: 'l', kind: 'line', x: 0, y: 0, dx: 40, dy: 0, color: '#4b80bd', weight: 2, dash: true, fill: 'tint' },
-    { id: 'p', kind: 'pen', x: 0, y: 0, strokes: [[[0, 0], [1.5, 2.5]]], color: '#4b80bd', weight: 2, dash: true },
+    { id: 'p', kind: 'pen', x: 0, y: 0, strokes: [[[0, 0], [1.5, 2.5]]], color: '#4b80bd', weight: 2, dash: true, fill: 'tint' },
     { id: 'e', kind: 'ellipse', x: 0, y: 0, dx: 10, dy: 10, color: '#4b80bd', weight: 2, dash: 'yes', fill: 'red' },
   ];
   const [rect, line, pen, ellipse] = splitOverlay(joinOverlay('Note', items)).objects;
   assert.equal(rect.dash, true); assert.equal(rect.fill, 'tint');
   assert.equal(line.dash, true); assert.equal(line.fill, undefined);
   assert.equal(pen.dash, undefined);
+  assert.equal(pen.fill, 'tint');
   assert.deepEqual(pen.strokes, [[[0, 0], [1.5, 2.5]]]);
   assert.equal(ellipse.dash, undefined); assert.equal(ellipse.fill, undefined);
 });
