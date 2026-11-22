@@ -1,8 +1,14 @@
 // Floating annotation metadata lives in one trailing HTML comment, invisible in Obsidian.
 // An unrecognized or invalid comment is NEVER removed (to avoid losing user data).
 const TRAILER = /(?:\r?\n){2}<!-- TALI-OVERLAY:v1:([^\r\n]*?) -->[ \t]*(?:\r?\n)?$/;
-const TYPES = new Set(['pen', 'line', 'arrow', 'rect', 'ellipse', 'textbox', 'comment', 'image']);
-const SHAPES = new Set(['pen', 'line', 'arrow', 'rect', 'ellipse']);
+const TYPES = new Set(['pen', 'line', 'arrow', 'rect', 'ellipse', 'drawing', 'textbox', 'comment', 'image']);
+const SHAPES = new Set(['pen', 'line', 'arrow', 'rect', 'ellipse', 'drawing']);
+// 11.6: a merged drawing ('drawing') is ONE entity whose parts are ordinary shapes, in coordinates
+// relative to the drawing's own x, y. It is selected, moved, resized, coloured and deleted as one thing,
+// and can be opened to edit its parts (page-overlay.js). Parts never carry ids or groups of their own.
+const PART_KINDS = new Set(['pen', 'line', 'arrow', 'rect', 'ellipse']);
+const MAX_PARTS = 200, MAX_PART_POINTS = 6000;
+const IMAGE_STYLES = ['border', 'shadow', 'round'];
 // 7.8: free image. ref 'embed' = src is the ![[...]] target (name or path in the vault); ref 'md' = src is the ![](...) path.
 const cleanSrc = (v) => {
   const s = String(v || '').trim();
@@ -13,21 +19,29 @@ const bounded = (v, def, min, max) => finite(v) ? Math.min(max, Math.max(min, v)
 const cleanPoints = (input, max) => Array.isArray(input) ? input.slice(0, max)
   .filter((p) => Array.isArray(p) && p.length === 2 && finite(p[0]) && finite(p[1]))
   .map((p) => [p[0], p[1]]) : [];
+// 11.6: crop of a free image, [top, right, bottom, left] in percent (same rules as image-format.js)
+const cleanImageCrop = (c) => {
+  if (!Array.isArray(c) || c.length !== 4 || !c.every((n) => typeof n === 'number' && Number.isFinite(n))) return null;
+  const v = c.map((n) => Math.max(0, Math.min(90, Math.round(n * 10) / 10)));
+  if (v[0] + v[2] > 95 || v[1] + v[3] > 95 || v.every((n) => n === 0)) return null;
+  return v;
+};
 
-export function cleanOverlayObjects(input) {
+export function cleanOverlayObjects(input, { parts = false } = {}) {
   if (!Array.isArray(input)) return [];
   const result = [];
-  for (const object of input.slice(0, 400)) {
-    if (!object || !TYPES.has(object.kind)) continue;
+  let partPoints = 0;
+  for (const object of input.slice(0, parts ? MAX_PARTS : 400)) {
+    if (!object || !(parts ? PART_KINDS : TYPES).has(object.kind)) continue;
     const base = {
-      id: String(object.id || '').slice(0, 80) || String(result.length + 1),
+      ...(parts ? {} : { id: String(object.id || '').slice(0, 80) || String(result.length + 1) }),
       kind: object.kind,
-      x: bounded(object.x, 50, -10000, 100000),
-      y: bounded(object.y, 50, -10000, 100000),
+      x: bounded(object.x, parts ? 0 : 50, -10000, 100000),
+      y: bounded(object.y, parts ? 0 : 50, -10000, 100000),
       color: /^#[0-9a-f]{6}$/i.test(object.color || '') ? object.color : '#4b80bd',
       weight: bounded(object.weight, 2.4, 1, 20),
       // 8.3: any drawn shape (not only pens) can belong to a group: "merge into one" in the drawing toolbar
-      ...(SHAPES.has(object.kind) && /^[a-z0-9_-]{1,80}$/i.test(object.group || '') ? { group: object.group } : {}),
+      ...(!parts && SHAPES.has(object.kind) && /^[a-z0-9_-]{1,80}$/i.test(object.group || '') ? { group: object.group } : {}),
       // 6.9: a dashed outline for lines and shapes, and a light fill for rectangles and ellipses (optional fields)
       ...(object.dash === true && ['line', 'arrow', 'rect', 'ellipse'].includes(object.kind) ? { dash: true } : {}),
       ...(object.fill === 'tint' && ['rect', 'ellipse'].includes(object.kind) ? { fill: 'tint' } : {}),
@@ -35,13 +49,24 @@ export function cleanOverlayObjects(input) {
     if (object.kind === 'image') {
       const src = cleanSrc(object.src);
       if (!src) continue;
+      const crop = cleanImageCrop(object.crop);
       result.push({
         id: base.id, kind: 'image', x: base.x, y: base.y,
         width: bounded(object.width, 300, 30, 2000),
         height: bounded(object.height, 200, 20, 3000),
         src, ref: object.ref === 'md' ? 'md' : 'embed',
         ...(object.alt ? { alt: String(object.alt).replace(/[\r\n]/g, ' ').slice(0, 300) } : {}),
+        // 11.6: picture format (image-format.js)
+        ...([90, 180, 270].includes(object.rotate) ? { rotate: object.rotate } : {}),
+        ...(object.flipH === true ? { flipH: true } : {}),
+        ...(object.flipV === true ? { flipV: true } : {}),
+        ...(crop ? { crop } : {}),
+        ...(Array.isArray(object.styles) && object.styles.some((s) => IMAGE_STYLES.includes(s))
+          ? { styles: IMAGE_STYLES.filter((s) => object.styles.includes(s)) } : {}),
       });
+    } else if (object.kind === 'drawing') {
+      const children = cleanOverlayObjects(object.parts, { parts: true });
+      if (children.length) result.push({ ...base, parts: children });
     } else if (object.kind === 'textbox' || object.kind === 'comment') {
       result.push({
         ...base, width: bounded(object.width, 230, 110, 900),
@@ -55,18 +80,24 @@ export function cleanOverlayObjects(input) {
     } else if (object.kind === 'pen') {
       // Since 6.3 one pen entity can hold several separate pointer strokes. Older
       // notes with one `points` array (and optional group id) remain compatible.
+      let remaining = parts ? Math.min(2500, MAX_PART_POINTS - partPoints) : 2500;
+      if (remaining < 2) continue;
+      let pen = null;
       if (Array.isArray(object.strokes)) {
-        let remaining = 2500;
         const strokes = [];
         for (const inputStroke of object.strokes.slice(0, 200)) {
           const stroke = cleanPoints(inputStroke, remaining);
           if (stroke.length > 1) { strokes.push(stroke); remaining -= stroke.length; }
           if (remaining < 2) break;
         }
-        if (strokes.length) result.push({ ...base, strokes });
+        if (strokes.length) pen = { ...base, strokes };
       } else {
-        const points = cleanPoints(object.points, 2500);
-        if (points.length > 1) result.push({ ...base, points });
+        const points = cleanPoints(object.points, remaining);
+        if (points.length > 1) pen = { ...base, points };
+      }
+      if (pen) {
+        result.push(pen);
+        if (parts) partPoints += (pen.strokes || [pen.points]).reduce((n, s) => n + s.length, 0);
       }
     } else {
       result.push({
@@ -123,36 +154,63 @@ export function groupedSelection(items, selectedId) {
   return items.filter(item => SHAPES.has(item.kind) && item.group === chosen.group);
 }
 
-// 8.3: several selected shapes become one entity. Pens with the same colour and weight are joined into
-// a single pen (their strokes, moved to one origin) while they fit the pen limits; everything else
-// shares one group id, so it is selected, moved, resized and deleted together. Returns a new list.
+const strokesOf = (o) => o.strokes || (o.points ? [o.points] : []);
+const r1 = (n) => Math.round(n * 10) / 10;
+// A shape (or every part of a drawing) as stand-alone shapes in page coordinates, without ids or groups.
+function flatParts(o) {
+  if (o.kind === 'drawing') return (o.parts || []).map((p) => ({ ...p, x: r1(o.x + p.x), y: r1(o.y + p.y) }));
+  const { id, group, ...rest } = o;
+  return [rest];
+}
+
+// 8.3 → 11.6: several selected shapes become ONE entity. Pens with the same colour and weight are joined into
+// a single pen (their strokes, moved to one origin) while they fit the pen limits; anything else becomes a
+// merged drawing ('drawing') whose parts are the shapes. Drawings that are merged again are flattened into
+// the new one. The new entity takes the place (and drawing order) of the top-most chosen shape, and keeps the
+// id of the first one. Returns a new list.
 export function mergeShapes(items, ids, newGroup) {
+  void newGroup; // 8.3 API: merging used to share a group id; groups are still read for older notes
   const chosen = items.filter((o) => ids.includes(o.id) && SHAPES.has(o.kind));
   if (chosen.length < 2) return items;
-  const pens = chosen.filter((o) => o.kind === 'pen');
-  let keep = items;
-  let joined = null;
-  const same = pens.length > 1 && pens.every((p) => p.color === pens[0].color && p.weight === pens[0].weight);
-  const strokesOf = (o) => o.strokes || (o.points ? [o.points] : []);
-  if (same) {
+  const parts = chosen.flatMap(flatParts);
+  const first = chosen[0];
+  let merged = null;
+  const pens = parts.filter((p) => p.kind === 'pen');
+  const samePens = pens.length === parts.length && pens.every((p) => p.color === pens[0].color && p.weight === pens[0].weight);
+  if (samePens) {
     const total = pens.reduce((n, p) => n + strokesOf(p).reduce((m, s) => m + s.length, 0), 0);
     const count = pens.reduce((n, p) => n + strokesOf(p).length, 0);
     if (total <= 2500 && count <= 200) {
       const base = pens[0];
-      joined = { ...base, strokes: [] };
-      delete joined.points;
+      merged = { id: first.id, kind: 'pen', x: base.x, y: base.y, color: base.color, weight: base.weight, strokes: [] };
       for (const p of pens) {
         const ox = p.x - base.x, oy = p.y - base.y;
-        for (const s of strokesOf(p)) joined.strokes.push(s.map(([x, y]) => [Math.round((x + ox) * 10) / 10, Math.round((y + oy) * 10) / 10]));
+        for (const s of strokesOf(p)) merged.strokes.push(s.map(([x, y]) => [r1(x + ox), r1(y + oy)]));
       }
-      const gone = new Set(pens.slice(1).map((p) => p.id));
-      keep = items.filter((o) => !gone.has(o.id)).map((o) => (o.id === base.id ? joined : o));
     }
   }
-  const members = keep.filter((o) => ids.includes(o.id) && SHAPES.has(o.kind));
-  if (members.length < 2) {
-    // only one entity is left (all were pens that joined): it no longer needs a group
-    return keep.map((o) => (members[0] && o.id === members[0].id ? (({ group, ...rest }) => rest)(o) : o));
+  if (!merged) {
+    const x = Math.round(Math.min(...parts.map((p) => p.x))), y = Math.round(Math.min(...parts.map((p) => p.y)));
+    merged = {
+      id: first.id, kind: 'drawing', x, y, color: first.color, weight: first.weight,
+      parts: parts.slice(0, MAX_PARTS).map((p) => ({ ...p, x: r1(p.x - x), y: r1(p.y - y) })),
+    };
   }
-  return keep.map((o) => (members.includes(o) ? { ...o, group: newGroup } : o));
+  const gone = new Set(chosen.map((o) => o.id));
+  const last = items.lastIndexOf(chosen[chosen.length - 1]);
+  const out = [];
+  items.forEach((o, i) => {
+    if (!gone.has(o.id)) out.push(o);
+    if (i === last) out.push(merged);
+  });
+  return out;
+}
+
+// 11.6: a merged drawing back into separate shapes (in place, in the same drawing order). makeId() gives
+// each part a new id. Returns { items, ids } (ids of the new shapes); a non-drawing is left as it is.
+export function splitDrawing(items, id, makeId) {
+  const at = items.findIndex((o) => o.id === id && o.kind === 'drawing');
+  if (at < 0) return { items, ids: [] };
+  const shapes = flatParts(items[at]).map((p) => ({ id: makeId(), ...p }));
+  return { items: [...items.slice(0, at), ...shapes, ...items.slice(at + 1)], ids: shapes.map((s) => s.id) };
 }

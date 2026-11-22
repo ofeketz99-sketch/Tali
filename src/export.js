@@ -1,3 +1,4 @@
+import { bakePicture } from './image-format-ui.js';
 // ייצוא ההערה הפתוחה ל־PDF או ל־Word. התוכן נלקח מהתצוגה המעוצבת של העורך (כך נשמרים עיצוב,
 // טבלאות, תמונות ונוסחאות), בלי פקדי העריכה. main.js מטמיע את התמונות ושומר את הקובץ.
 const REMOVE = '.embed-tools, .embed-resize, .table-bar, .math-src, .en-open, .ProseMirror-separator, .ProseMirror-trailingBreak, .lk-remove, [data-tip-only]';
@@ -104,6 +105,13 @@ p { margin: 0 0 8pt; }
 img { max-width: 100%; height: auto; }
 .embed-image, .embed { display: inline-block; max-width: 100%; }
 .wrap-left { float: left; margin: 0 0 8pt 12pt; } .wrap-right { float: right; margin: 0 12pt 8pt 0; }
+.embed-image.center, .embed-image.break-left, .embed-image.break-right { display: block; width: fit-content; margin: 6pt 0; }
+.embed-image.center { margin-left: auto; margin-right: auto; } .embed-image.break-left { margin-right: auto; } .embed-image.break-right { margin-left: auto; }
+.pic-box { display: inline-block; position: relative; max-width: 100%; line-height: 0; vertical-align: middle; }
+.pic-box > img { width: 100%; } .pic-framed { overflow: hidden; }
+.pic-border { box-shadow: 0 0 0 1px #8a8f98; } .pic-shadow { box-shadow: 0 4pt 12pt rgba(0,0,0,.25); }
+.pic-border.pic-shadow { box-shadow: 0 0 0 1px #8a8f98, 0 4pt 12pt rgba(0,0,0,.25); }
+.pic-round, .pic-round > img { border-radius: 12pt; overflow: hidden; }
 table { border-collapse: collapse; margin: 8pt 0; width: 100%; page-break-inside: avoid; }
 td, th { border: 1px solid #b8c4d0; padding: 4pt 7pt; vertical-align: top; text-align: center; }
 td p, th p { text-align: inherit; }
@@ -153,8 +161,18 @@ export async function collectFloats({ proseMirrorElement: pm, pageElement, items
   };
   for (const o of items) {
     if (o.kind === 'image') {
-      const src = await firstLoadable(resolveImage(o) || []);
+      let src = await firstLoadable(resolveImage(o) || []);
       if (!src) continue;
+      // 11.6: חיתוך, סיבוב והיפוך של תמונה חופשית: התמונה כפי שהיא נראית בדף
+      if (o.crop || o.rotate || o.flipH || o.flipV) {
+        try {
+          const el = new Image();
+          el.src = src;
+          await el.decode();
+          const baked = bakePicture(el, o);
+          if (baked) src = baked.toDataURL('image/png');
+        } catch { /* המקור כמו שהוא */ }
+      }
       const f = place(o.x, o.y, o.width, o.height);
       f.info.kind = 'image';
       f.src = src;

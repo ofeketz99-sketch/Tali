@@ -36,6 +36,14 @@ const penStrokes = (o) => o.strokes || (o.points ? [o.points] : []);
 
 // Bounding box on the page: { x, y, w, h }. Pens are padded by half the stroke width.
 export function bboxOf(o) {
+  // 11.6: merged drawing: the box around all its parts (which are relative to the drawing's x, y)
+  if (o.kind === 'drawing') {
+    const parts = (o.parts || []).map((p) => bboxOf({ ...p, x: o.x + p.x, y: o.y + p.y }));
+    if (!parts.length) return { x: o.x, y: o.y, w: 0, h: 0 };
+    const x1 = Math.min(...parts.map((b) => b.x)), y1 = Math.min(...parts.map((b) => b.y));
+    const x2 = Math.max(...parts.map((b) => b.x + b.w)), y2 = Math.max(...parts.map((b) => b.y + b.h));
+    return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+  }
   if (o.kind === 'pen') {
     let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
     for (const stroke of penStrokes(o)) for (const [px, py] of stroke) {
@@ -82,6 +90,12 @@ export function fitToBox(orig, from, to, { flipX = false, flipY = false } = {}) 
   const mapX = (px) => (flipX ? to.x + to.w - (px - from.x) * sx : to.x + (px - from.x) * sx);
   const mapY = (py) => (flipY ? to.y + to.h - (py - from.y) * sy : to.y + (py - from.y) * sy);
   const r1 = (n) => Math.round(n * 10) / 10;
+  if (orig.kind === 'drawing') {
+    // every part is mapped in page coordinates, then made relative to the new corner again
+    const mapped = (orig.parts || []).map((p) => fitToBox({ ...p, x: orig.x + p.x, y: orig.y + p.y }, from, to, { flipX, flipY }));
+    const x = Math.round(mapX(orig.x)), y = Math.round(mapY(orig.y));
+    return { ...orig, x, y, parts: mapped.map((p) => ({ ...p, x: r1(p.x - x), y: r1(p.y - y) })) };
+  }
   if (orig.kind === 'pen') {
     const x = Math.round(mapX(orig.x)), y = Math.round(mapY(orig.y));
     const strokes = penStrokes(orig).map((stroke) => stroke.map(([px, py]) => [r1(mapX(orig.x + px) - x), r1(mapY(orig.y + py) - y)]));
@@ -92,6 +106,28 @@ export function fitToBox(orig, from, to, { flipX = false, flipY = false } = {}) 
   const ax = mapX(orig.x), ay = mapY(orig.y), bx = mapX(orig.x + orig.dx), by = mapY(orig.y + orig.dy);
   const out = { ...orig, x: Math.round(ax), y: Math.round(ay), dx: Math.round(bx - ax), dy: Math.round(by - ay) };
   return orig.kind === 'rect' || orig.kind === 'ellipse' ? { ...out, ...normalizeBox(out) } : out;
+}
+
+// 11.6: partial eraser. Removes the part of a stroke that is within `reach` of (x, y) and returns what is
+// left as separate strokes (0, 1 or 2 pieces, or the same stroke when nothing was touched). The stroke is
+// first filled in with points every `step`, because a simplified stroke can have long straight segments.
+export function eraseFromStroke(stroke, x, y, reach, step = Math.max(1, reach / 2)) {
+  if (!stroke.length) return [];
+  const dense = [stroke[0]];
+  for (let i = 1; i < stroke.length; i++) {
+    const [ax, ay] = stroke[i - 1], [bx, by] = stroke[i];
+    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / step));
+    for (let k = 1; k <= n; k++) dense.push([Math.round((ax + (bx - ax) * k / n) * 10) / 10, Math.round((ay + (by - ay) * k / n) * 10) / 10]);
+  }
+  const near = (p) => Math.hypot(p[0] - x, p[1] - y) <= reach;
+  if (!dense.some(near)) return [stroke];
+  const pieces = [];
+  let current = [];
+  for (const p of dense) {
+    if (near(p)) { if (current.length > 1) pieces.push(current); current = []; } else current.push(p);
+  }
+  if (current.length > 1) pieces.push(current);
+  return pieces;
 }
 
 // Moves one end of a line or arrow. end: 'start' | 'end'.

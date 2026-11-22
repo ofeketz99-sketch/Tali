@@ -1,13 +1,18 @@
 // תמונות וקבצים מוטמעים: ![[תמונה.png]] בסגנון אובסידיאן, ו־![תיאור](נתיב) רגיל.
 // בקובץ נשמר בדיוק מה שנכתב; רק התצוגה ממירה את הנתיב לקובץ אמיתי בדיסק.
+// 11.6: לכל תמונה סרגל "עיצוב תמונה" כמו בוורד (image-format-ui.js): פריסה מול הטקסט, גודל מדויק,
+// חיתוך, סיבוב והיפוך, סגנון, טקסט חלופי ואיפוס. איך זה נשמר: image-format.js.
 import { Node } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
 import { icon } from './icons.js';
 import { renderNoteHtml } from './note-render.js';
+import { parseEmbedTarget, formatEmbedTarget, cleanFormat, layoutFromWrapAttr, wrapAttrFromLayout, parseCropAttr, LAYOUTS } from './image-format.js';
+import { renderPicture, pictureToolbar } from './image-format-ui.js';
 
-// ידית בפינת התמונה: גרירה משנה את הרוחב בתצוגה, ובשחרור נשמר הרוחב החדש (onCommit).
+// ידית בפינת התמונה: גרירה משנה את הרוחב בתצוגה, ובשחרור נשמר הרוחב החדש (onCommit(רוחב, רוחב בהתחלה)).
 // בעברית התמונה מיושרת לימין, ולכן הידית בפינה השמאלית התחתונה וגרירה שמאלה מגדילה.
-function addResizeHandle(dom, img, onCommit) {
+// box: התיבה של התמונה (11.6: .pic-box, שבתוכה התמונה, אולי חתוכה או מסובבת).
+function addResizeHandle(dom, box, onCommit) {
   const handle = document.createElement('span');
   handle.className = 'embed-resize';
   handle.dataset.tip = 'גרירה לשינוי הגודל';
@@ -15,7 +20,7 @@ function addResizeHandle(dom, img, onCommit) {
     event.preventDefault();
     event.stopPropagation();
     const startX = event.clientX;
-    const startW = img.getBoundingClientRect().width;
+    const startW = box.getBoundingClientRect().width;
     const rtl = getComputedStyle(dom).direction === 'rtl';
     const max = (dom.closest('.ProseMirror')?.clientWidth || 1400) - 8;
     let width = startW;
@@ -24,7 +29,7 @@ function addResizeHandle(dom, img, onCommit) {
     const move = (e) => {
       const dx = (e.clientX - startX) * (rtl ? -1 : 1);
       width = Math.max(60, Math.min(max, startW + dx));
-      img.style.width = Math.round(width) + 'px';
+      box.style.width = Math.round(width) + 'px';
     };
     // מעקב על החלון כולו (בשלב הלכידה), כדי שהגרירה תמשיך גם כשהעכבר יוצא מהידית
     const up = () => {
@@ -32,7 +37,7 @@ function addResizeHandle(dom, img, onCommit) {
       window.removeEventListener('pointerup', up, true);
       window.removeEventListener('pointercancel', up, true);
       dom.classList.remove('resizing');
-      if (Math.abs(width - startW) >= 2) onCommit(width);
+      if (Math.abs(width - startW) >= 2) onCommit(width, startW);
     };
     window.addEventListener('pointermove', move, true);
     window.addEventListener('pointerup', up, true);
@@ -40,6 +45,33 @@ function addResizeHandle(dom, img, onCommit) {
   });
   dom.append(handle);
 }
+
+// 11.6: פריסה מול הטקסט כמחלקות על התמונה (styles.css): ציפה, או שורה משלה (מימין, במרכז, משמאל)
+function applyLayout(dom, layout) {
+  for (const l of LAYOUTS) if (l !== 'inline') dom.classList.toggle(l, l === layout);
+}
+// גודל חדש בגרירה: כשהגובה מפורש (היחס לא נעול) הוא משתנה באותו יחס
+const resized = (f, width, startW) => cleanFormat({ ...f, width, height: f.height ? f.height * width / Math.max(1, startW) : null });
+
+// הכפתורים של כל תמונה. info: { box, img, natural(), getPos, editor, get, set, getAlt?, setAlt?, onFree?, path? }
+function imageTools(tools, dom, info, options) {
+  const pos = () => (typeof info.getPos === 'function' ? info.getPos() : null);
+  const extra = [];
+  if (info.path && isDrawing(info.path)) extra.push({
+    icon: 'editDrawing', label: 'עריכת הציור',
+    run: () => options.onEditDrawing(info.path, { rect: info.box.getBoundingClientRect(), pos: pos(), target: info.target?.() }),
+  });
+  return pictureToolbar(tools, dom, {
+    get: info.get, set: info.set, natural: info.natural,
+    shown: () => { const r = info.box.getBoundingClientRect(); return { w: r.width, h: r.height }; },
+    layout: 'text',
+    onFree: info.onFree,
+    getAlt: info.getAlt, setAlt: info.setAlt,
+    src: () => info.img.currentSrc || info.img.src,
+    extra,
+  });
+}
+
 
 // גרירת תמונה למקום אחר בדף (7.7). התמונה היא צומת inline בתוך הטקסט, ולכן "מקום אחר" הוא מיקום בטקסט:
 // בין מילים, בתחילת פסקה או בין פסקאות (שם נוצרת פסקה חדשה בשבילה). קו מהבהב מראה איפה היא תנחת.
@@ -130,12 +162,14 @@ function insertInline(tr, schema, at, node) {
 
 // 7.8: מחזיר תמונה חופשית (משכבת הדף) לתוך הטקסט, במקום הקרוב לנקודה (x, y) על המסך.
 // ref 'embed': ![[src|רוחב]]; ref 'md': ![alt](src) עם הרוחב. מחזיר false אם לא הצליח (התמונה נשארת חופשית).
-export function returnImageToText(editor, { ref, src, alt, width }, x, y) {
+// 11.6: גם העיצוב (סיבוב, היפוך, חיתוך, סגנון) עובר עם התמונה.
+export function returnImageToText(editor, { ref, src, alt, width, rotate, flipH, flipV, crop, styles }, x, y) {
   const { schema } = editor.state;
   const w = Math.max(60, Math.min(1400, Math.round(width || 300)));
+  const format = cleanFormat({ width: w, rotate, flipH, flipV, crop, styles });
   const node = ref === 'md'
-    ? schema.nodes.image?.create({ src, alt: alt || '', width: w })
-    : schema.nodes.embed?.create({ target: `${src}|${w}` });
+    ? schema.nodes.image?.create({ src, alt: alt || '', ...imageAttrsFromFormat(format) })
+    : schema.nodes.embed?.create({ target: formatEmbedTarget(src, format) });
   if (!node) return false;
   const hit = editor.view.posAtCoords({ left: x, top: y });
   const at = hit ? hit.pos : editor.state.doc.content.size;
@@ -224,78 +258,72 @@ export const Embed = Node.create({
 
   addNodeView() {
     return ({ node, editor, getPos }) => {
-      // ![[image.png|300|wrap-left]]: width stays compatible with Obsidian.
-      // The optional wrapping flag is Tali-specific and safely remains plain Markdown.
+      // ![[image.png|300|wrap-left]]: width stays compatible with Obsidian (also 300x200).
+      // The layout and the other picture-format words are Tali-specific (image-format.js).
       let current = node;
-      const parse = () => {
-        const parts = current.attrs.target.split('|');
-        const width = /^\d+$/.test(parts[1] || '') ? Number(parts[1]) : null;
-        const wrap = ['wrap-left', 'wrap-right'].includes(parts[2]) ? parts[2] : 'none';
-        return { name: parts[0], width, wrap };
-      };
       const dom = document.createElement('span');
       dom.className = 'embed';
-      const initial = parse();
+      const initial = { name: current.attrs.target.split('|')[0] };
       const path = this.options.resolve(initial.name);
       if (path && IMAGE_EXT.test(path)) {
         dom.classList.add('embed-image');
         dom.contentEditable = 'false';
+        const box = document.createElement('span');
         const img = document.createElement('img');
         img.src = fileUrl(path);
         img.alt = initial.name;
         img.draggable = false;
+        box.append(img);
+        let natural = null;
         const tools = document.createElement('span');
         tools.className = 'embed-tools';
-        const change = (width, wrap) => {
-          const { name } = parse();
-          const target = width == null ? name : [name, String(Math.max(60, Math.min(1400, Math.round(width)))), ...(wrap === 'none' ? [] : [wrap])].join('|');
+        const setTarget = (target) => {
           const pos = typeof getPos === 'function' ? getPos() : null;
-          if (typeof pos === 'number') editor.commands.command(({ tr, dispatch }) => {
+          if (typeof pos === 'number' && target !== current.attrs.target) editor.commands.command(({ tr, dispatch }) => {
             if (dispatch) dispatch(tr.setNodeMarkup(pos, undefined, { ...current.attrs, target }));
             return true;
           });
         };
-        const control = (label, hint, onClick) => {
-          const b = document.createElement('button');
-          b.type = 'button'; b.textContent = label; b.title = hint;
-          b.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation(); });
-          b.addEventListener('click', (event) => { event.stopPropagation(); onClick(); });
-          tools.append(b);
-          return b;
-        };
-        control('−', 'הקטנת תמונה', () => { const a = parse(); change((a.width || img.offsetWidth || 300) - 40, a.wrap); });
-        control('+', 'הגדלת תמונה', () => { const a = parse(); change((a.width || img.offsetWidth || 300) + 40, a.wrap); });
-        control('רגיל', 'טקסט לפני התמונה ואחריה', () => { const a = parse(); change(a.width || img.offsetWidth || 300, 'none'); });
-        control('↤', 'טקסט עוטף מצד ימין', () => { const a = parse(); change(a.width || img.offsetWidth || 300, 'wrap-left'); });
-        control('↦', 'טקסט עוטף מצד שמאל', () => { const a = parse(); change(a.width || img.offsetWidth || 300, 'wrap-right'); });
-        control('איפוס', 'גודל טבעי והסרת ציפת טקסט', () => change(null, 'none'));
-        if (this.options.onFree) control('חופשי', 'הזזה חופשית על הדף, כמו תיבת טקסט', () => {
-          const pos = typeof getPos === 'function' ? getPos() : null;
-          if (typeof pos !== 'number') return;
-          const rect = img.getBoundingClientRect();
-          this.options.onFree({ ref: 'embed', src: parse().name, width: rect.width, rect, pos });
-        });
-        dom.append(img, tools);
-        addResizeHandle(dom, img, (w) => change(w, parse().wrap));
+        const parsed = () => parseEmbedTarget(current.attrs.target);
+        const setFormat = (format) => { const { name, extra } = parsed(); setTarget(formatEmbedTarget(name, format, extra)); };
+        const toolbar = imageTools(tools, dom, {
+          box, img, getPos, path,
+          natural: () => natural,
+          get: () => parsed().format,
+          set: setFormat,
+          target: () => current.attrs.target,
+          onFree: this.options.onFree && (() => {
+            const pos = typeof getPos === 'function' ? getPos() : null;
+            if (typeof pos !== 'number') return;
+            const rect = box.getBoundingClientRect();
+            const f = parsed().format;
+            this.options.onFree({ ref: 'embed', src: parsed().name, width: rect.width, rect, pos, format: f });
+          }),
+        }, this.options);
+        dom.append(box, tools);
+        addResizeHandle(dom, box, (w, startW) => setFormat(resized(parsed().format, w, startW)));
         addMoveDrag(dom, img, editor, getPos);
         const render = () => {
-          const a = parse();
-          img.style.width = a.width ? a.width + 'px' : '';
-          dom.classList.toggle('wrap-left', a.wrap === 'wrap-left');
-          dom.classList.toggle('wrap-right', a.wrap === 'wrap-right');
+          const { format } = parsed();
+          renderPicture(box, img, format, natural);
+          applyLayout(dom, format.layout);
           dom.classList.toggle('drawing', isDrawing(path));
-          for (const b of tools.children) b.classList.remove('chosen');
-          tools.children[a.wrap === 'none' ? 2 : a.wrap === 'wrap-left' ? 3 : 4]?.classList.add('chosen');
+          toolbar.refresh();
         };
+        img.addEventListener('load', () => { natural = { w: img.naturalWidth, h: img.naturalHeight }; render(); });
         render();
         if (isDrawing(path)) {
           dom.title = 'לחיצה כפולה לעריכת הציור';
-          img.addEventListener('dblclick', (event) => { event.preventDefault(); this.options.onEditDrawing(path); });
+          img.addEventListener('dblclick', (event) => {
+            event.preventDefault();
+            const pos = typeof getPos === 'function' ? getPos() : null;
+            this.options.onEditDrawing(path, { rect: box.getBoundingClientRect(), pos, target: current.attrs.target });
+          });
         }
         return { dom, update: (updated) => {
           if (updated.type.name !== 'embed' || updated.attrs.target.split('|')[0] !== initial.name) return false;
           current = updated; render(); return true;
-        }, stopEvent: (event) => !!event.target.closest?.('.embed-tools, .embed-resize') };
+        }, stopEvent: (event) => !!event.target.closest?.('.embed-tools, .embed-resize'), ignoreMutation: () => true };
       }
       // ![[הערה]] או ![[הערה#כותרת]]: התוכן של ההערה האחרת, לקריאה בלבד. בקובץ נשאר ![[...]].
       if (path && /\.md$/i.test(path) && this.options.read) {
@@ -336,9 +364,39 @@ export const Embed = Node.create({
 });
 
 // ![תיאור](נתיב): הנתיב נשמר כמו שהוא, ומוצג יחסית לתיקיית ההערה (ואם לא נמצא, לתיקייה הראשית)
-// Normal Markdown images remain ordinary ![alt](path) until explicitly resized/wrapped.
-// After styling, they are saved as a standard HTML <img> tag with Tali-specific data
+// Normal Markdown images remain ordinary ![alt](path) until explicitly formatted.
+// After formatting, they are saved as a standard HTML <img> tag with Tali-specific data
 // attributes. This is valid Markdown HTML, not a file URL or renamed attachment.
+// 11.6: wrap holds the raw data-tali-wrap value (none, left, right, center, break-left, break-right);
+// height, rotate, flip ('h', 'v', 'hv'), crop ('t,r,b,l' in %) and imgStyle ('border shadow round').
+export function formatFromImageAttrs(a) {
+  return cleanFormat({
+    width: a.width, height: a.height, layout: layoutFromWrapAttr(a.wrap), rotate: a.rotate,
+    flipH: /h/.test(a.flip || ''), flipV: /v/.test(a.flip || ''), crop: parseCropAttr(a.crop),
+    styles: String(a.imgStyle || '').split(/\s+/),
+  });
+}
+export function imageAttrsFromFormat(f) {
+  return {
+    width: f.width || null, height: f.height || null,
+    wrap: wrapAttrFromLayout(f.layout) || 'none',
+    rotate: f.rotate || null,
+    flip: (f.flipH ? 'h' : '') + (f.flipV ? 'v' : '') || null,
+    crop: f.crop ? f.crop.join(',') : null,
+    imgStyle: f.styles.length ? f.styles.join(' ') : null,
+  };
+}
+const intAttr = (name) => ({
+  default: null,
+  parseHTML: (el) => {
+    const n = Number.parseInt(el.getAttribute(name) || '', 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  },
+});
+const textAttr = (name, ok) => ({
+  default: null,
+  parseHTML: (el) => { const v = el.getAttribute(name); return v && ok(v) ? v : null; },
+});
 export const LocalImage = Image.extend({
   addOptions() {
     return { ...this.parent?.(), inline: true, localSrc: () => [], onFree: null };
@@ -346,19 +404,21 @@ export const LocalImage = Image.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
-      width: {
-        default: null,
-        parseHTML: (el) => {
-          const n = Number.parseInt(el.getAttribute('width') || '', 10);
-          return Number.isFinite(n) && n > 0 ? n : null;
-        },
-        renderHTML: (a) => a.width ? { width: String(a.width) } : {},
-      },
+      width: { ...intAttr('width'), renderHTML: (a) => a.width ? { width: String(a.width) } : {} },
+      height: { ...intAttr('height'), renderHTML: (a) => a.height ? { height: String(a.height) } : {} },
       wrap: {
         default: 'none',
-        parseHTML: (el) => ['left', 'right'].includes(el.getAttribute('data-tali-wrap')) ? el.getAttribute('data-tali-wrap') : 'none',
-        renderHTML: (a) => a.wrap !== 'none' ? { 'data-tali-wrap': a.wrap } : {},
+        parseHTML: (el) => wrapAttrFromLayout(layoutFromWrapAttr(el.getAttribute('data-tali-wrap'))) || 'none',
+        renderHTML: (a) => a.wrap && a.wrap !== 'none' ? { 'data-tali-wrap': a.wrap } : {},
       },
+      rotate: {
+        default: null,
+        parseHTML: (el) => { const n = Number(el.getAttribute('data-tali-rotate')); return [90, 180, 270].includes(n) ? n : null; },
+        renderHTML: (a) => a.rotate ? { 'data-tali-rotate': String(a.rotate) } : {},
+      },
+      flip: { ...textAttr('data-tali-flip', (v) => /^(h|v|hv)$/.test(v)), renderHTML: (a) => a.flip ? { 'data-tali-flip': a.flip } : {} },
+      crop: { ...textAttr('data-tali-crop', (v) => !!parseCropAttr(v)), renderHTML: (a) => a.crop ? { 'data-tali-crop': a.crop } : {} },
+      imgStyle: { ...textAttr('data-tali-style', (v) => /^[a-z ]{1,40}$/.test(v)), renderHTML: (a) => a.imgStyle ? { 'data-tali-style': a.imgStyle } : {} },
     };
   },
   addStorage() {
@@ -368,12 +428,18 @@ export const LocalImage = Image.extend({
       markdown: {
         serialize(state, node) {
           const a = node.attrs;
-          if (a.width || (a.wrap && a.wrap !== 'none')) {
+          const styled = a.width || a.height || (a.wrap && a.wrap !== 'none') || a.rotate || a.flip || a.crop || a.imgStyle;
+          if (styled) {
             const attrs = ' src="' + escapeAttr(a.src) + '" alt="' + escapeAttr(a.alt) +
               '"' + (a.title ? ' title="' + escapeAttr(a.title) + '"' : '') +
-              (a.width ? ' width="' + Math.max(60, Math.round(a.width)) + '"' : '') +
+              (a.width ? ' width="' + Math.max(20, Math.round(a.width)) + '"' : '') +
+              (a.width && a.height ? ' height="' + Math.max(20, Math.round(a.height)) + '"' : '') +
               ' data-tali-image="1"' +
-              (a.wrap && a.wrap !== 'none' ? ' data-tali-wrap="' + a.wrap + '"' : '');
+              (a.wrap && a.wrap !== 'none' ? ' data-tali-wrap="' + a.wrap + '"' : '') +
+              (a.rotate ? ' data-tali-rotate="' + a.rotate + '"' : '') +
+              (a.flip ? ' data-tali-flip="' + a.flip + '"' : '') +
+              (a.crop ? ' data-tali-crop="' + escapeAttr(a.crop) + '"' : '') +
+              (a.imgStyle ? ' data-tali-style="' + escapeAttr(a.imgStyle) + '"' : '');
             state.write('<img' + attrs + '>');
           } else {
             const alt = String(a.alt || '').replace(/([\\\[\]])/g, '\\$1');
@@ -393,8 +459,11 @@ export const LocalImage = Image.extend({
       const dom = document.createElement('span');
       dom.className = 'embed embed-image native-image';
       dom.contentEditable = 'false';
+      const box = document.createElement('span');
       const img = document.createElement('img');
       img.draggable = false;
+      box.append(img);
+      let natural = null;
       const candidates = this.options.localSrc(source || '');
       let i = 0;
       img.src = candidates[0] || '';
@@ -404,48 +473,40 @@ export const LocalImage = Image.extend({
       });
       const tools = document.createElement('span');
       tools.className = 'embed-tools';
-      function change(width, wrap) {
+      const setAttrs = (change) => {
         const at = typeof getPos === 'function' ? getPos() : null;
         if (typeof at !== 'number') return;
         editor.commands.command(({ tr, dispatch }) => {
-          if (dispatch) dispatch(tr.setNodeMarkup(at, undefined, { ...current.attrs,
-            width: width == null ? null : Math.max(60, Math.min(1400, Math.round(width))), wrap }));
+          if (dispatch) dispatch(tr.setNodeMarkup(at, undefined, { ...current.attrs, ...change }));
           return true;
         });
-      }
-      function button(label, hint, action) {
-        const b = document.createElement('button');
-        b.type = 'button'; b.textContent = label; b.title = hint;
-        b.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation(); });
-        b.addEventListener('click', (event) => { event.stopPropagation(); action(); });
-        tools.append(b);
-      }
-      button('−', 'הקטנה', () => change((current.attrs.width || img.offsetWidth || 300) - 40, current.attrs.wrap || 'none'));
-      button('+', 'הגדלה', () => change((current.attrs.width || img.offsetWidth || 300) + 40, current.attrs.wrap || 'none'));
-      button('רגיל', 'ללא ציפת טקסט', () => change(current.attrs.width || img.offsetWidth || 300, 'none'));
-      button('↤', 'טקסט עוטף מצד ימין', () => change(current.attrs.width || img.offsetWidth || 300, 'left'));
-      button('↦', 'טקסט עוטף מצד שמאל', () => change(current.attrs.width || img.offsetWidth || 300, 'right'));
-      button('איפוס', 'החזרת גודל טבעי ותחביר Markdown רגיל', () => change(null, 'none'));
+      };
+      const get = () => formatFromImageAttrs(current.attrs);
+      const set = (f) => setAttrs(imageAttrsFromFormat(cleanFormat(f)));
       const onFree = this.options.onFree;
-      if (onFree) button('חופשי', 'הזזה חופשית על הדף, כמו תיבת טקסט', () => {
-        const pos = typeof getPos === 'function' ? getPos() : null;
-        if (typeof pos !== 'number') return;
-        const rect = img.getBoundingClientRect();
-        onFree({ ref: 'md', src: current.attrs.src, alt: current.attrs.alt || '', width: rect.width, rect, pos });
-      });
-      dom.append(img, tools);
-      addResizeHandle(dom, img, (w) => change(w, current.attrs.wrap || 'none'));
+      const toolbar = imageTools(tools, dom, {
+        box, img, getPos, natural: () => natural, get, set,
+        getAlt: () => current.attrs.alt || '', setAlt: (alt) => setAttrs({ alt }),
+        onFree: onFree && (() => {
+          const pos = typeof getPos === 'function' ? getPos() : null;
+          if (typeof pos !== 'number') return;
+          const rect = box.getBoundingClientRect();
+          onFree({ ref: 'md', src: current.attrs.src, alt: current.attrs.alt || '', width: rect.width, rect, pos, format: get() });
+        }),
+      }, this.options);
+      dom.append(box, tools);
+      addResizeHandle(dom, box, (w, startW) => set(resized(get(), w, startW)));
       addMoveDrag(dom, img, editor, getPos);
       const render = () => {
         const a = current.attrs;
         img.alt = a.alt || '';
         img.title = a.title || '';
-        img.style.width = a.width ? a.width + 'px' : '';
-        dom.classList.toggle('wrap-left', a.wrap === 'left');
-        dom.classList.toggle('wrap-right', a.wrap === 'right');
-        for (const control of tools.children) control.classList.remove('chosen');
-        tools.children[a.wrap === 'left' ? 3 : a.wrap === 'right' ? 4 : 2]?.classList.add('chosen');
+        const f = get();
+        renderPicture(box, img, f, natural);
+        applyLayout(dom, f.layout);
+        toolbar.refresh();
       };
+      img.addEventListener('load', () => { natural = { w: img.naturalWidth, h: img.naturalHeight }; render(); });
       render();
       return {
         dom,
@@ -454,6 +515,7 @@ export const LocalImage = Image.extend({
           current = updated; render(); return true;
         },
         stopEvent: (event) => !!event.target.closest?.('.embed-tools, .embed-resize'),
+        ignoreMutation: () => true,
       };
     };
   },

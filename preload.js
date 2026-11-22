@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('api', {
   copyTable: call('copy-table'),
   saveConflictCopy: call('save-conflict-copy'),
   writeImage: call('write-image'),
+  readImage: call('read-image'), // 11.6
   vaultIndex: call('vault-index'),
   move: call('move'),
   mergeNotes: call('merge-notes'),

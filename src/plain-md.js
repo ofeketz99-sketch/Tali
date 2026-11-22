@@ -5,6 +5,7 @@
 // - מסגרת סביב טקסט ([!TALI-BOX]) ← ציטוט רגיל; ציפת תמונה (wrap-left/right) ← תמונה רגילה.
 // הסדר: מלמטה למעלה, כדי שכל הוספה לא תזיז את המקומות של אלה שמעליה.
 import { isTaliBox, contentWithoutMarker } from './text-box.js';
+import { withoutLayout } from './image-format.js';
 
 // הטקסט של תיבה או הערה כפסקאות: הקידומת בשורה הראשונה, שורות ריקות מדולגות
 export function noteParagraphs(object) {
@@ -58,8 +59,9 @@ function plainInText(editor) {
     state.doc.descendants((node, pos) => {
       if (isTaliBox(node)) markers.push({ pos, node });
       if (node.type.name === 'embed') {
-        const parts = node.attrs.target.split('|');
-        if (parts.length > 2) tr.setNodeMarkup(pos, undefined, { ...node.attrs, target: parts.slice(0, 2).join('|') });
+        // 11.6: only the layout (wrap, own line) goes; size, crop, rotation and style stay
+        const target = withoutLayout(node.attrs.target);
+        if (target !== node.attrs.target) tr.setNodeMarkup(pos, undefined, { ...node.attrs, target });
       }
       if (node.type.name === 'image' && node.attrs.wrap && node.attrs.wrap !== 'none') {
         tr.setNodeMarkup(pos, undefined, { ...node.attrs, wrap: 'none' });
@@ -84,7 +86,7 @@ export async function convertToPlainMarkdown({ editor, overlay, page, saveDrawin
   const shapes = overlay.exportShapes();
   const entries = [];
   if (shapes) {
-    const target = await saveDrawing(await svgToPng(shapes));
+    const target = await saveDrawing(await svgToPng(shapes), shapes.vector); // 11.6: with the original drawing inside
     entries.push({ y: shapes.y, kind: 'drawing', target, width: shapes.w });
   }
   for (const o of items) {

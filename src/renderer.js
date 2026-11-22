@@ -10,9 +10,10 @@ import { resolveLink, extractLinks, getFrontmatterLinks, setFrontmatterLinks } f
 import { openLinkPicker } from './linkpicker.js';
 import { openLinkHubName } from './linkhub.js';
 import { createRelatedRow } from './related.js';
-import { fileUrl, bumpImage, returnImageToText } from './embed.js';
+import { fileUrl, bumpImage, returnImageToText, isDrawing } from './embed.js';
+import { writePngText, readPngText } from './png-meta.js';
 import { imageFilesFrom, lonelyImageSrc, fileFromDataUrl } from './paste-images.js';
-import { convertToPlainMarkdown } from './plain-md.js';
+import { convertToPlainMarkdown, svgToPng } from './plain-md.js';
 import { normalizeToolbar } from './toolbar-layout.js';
 import { usesCompactToolbar } from './editor-behavior.js';
 import { openPaint } from './paint.js';
@@ -369,6 +370,24 @@ const pageOverlay = createPageOverlay({
     if (hit) chain.setTextSelection(hit.pos);
     chain.run();
   },
+  // 11.6: המרת שרטוטים לתמונה, ועריכה של ציור שמור (השרטוט המקורי שבתוך ה־PNG חוזר לדף)
+  onConvertToImage: async (data) => {
+    try {
+      const { target } = await saveDrawingPng(await svgToPng(data), data.vector);
+      setStatus('השרטוט נשמר כתמונה. "עריכת הציור" בסרגל של התמונה מחזיר אותו לשרטוט שאפשר לערוך.');
+      return { ref: 'embed', src: target };
+    } catch (err) { showToast('ההמרה לתמונה נכשלה: ' + (err.message || err)); return null; }
+  },
+  isDrawingImage: (o) => { const p = o.ref === 'embed' && resolveTarget(o.src); return !!p && isDrawing(p); },
+  onEditImage: async (o) => {
+    const p = o.ref === 'embed' && resolveTarget(o.src);
+    if (!p) return;
+    const vector = await readVector(p);
+    if (!vector) { editDrawing(p); return; }
+    pageOverlay.removeItem(o.id);
+    pageOverlay.addVector(vector, { x: o.x, y: o.y, w: o.width, h: o.height });
+    setStatus('הציור חזר להיות שרטוט על הדף, ואפשר לערוך אותו. "המרה לתמונה" שומרת אותו שוב כתמונה.');
+  },
   onReturnImage: (o) => {
     const r = $('page').getBoundingClientRect();
     return returnImageToText(editorApi.editor, o, r.left + pageOverlay.toScreen(o.x) + 4, r.top + pageOverlay.toScreen(o.y) + 4);
@@ -384,11 +403,7 @@ async function convertNoteToPlainMd() {
     pageOverlay.setEnabled(true);
     const counts = await convertToPlainMarkdown({
       editor: editorApi.editor, overlay: pageOverlay, page: $('page'),
-      saveDrawing: async (bytes) => {
-        const p = await window.api.saveAttachment(attachmentDir(), `Drawing ${drawingStamp()}.png`, bytes);
-        state.attachments = await window.api.attachments();
-        return linkTextFor(p).replace(/.png$/i, '') + '.png';
-      },
+      saveDrawing: async (bytes, vector) => (await saveDrawingPng(bytes, vector)).target,
     });
     noteChanged();
     const parts = [counts.images && `${counts.images} תמונות`, counts.notes && `${counts.notes} תיבות והערות`, counts.drawings && 'השרטוטים כתמונה'].filter(Boolean);
@@ -398,7 +413,7 @@ async function convertNoteToPlainMd() {
   }
 }
 // "חופשי" על תמונה בטקסט: התמונה יוצאת מהטקסט ועוברת לשכבת הדף, באותו מקום ובאותו גודל
-function freeImage({ ref, src, alt, rect, pos }) {
+function freeImage({ ref, src, alt, rect, pos, format }) {
   if (editorApi.isRaw()) return;
   const r = $('page').getBoundingClientRect();
   const x = rect.left - r.left, y = rect.top - r.top;
@@ -410,7 +425,10 @@ function freeImage({ ref, src, alt, rect, pos }) {
   });
   pageOverlay.setEnabled(true);
   const L = pageOverlay.toLayer; // 8.4: מהמסך לקואורדינטות השכבה
-  pageOverlay.addImage({ ref, src, alt, x: L(x), y: L(y), width: L(rect.width), height: L(rect.height) });
+  // 11.6: העיצוב (סיבוב, היפוך, חיתוך, סגנון) עובר עם התמונה; הפריסה מול הטקסט כבר לא רלוונטית
+  const f = format || {};
+  pageOverlay.addImage({ ref, src, alt, x: L(x), y: L(y), width: L(rect.width), height: L(rect.height),
+    rotate: f.rotate, flipH: f.flipH, flipV: f.flipV, crop: f.crop, styles: f.styles });
   setStatus('התמונה זזה חופשית: גוררים אותה לכל מקום בדף. "החזרה לטקסט" מחזירה אותה. באובסידיאן היא לא תוצג על הדף.');
 }
 editorApi.setOverlayController(pageOverlay);
@@ -652,6 +670,23 @@ $('btnSidebarMin').addEventListener('click', () => setSidebarMode(document.body.
 applySidebarMode();
 
 // ===== ציורים =====
+// 11.6: ציור כ־PNG בתיקיית התמונות. vector: השרטוט המקורי, נשמר בתוך הקובץ (png-meta.js) לעריכה בהמשך.
+const VECTOR_KEY = 'tali-vector';
+async function saveDrawingPng(bytes, vector) {
+  let out = bytes;
+  if (vector) { try { out = writePngText(bytes, VECTOR_KEY, JSON.stringify(vector)); } catch { /* בלי השרטוט המקורי */ } }
+  const p = await window.api.saveAttachment(attachmentDir(), `Drawing ${drawingStamp()}.png`, out);
+  if (!state.attachments.includes(p)) state.attachments.push(p);
+  return { path: p, target: linkTextFor(p) };
+}
+async function readVector(p) {
+  if (!/\.png$/i.test(p || '')) return null;
+  try {
+    const text = readPngText(await window.api.readImage(p), VECTOR_KEY);
+    const v = text && JSON.parse(text);
+    return v && v.v === 1 && Array.isArray(v.items) && v.w > 0 && v.h > 0 ? v : null;
+  } catch { return null; }
+}
 function drawingStamp() {
   const d = new Date();
   const two = (n) => String(n).padStart(2, '0');
@@ -672,7 +707,23 @@ function newDrawing() {
     },
   });
 }
-function editDrawing(p) {
+// 11.6: ציור שנשמר מהשרטוט על הדף ("המרה לתמונה", "המרה ל־Markdown רגיל") מחזיק בתוכו את השרטוט המקורי.
+// בתמונה בתוך הטקסט (info: rect, pos, target) הוא חוזר לדף כשרטוט שאפשר לערוך, במקום ובגודל של התמונה.
+// ציור בלי שרטוט מקורי (מחלון הציור) נפתח בחלון הציור, כמו קודם.
+async function editDrawing(p, info = null) {
+  if (info && typeof info.pos === 'number' && info.rect && !editorApi.isRaw()) {
+    const vector = await readVector(p);
+    const node = vector && editorApi.editor.state.doc.nodeAt(info.pos);
+    if (node && node.type.name === 'embed' && node.attrs.target === info.target) {
+      editorApi.editor.commands.command(({ tr, dispatch }) => { if (dispatch) dispatch(tr.delete(info.pos, info.pos + node.nodeSize)); return true; });
+      pageOverlay.setEnabled(true);
+      const r = $('page').getBoundingClientRect();
+      const L = pageOverlay.toLayer;
+      pageOverlay.addVector(vector, { x: L(info.rect.left - r.left), y: L(info.rect.top - r.top), w: L(info.rect.width), h: L(info.rect.height) });
+      setStatus('הציור חזר להיות שרטוט על הדף, ואפשר לערוך אותו. "המרה לתמונה" שומרת אותו שוב כתמונה.');
+      return;
+    }
+  }
   openPaint({
     image: fileUrl(p),
     onSave: async (bytes) => {

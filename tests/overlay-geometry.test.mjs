@@ -63,3 +63,23 @@ test('moveLineEnd moves one end only', () => {
   const start = moveLineEnd(line, 'start', -5, 0);
   assert.deepEqual([start.x, start.y, start.x + start.dx, start.y + start.dy], [-5, 0, 10, 0]);
 });
+
+test('11.6: merged drawings: bounding box and resize map every part', () => {
+  const d = { kind: 'drawing', x: 100, y: 100, parts: [
+    { kind: 'rect', x: 0, y: 0, dx: 50, dy: 20 }, { kind: 'line', x: 60, y: 30, dx: 40, dy: 10 }] };
+  assert.deepEqual(bboxOf(d), { x: 100, y: 100, w: 100, h: 40 });
+  const big = fitToBox(d, { x: 100, y: 100, w: 100, h: 40 }, { x: 0, y: 0, w: 200, h: 80 });
+  assert.deepEqual(bboxOf(big), { x: 0, y: 0, w: 200, h: 80 });
+  assert.deepEqual(big.parts[0], { kind: 'rect', x: 0, y: 0, dx: 100, dy: 40 });
+});
+
+test('11.6: the partial eraser cuts a stroke in two', async () => {
+  const src = readFileSync(new URL('../src/overlay-geometry.js', import.meta.url));
+  const { eraseFromStroke } = await import('data:text/javascript;base64,' + src.toString('base64'));
+  const pieces = eraseFromStroke([[0, 0], [100, 0]], 50, 0, 5);
+  assert.equal(pieces.length, 2);
+  assert.ok(pieces[0].every(([x]) => x < 45.1));
+  assert.ok(pieces[1].every(([x]) => x > 54.9));
+  assert.deepEqual(eraseFromStroke([[0, 0], [100, 0]], 50, 40, 5), [[[0, 0], [100, 0]]]);
+  assert.deepEqual(eraseFromStroke([[0, 0], [4, 0]], 2, 0, 10), []);
+});

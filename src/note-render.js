@@ -47,7 +47,8 @@ md.renderer.rules.tali_wiki = (tokens, i) => {
   const esc = md.utils.escapeHtml;
   const path = resolveImpl(target);
   if (embed && path && IMAGE_EXT.test(path)) {
-    const w = /^\d+$/.test(rest[0] || '') ? ` style="width:${Math.min(Number(rest[0]), 600)}px"` : '';
+    const size = /^(\d+)(?:x\d+)?$/.exec(rest[0] || ''); // 11.6: also 300x200
+    const w = size ? ` style="width:${Math.min(Number(size[1]), 600)}px"` : '';
     return `<img src="${esc(fileUrlImpl(path))}" alt="${esc(target)}"${w}>`;
   }
   const label = !embed && rest.length ? rest.join('|') : target.split('/').pop();

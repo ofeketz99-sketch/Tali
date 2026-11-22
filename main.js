@@ -565,6 +565,15 @@ function registerIpc() {
     return true;
   });
 
+  // 11.6: קריאת קובץ PNG (עד 40MB) מתוך תיקיית העבודה, כדי למצוא בו את השרטוט המקורי ("עריכת הציור")
+  ipcMain.handle('read-image', async (_e, p) => {
+    const file = safe(p);
+    if (!/\.png$/i.test(file)) throw new Error('זה לא קובץ PNG');
+    const stat = await fs.stat(file);
+    if (stat.size > 40 * 1024 * 1024) throw new Error('הקובץ גדול מדי');
+    return new Uint8Array(await fs.readFile(file));
+  });
+
   // שכפול הערה: "שם (עותק).md" באותה תיקייה, ואם תפוס "שם (עותק) 1.md"
   ipcMain.handle('duplicate', async (_e, p) => {
     const src = safe(p);

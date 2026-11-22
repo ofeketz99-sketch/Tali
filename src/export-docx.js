@@ -1,6 +1,7 @@
 // ייצוא ל־Word כקובץ .docx אמיתי (ספריית docx). הקלט: ה־HTML של exportHtml אחרי שהתמונות הוטמעו
 // כ־data URI (inline-images ב־main.js). כל פסקה מקבלת כיוון לפי האות החזקה הראשונה שלה, כך שעברית
 // נשארת מימין לשמאל ב־Word, ואנגלית בתוכה לא מתהפכת.
+import { bakePicture } from './image-format-ui.js';
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, ImageRun,
   ExternalHyperlink, AlignmentType, BorderStyle, ShadingType, LevelFormat, CheckBox, Textbox,
@@ -51,6 +52,18 @@ async function imageData(img, fetchImage) {
   const mime = /^data:image\/([a-z+]+)/i.exec(src)?.[1]?.toLowerCase();
   const type = { png: 'png', jpeg: 'jpg', jpg: 'jpg', gif: 'gif', bmp: 'bmp' }[mime];
   let data;
+  // 11.6: תמונה חתוכה, מסובבת או הפוכה: התוצאה כפי שהיא נראית בדף, בגודל של התיבה
+  const box = img.closest?.('.pic-box[data-pic-format]');
+  let baked = null;
+  if (box) { try { baked = bakePicture(el, JSON.parse(box.dataset.picFormat)); } catch { baked = null; } }
+  if (baked) {
+    data = new Uint8Array(await (await new Promise((r) => baked.toBlob(r, 'image/png'))).arrayBuffer());
+    const bw = parseFloat(box.style.width) || baked.width;
+    const bh = (box.style.aspectRatio || '').split('/').map(Number);
+    const w = Math.min(bw, MAX_IMAGE_WIDTH);
+    const ratio = bh.length === 2 && bh[0] > 0 ? bh[1] / bh[0] : baked.height / baked.width;
+    return { type: 'png', data, transformation: { width: Math.round(w), height: Math.round(w * ratio) } };
+  }
   if (type) data = Uint8Array.from(atob(src.slice(src.indexOf(',') + 1)), (c) => c.charCodeAt(0));
   else {
     const c = document.createElement('canvas');

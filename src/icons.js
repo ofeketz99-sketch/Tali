@@ -10,6 +10,7 @@ import {
   PanelRightClose, PanelRightOpen, Waypoints, Ghost, Hash, FileDown, FileType, ListChecks, ListTree, Info, Reply, Ellipsis, Focus, Minimize2,
   Archive, ArchiveRestore, Sigma, SquareSigma, Omega, CalendarDays, LayoutTemplate, Columns2, ChevronsDownUp, LocateFixed, History, ClipboardList, ChevronUp, Eye, EyeOff, House, Shapes, Heading1, Heading2, Heading3, Pilcrow, Scissors, ClipboardPaste, TextSelect, ChevronLeft, ChevronRight, Flag, Keyboard, MessageSquareText, Braces, Moon, MousePointer2, SquareDashed, PaintBucket,
   Unlink, FolderInput, Merge,
+  TextWrap, Scaling, Crop, RotateCw, RotateCcw, FlipHorizontal2, FlipVertical2, Frame, Type, Lock, LockOpen, ImageDown, PenTool, Combine, Ratio,
   Group, Ungroup, LayoutDashboard, RemoveFormatting, SquareCode, BringToFront, SendToBack, Pin, PinOff,
 } from 'lucide';
 
@@ -47,6 +48,9 @@ const ICONS = {
   clearFormat: RemoveFormatting, codeBlock: SquareCode,
   pin: Pin, pinOff: PinOff, // 8.5: נעיצת כרטיסייה ומסמך למסך הבית
   archive: Archive, archiveRestore: ArchiveRestore,
+  // 11.6: עיצוב תמונה (כמו בוורד) ועריכת שרטוטים
+  picLayout: TextWrap, picSize: Scaling, crop: Crop, rotateCw: RotateCw, rotateCcw: RotateCcw, flipH: FlipHorizontal2, flipV: FlipVertical2,
+  picStyle: Frame, altText: Type, lock: Lock, lockOpen: LockOpen, toImage: ImageDown, editDrawing: PenTool, mergeFixed: Combine, ratio: Ratio,
   unlink: Unlink, moveToFolder: FolderInput, mergeNotes: Merge, // 11.2: ניתוק הערת שוליים מציטוט, העברת מסמך לתיקייה
 };
 
