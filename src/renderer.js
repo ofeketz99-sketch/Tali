@@ -1643,7 +1643,8 @@ async function newCanvas({ dir: chosen } = {}) {
     const file = await createUntitled((name) => window.api.createCanvas(dir, name));
     if (!file) return;
     await refreshTree();
-    await openNote(file);
+    // יצירה מהכפתור היא תמיד כרטיסייה חדשה, גם כשפתק אחר פתוח כרגע.
+    await openNote(file, { newTab: true });
   } catch (err) { setStatus(err.message); }
 }
 
@@ -1676,7 +1677,8 @@ async function openLink(target, opts = {}) {
   try {
     const file = await window.api.createNote(dir, name);
     await refreshTree();
-    await openNote(file);
+    // קישור חסר שנוצר שומר את אופן הפתיחה של הלחיצה (רגילה או כרטיסייה חדשה).
+    await openNote(file, opts);
     setStatus(`נוצר מסמך חדש: ${name}`);
   } catch (err) { setStatus(err.message); }
 }
@@ -2423,7 +2425,8 @@ async function newNote(presetName, { dir: chosen } = {}) {
       if (!file) return;
     }
     await refreshTree();
-    await openNote(file);
+    // מסמך חדש לא מחליף את הכרטיסייה שממנה המשתמש יצר אותו.
+    await openNote(file, { newTab: true });
     editorApi.editor.commands.focus();
   } catch (err) { setStatus(err.message); }
 }
@@ -2577,7 +2580,8 @@ async function newNoteFromTemplate({ dir } = {}) {
       : await createUntitled((n) => window.api.createNote(target, n, fill(n)));
     if (!file) return;
     await refreshTree();
-    await openNote(file);
+    // גם מסמך מתבנית נפתח ליד הכרטיסייה הנוכחית, כמו כל מסמך חדש.
+    await openNote(file, { newTab: true });
     editorApi.editor.commands.focus('end');
   } catch (err) { setStatus(err.message); }
 }
