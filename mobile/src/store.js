@@ -82,6 +82,17 @@ export const vault = {
     await this.write(to, old.data);
     await this.trash(from);
   },
+  // ניתוק מהמקור: מה שכבר שם ולא השתנה מוסר מהטלפון (הוא בענן), מה שלא נשלח נשאר ונחשב "חדש".
+  // כך חיבור למקור אחר (או לאותו מקור שוב) לא מעלה כפילויות של כל הכספת, ולא מאבד עבודה.
+  async forgetRemote() {
+    let removed = 0, kept = 0;
+    for (const f of await this.list()) {
+      const clean = f.baseRev != null && !f.deleted && f.hash === f.baseHash;
+      if (f.deleted || clean) { await this.remove(f.path); removed++; }
+      else { await this.put({ ...f, baseHash: null, baseRev: null }); kept++; }
+    }
+    return { removed, kept };
+  },
   // כמה שינויים מחכים לסנכרון
   async pending() {
     return (await this.list()).filter((f) => f.deleted || f.baseRev == null || f.hash !== f.baseHash).length;

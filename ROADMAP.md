@@ -6,7 +6,7 @@
 ## רעיונות להמשך
 
 ### TALI Mobile (שלב 1 נבנה ב־17.11.2026, ראו `mobile/README.md`)
-- **מתאם סנכרון אמיתי** (ההחלטה הפתוחה): Google Drive API (המלצה, אם הכספת שם), Dropbox, WebDAV או Git. המנוע (`mobile/src/sync-core.js`) כבר מוכן.
+- **סנכרון עם Google Drive נבנה (22.11.2026, `mobile/src/drive.js`).** חסר: Client ID של Google (המשתמש יוצר, ראו `mobile/README.md`), בדיקה מול Google אמיתי, ובסנכרון ראשון של כספת גדולה ההורדה סדרתית (אפשר להוריד כמה במקביל).
 - פרסום ה־PWA בכתובת קבועה (Netlify `/app`) ובדיקה בטלפון אמיתי: Android/Chrome ו־iOS/Safari, מקלדת וירטואלית, התקנה למסך הבית.
 - עטיפה ב־Capacitor אם יידרש קובץ התקנה או גישה לתיקייה בטלפון.
 - העברת קבצי ה־Core לתיקייה `core/` (דורש Release לדסקטופ).

@@ -11,6 +11,8 @@ import { withCreated, extractTags } from '../../vault-data.js';
 import { vault, meta, localForSync, isNotePath, hashData } from './store.js';
 import { runSync } from './sync-core.js';
 import { connectedRemote, remoteLabel, setRemote, memoryRemote } from './remotes.js';
+import { driveRemote, listFolders } from './drive.js';
+import { createDriveAuth } from './drive-auth.js';
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -63,12 +65,11 @@ function ask({ title, value, ok = 'אישור', danger = false }) {
     const finish = (result) => {
       if (done) return;
       done = true;
-      dlg.removeEventListener('close', onClose);
       if (dlg.open) dlg.close();
       resolve(result);
     };
-    const onClose = () => finish(withInput ? null : false);
-    dlg.addEventListener('close', onClose);
+    // Esc / "חזרה". לא 'close': אירוע close של שאלה קודמת מגיע באיחור ומבטל את השאלה החדשה.
+    dlg.oncancel = (e) => { e.preventDefault(); finish(withInput ? null : false); };
     okBtn.onclick = (e) => {
       e.preventDefault();
       if (!withInput) return finish(true);
@@ -453,8 +454,13 @@ async function syncNow({ quiet = false } = {}) {
     if (r.conflicts.length) parts.push(`${r.conflicts.length} נשמרו כעותק (נערכו בשני המקומות)`);
     if (r.errors.length) parts.push(`${r.errors.length} נכשלו`);
     if (!quiet || parts.length) toast(parts.length ? 'סנכרון: ' + parts.join(', ') : 'הכול מסונכרן');
+    delete $('mSync').dataset.auth;
   } catch (error) {
-    if (!quiet) toast('הסנכרון נכשל: ' + (error?.message || error));
+    if (error?.code === 'AUTH') {
+      // הטוקן של Google פג (כשעה). ברקע לא פותחים חלון; הכפתור מסומן, ולחיצה עליו מתחברת שוב.
+      $('mSync').dataset.auth = 'needed';
+      if (!quiet) toast('צריך להתחבר שוב ל־Google Drive');
+    } else if (!quiet) toast('הסנכרון נכשל: ' + (error?.message || error));
   } finally {
     syncing = false;
     $('mSync').classList.remove('spin');
@@ -468,6 +474,118 @@ document.addEventListener('visibilitychange', () => {
   else syncNow({ quiet: true });
 });
 
+// ===== Google Drive (drive.js, drive-auth.js) =====
+const driveAuth = createDriveAuth({ meta });
+let driveFetch; // לבדיקות בדפדפן: Drive מדומה (window.taliMobile.useDriveFetch)
+
+async function attachDrive() {
+  const d = await meta.get('drive');
+  setRemote(d ? driveRemote({ folderId: d.folderId, folderName: d.folderName, getToken: driveAuth.getToken, fetch: driveFetch }) : null);
+  return d;
+}
+
+// בורר תיקייה: מתחילים ב"האחסון שלי" ונכנסים פנימה. אי אפשר לבחור את כל ה־Drive.
+function pickFolder() {
+  const dlg = $('mPicker');
+  const trail = [{ id: 'root', name: 'האחסון שלי' }];
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (value) => { if (done) return; done = true; if (dlg.open) dlg.close(); resolve(value); };
+    const draw = async () => {
+      const cur = trail.at(-1);
+      $('mPickerPath').textContent = trail.map((t) => t.name).join(' / ');
+      $('mPickerUp').hidden = trail.length === 1;
+      const choose = $('mPickerChoose');
+      choose.disabled = trail.length === 1;
+      choose.textContent = trail.length === 1 ? 'בחרו תיקייה' : `בחירת "${cur.name}"`;
+      const list = $('mPickerList');
+      list.innerHTML = '<p class="m-muted">טוען…</p>';
+      try {
+        const folders = await listFolders({ getToken: driveAuth.getToken, fetch: driveFetch, parentId: cur.id });
+        if (trail.at(-1) !== cur) return; // המשתמש כבר עבר תיקייה
+        list.innerHTML = '';
+        if (!folders.length) list.innerHTML = '<p class="m-muted">אין כאן תיקיות</p>';
+        for (const f of folders) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'm-sheet-item';
+          b.innerHTML = icon('folder', 18);
+          b.append(f.name);
+          b.addEventListener('click', () => { trail.push(f); draw(); });
+          list.append(b);
+        }
+      } catch (error) {
+        list.innerHTML = '';
+        const p = document.createElement('p');
+        p.className = 'm-muted';
+        p.textContent = 'לא ניתן לטעון: ' + (error?.message || error);
+        list.append(p);
+      }
+    };
+    $('mPickerUp').onclick = () => { trail.pop(); draw(); };
+    $('mPickerChoose').onclick = () => finish(trail.at(-1));
+    $('mPickerCancel').onclick = () => finish(null);
+    dlg.onclick = (e) => { if (e.target === dlg) finish(null); };
+    // Esc / כפתור "חזרה" של הטלפון. לא 'close': אירוע close של סגירה קודמת מגיע באיחור וסוגר את הפתיחה החדשה.
+    dlg.oncancel = (e) => { e.preventDefault(); finish(null); };
+    dlg.showModal();
+    draw();
+  });
+}
+
+async function chooseDriveFolder() {
+  const folder = await pickFolder();
+  if (!folder) return;
+  await meta.set('drive', { folderId: folder.id, folderName: folder.name });
+  await attachDrive();
+  toast(`מחובר ל־"${folder.name}". מסנכרן…`);
+  syncNow();
+}
+
+async function connectDrive() {
+  $('mSheet').close();
+  if (!driveAuth.clientId) {
+    const id = await ask({ title: 'Client ID של Google (פעם אחת; איך יוצרים: mobile/README.md)', value: '', ok: 'המשך' });
+    if (!id) return;
+    if (!/\.apps\.googleusercontent\.com$/.test(id)) { toast('זה לא נראה כמו Client ID (מסתיים ב־apps.googleusercontent.com)'); return; }
+    await driveAuth.setClientId(id);
+  }
+  try {
+    await driveAuth.signIn({ consent: true });
+  } catch (error) {
+    toast(error?.message || String(error));
+    return;
+  }
+  await chooseDriveFolder();
+}
+
+async function disconnectDrive() {
+  $('mSheet').close();
+  const d = await meta.get('drive');
+  if (!d) return;
+  await saveNow();
+  if (!await ask({ title: `לנתק מ־"${d.folderName}"? מה שכבר נמצא ב־Drive יוסר מהטלפון (הוא נשאר ב־Drive); מה שעוד לא נשלח יישאר בטלפון.`, ok: 'ניתוק', danger: true })) return;
+  await meta.set('drive', null);
+  await meta.set('lastSync', null);
+  await attachDrive();
+  await driveAuth.signOut();
+  const { kept } = await vault.forgetRemote();
+  if (state.current && !(await vault.get(state.current))) await closeNote();
+  await loadFiles();
+  renderList();
+  delete $('mSync').dataset.auth;
+  toast(kept ? `נותק. ${kept} מסמכים שלא נשלחו נשארו בטלפון` : 'נותק מ־Google Drive');
+}
+
+// לחיצה על "סנכרון": אם הטוקן פג, קודם התחברות (מתוך הלחיצה, אחרת החלון הקופץ נחסם)
+async function syncClicked() {
+  const remote = await connectedRemote();
+  if (remote?.kind === 'drive' && !driveAuth.hasValidToken()) {
+    try { await driveAuth.signIn(); } catch (error) { toast(error?.message || String(error)); return; }
+  }
+  syncNow();
+}
+
 // ===== תפריט (גיליון תחתון) =====
 async function openSheet() {
   const remoteName = await remoteLabel();
@@ -475,6 +593,8 @@ async function openSheet() {
   $('mSheetSync').textContent = remoteName
     ? `מחובר: ${remoteName}${last ? ` · סנכרון אחרון ${fmtTime(last)}` : ''}`
     : 'הסנכרון עוד לא מחובר. בינתיים כל מה שנכתב נשמר בטלפון בלבד; אפשר לייבא קבצים מהמחשב ולשתף מסמך.';
+  $('mDriveConnect').hidden = !!remoteName;
+  $('mDriveDisconnect').hidden = !remoteName;
   $('mSheetNote').hidden = !state.current;
   $('mSheet').showModal();
 }
@@ -490,7 +610,11 @@ setIcon($('mSearchIcon'), 'search', 18);
 for (const el of document.querySelectorAll('[data-icon]')) setIcon(el, el.dataset.icon, 18);
 
 $('mBack').addEventListener('click', () => closeNote());
-$('mSync').addEventListener('click', () => syncNow());
+$('mSync').addEventListener('click', syncClicked);
+$('mDriveIcon').innerHTML = lucide('Cloud', 18);
+setIcon($('mPickerUp'), 'chevronRight', 18);
+$('mDriveConnect').addEventListener('click', connectDrive);
+$('mDriveDisconnect').addEventListener('click', disconnectDrive);
 $('mMenu').addEventListener('click', openSheet);
 $('mNew').addEventListener('click', async () => {
   const name = await ask({ title: 'שם המסמך החדש', value: 'מסמך חדש', ok: 'יצירה' });
@@ -552,8 +676,17 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   renderList();
   const fromHash = location.hash ? decodeURIComponent(location.hash.slice(1)) : null;
   if (fromHash && state.files.some((f) => f.path === fromHash)) { history.replaceState(null, '', location.pathname); openNote(fromHash); }
+  await driveAuth.load();
+  const drive = await attachDrive();
+  // חזרה מ־Google בדף כולו (החלון הקופץ נחסם): אוספים את הטוקן, ובחיבור ראשון בוחרים תיקייה
+  try {
+    if (await driveAuth.consumeRedirect()) { if (!drive) { await chooseDriveFolder(); return; } }
+  } catch (error) { toast(error?.message || String(error)); }
   syncNow({ quiet: true });
 })();
 
 // לבדיקות ולניפוי (בדפדפן): window.taliMobile
-window.taliMobile = { state, vault, openNote, closeNote, editorApi, overlay, syncNow, setRemote, memoryRemote, extractTags };
+window.taliMobile = {
+  state, vault, meta, openNote, closeNote, editorApi, overlay, syncNow, setRemote, memoryRemote, extractTags, driveAuth,
+  async useDriveFetch(f) { driveFetch = f; await attachDrive(); }, chooseDriveFolder,
+};

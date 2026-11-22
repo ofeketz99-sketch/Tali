@@ -22,7 +22,7 @@ async function main() {
   else await esbuild.build(options);
   fs.renameSync(path.join(out, 'app-css.css'), path.join(out, 'app.css'));
   if (fs.existsSync(path.join(out, 'app-css.css.map'))) fs.renameSync(path.join(out, 'app-css.css.map'), path.join(out, 'app.css.map'));
-  for (const f of ['index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png']) fs.copyFileSync(path.join(src, f), path.join(out, f));
+  for (const f of ['index.html', 'oauth.html', 'oauth.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png']) fs.copyFileSync(path.join(src, f), path.join(out, f));
   // רשימת הקבצים למטמון של ה־service worker, וגרסה חדשה בכל בנייה
   const files = [];
   const walk = (dir) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

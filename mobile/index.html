@@ -44,6 +44,8 @@
     <section>
       <h3>סנכרון</h3>
       <p id="mSheetSync" class="m-muted"></p>
+      <button id="mDriveConnect" type="button" class="m-sheet-item"><span id="mDriveIcon"></span>חיבור ל־Google Drive</button>
+      <button id="mDriveDisconnect" type="button" class="m-sheet-item" hidden><span data-icon="unlink"></span>ניתוק מ־Google Drive</button>
     </section>
     <section id="mSheetNote">
       <h3>המסמך הזה</h3>
@@ -70,6 +72,17 @@
         <button id="mAskOk" type="submit" class="m-ask-btn primary"></button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="mPicker" class="m-sheet m-picker">
+    <div class="m-sheet-grip"></div>
+    <h3>איפה הכספת ב־Google Drive?</h3>
+    <div class="m-crumb"><button id="mPickerUp" type="button" class="m-icon-btn" aria-label="תיקייה למעלה"></button><span id="mPickerPath"></span></div>
+    <div id="mPickerList" class="m-picker-list"></div>
+    <div class="m-ask-actions">
+      <button id="mPickerCancel" type="button" class="m-ask-btn">ביטול</button>
+      <button id="mPickerChoose" type="button" class="m-ask-btn primary"></button>
+    </div>
   </dialog>
 
   <div id="mToast" class="m-toast" role="status" hidden></div>
