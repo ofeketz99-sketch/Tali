@@ -23,9 +23,12 @@ const os = require('os');
 app.setName('Tali');
 // גרסת הפיתוח נקראת TALI-DEV (מ־7.5): משגר הפיתוח הוא TALI-DEV.exe (tools/make-exe.js), ולפי שם הקובץ
 // החלון ושורת הכותרת מציגים TALI-DEV. בלי שינוי במשגר, ובלי לגעת בהגדרות (userData נשאר my-notes).
-const APP_TITLE = /^tali-dev\.exe$/i.test(path.basename(process.execPath)) ? 'TALI-DEV' : 'Tali';
+const IS_DEV_EXE = /^tali-dev\.exe$/i.test(path.basename(process.execPath));
+const APP_TITLE = IS_DEV_EXE ? 'TALI-DEV' : 'Tali';
 if (!app.commandLine.hasSwitch('user-data-dir')) app.setPath('userData', path.join(app.getPath('appData'), 'my-notes'));
-if (process.platform === 'win32') app.setAppUserModelId('app.tali.notes'); // אייקון ושם נכונים בשורת המשימות
+// המתקין יוצר קיצור דרך עם appId מפורש, ולכן החלון צריך את אותו מזהה. קיצור TALI-DEV הוא קיצור Windows
+// רגיל בלי AppUserModelID; אם ניתן לחלון מזהה מפורש, Windows מפריד אותו מהאייקון שעליו לחצו ומציג שניים.
+if (process.platform === 'win32' && !IS_DEV_EXE) app.setAppUserModelId('app.tali.notes');
 
 let root = null;
 const vaultIndex = createVaultIndex({ getRoot: () => root });

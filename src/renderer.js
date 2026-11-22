@@ -1106,7 +1106,7 @@ function updateDocTitle() {
 }
 // 11.5 (לבקשת המשתמש): שינוי השם במקום, על שורת הכותרת עצמה, בלי חלון. לחיצה בכל מקום בשורה
 // (גם בחלק הריק שליד השם) הופכת את השם לשדה הקלדה: על השם עצמו הסמן נכנס בנקודת הלחיצה, בחלק הריק
-// לסוף השם, וב"ללא שם" כל השם מסומן כדי שההקלדה תחליף אותו. Enter או יציאה מהשדה שומרים
+// לסוף השם, וב"ללא שם" הטקסט נעלם כמו placeholder כדי להתחיל להקליד שם אמיתי. Enter או יציאה מהשדה שומרים
 // (renameNode עם השם החדש), Esc מבטל. שם ריק או זהה: חוזר לשם הקיים. גם F2 על המסמך הפתוח מגיע לכאן.
 var titleEditing = false;
 function startTitleEdit({ caretAtEnd = true } = {}) {
@@ -1117,10 +1117,12 @@ function startTitleEdit({ caretAtEnd = true } = {}) {
   title.classList.add('editing');
   delete title.dataset.tip;
   try { text.contentEditable = 'plaintext-only'; } catch { text.contentEditable = 'true'; }
+  // "ללא שם" הוא חיווי זמני, לא חלק מהשם שהמשתמש צריך לערוך או למחוק.
+  const untitled = isUntitled(state.currentPath);
+  if (untitled) text.textContent = '';
   text.focus();
   const sel = getSelection();
-  if (isUntitled(state.currentPath)) sel.selectAllChildren(text);
-  else if (caretAtEnd) { sel.selectAllChildren(text); sel.collapseToEnd(); }
+  if (!untitled && caretAtEnd) { sel.selectAllChildren(text); sel.collapseToEnd(); }
 }
 async function endTitleEdit(save) {
   if (!titleEditing) return;
