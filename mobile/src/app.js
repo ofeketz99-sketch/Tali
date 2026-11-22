@@ -48,6 +48,40 @@ const resolve = (target) => {
   const withExt = /\.[a-z0-9]+$/i.test(t) ? t : t + '.md';
   return resolveLink(withExt, files, '') || resolveLink(t, files, '');
 };
+// שאלה בגיליון תחתון. עם value: שדה שם, ומחזיר את הטקסט (או null). בלי: אישור, ומחזיר true/false.
+// prompt/confirm של הדפדפן חוסמים, נראים זרים, ובחלק מהמעטפות (Capacitor, תצוגה מקדימה) לא קיימים.
+function ask({ title, value, ok = 'אישור', danger = false }) {
+  const dlg = $('mAsk'), input = $('mAskInput'), okBtn = $('mAskOk');
+  const withInput = value !== undefined;
+  $('mAskTitle').textContent = title;
+  okBtn.textContent = ok;
+  okBtn.classList.toggle('danger', danger);
+  input.hidden = !withInput;
+  input.value = withInput ? value : '';
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (result) => {
+      if (done) return;
+      done = true;
+      dlg.removeEventListener('close', onClose);
+      if (dlg.open) dlg.close();
+      resolve(result);
+    };
+    const onClose = () => finish(withInput ? null : false);
+    dlg.addEventListener('close', onClose);
+    okBtn.onclick = (e) => {
+      e.preventDefault();
+      if (!withInput) return finish(true);
+      const text = input.value.trim();
+      finish(text || null);
+    };
+    $('mAskCancel').onclick = () => finish(withInput ? null : false);
+    dlg.onclick = (e) => { if (e.target === dlg) finish(withInput ? null : false); };
+    dlg.showModal();
+    if (withInput) { input.focus(); input.select(); }
+  });
+}
+
 function toast(text, ms = 2600) {
   const el = $('mToast');
   el.textContent = text;
@@ -264,7 +298,7 @@ async function openLink(target) {
   if (p && isNotePath(p)) { openNote(p); return; }
   if (p) { toast('קובץ מצורף: פתיחה במחשב'); return; }
   const name = String(target).split('#')[0].split('|')[0].trim();
-  if (name && confirm(`ליצור את המסמך "${name}"?`)) await createNote(name);
+  if (name && await ask({ title: `ליצור את המסמך "${name}"?`, ok: 'יצירה' })) await createNote(name);
 }
 async function closeNote({ fromHistory = false } = {}) {
   await saveNow();
@@ -459,7 +493,7 @@ $('mBack').addEventListener('click', () => closeNote());
 $('mSync').addEventListener('click', () => syncNow());
 $('mMenu').addEventListener('click', openSheet);
 $('mNew').addEventListener('click', async () => {
-  const name = prompt('שם המסמך החדש', 'מסמך חדש');
+  const name = await ask({ title: 'שם המסמך החדש', value: 'מסמך חדש', ok: 'יצירה' });
   if (name) await createNote(name);
 });
 $('mCrumbUp').addEventListener('click', () => { state.folder = dirOf(state.folder); renderList(); });
@@ -471,7 +505,7 @@ $('mRaw').addEventListener('click', () => { $('mSheet').close(); editorApi.toggl
 $('mRename').addEventListener('click', async () => {
   $('mSheet').close();
   if (!state.current) return;
-  const name = prompt('שם חדש', noteName(state.current));
+  const name = await ask({ title: 'שם חדש', value: noteName(state.current), ok: 'שמירה' });
   if (!name || name === noteName(state.current)) return;
   await saveNow();
   const to = (dirOf(state.current) ? dirOf(state.current) + '/' : '') + name.replace(/[\\/:*?"<>|]/g, '') + '.md';
@@ -483,7 +517,7 @@ $('mRename').addEventListener('click', async () => {
 });
 $('mDelete').addEventListener('click', async () => {
   $('mSheet').close();
-  if (!state.current || !confirm(`למחוק את "${noteName(state.current)}"?`)) return;
+  if (!state.current || !await ask({ title: `למחוק את "${noteName(state.current)}"?`, ok: 'מחיקה', danger: true })) return;
   const path = state.current;
   state.dirty = false;
   await vault.trash(path);

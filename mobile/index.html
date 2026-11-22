@@ -60,6 +60,18 @@
     <button id="mSheetClose" type="button" class="m-sheet-close">סגירה</button>
   </dialog>
 
+  <dialog id="mAsk" class="m-sheet m-ask">
+    <div class="m-sheet-grip"></div>
+    <form method="dialog">
+      <h3 id="mAskTitle"></h3>
+      <input id="mAskInput" type="text" dir="auto" enterkeyhint="done" autocomplete="off" />
+      <div class="m-ask-actions">
+        <button id="mAskCancel" type="button" class="m-ask-btn">ביטול</button>
+        <button id="mAskOk" type="submit" class="m-ask-btn primary"></button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="mToast" class="m-toast" role="status" hidden></div>
   <script src="app.js"></script>
 </body>
