@@ -38,6 +38,6 @@ async function main() {
   const version = require(path.join(root, 'package.json')).version + '-' + Date.now().toString(36);
   const sw = fs.readFileSync(path.join(src, 'sw.js'), 'utf8').replace('__BUILD__', version).replace('__FILES__', JSON.stringify(files));
   fs.writeFileSync(path.join(out, 'sw.js'), sw);
-  console.log(`TALI Mobile: ${files.length} קבצים ב־mobile/www (${version})`);
+  console.log(`TALI Mobile: ${files.length} קבצים ב־${path.relative(root, out).split(path.sep).join('/')} (${version})`);
 }
 main().catch((e) => { console.error(e); process.exit(1); });
