@@ -27,12 +27,30 @@ const cleanImageCrop = (c) => {
   return v;
 };
 
+// 11.8: "צמוד לטקסט": anchor = { t: תחילת הטקסט של הגוש (עד 80 תווים), n: מספר ההופעה, dy: פיקסלים מראש הגוש }.
+// fixed: true = מיקום קבוע בדף. לא להערת שוליים (מעוגנת לציטוט) ולא לחלקים של שרטוט ממוזג.
+function anchorFields(object) {
+  if (object.kind === 'comment') return {};
+  if (object.fixed === true) return { fixed: true };
+  const a = object.anchor;
+  if (!a || typeof a !== 'object' || !finite(a.dy)) return {};
+  const n = Number.isInteger(a.n) && a.n >= 0 && a.n < 100000 ? a.n : 0;
+  return { anchor: { t: String(a.t || '').replace(/[\r\n]/g, ' ').slice(0, 80), n, dy: Math.round(a.dy * 10) / 10 } };
+}
+
 export function cleanOverlayObjects(input, { parts = false } = {}) {
   if (!Array.isArray(input)) return [];
   const result = [];
   let partPoints = 0;
   for (const object of input.slice(0, parts ? MAX_PARTS : 400)) {
     if (!object || !(parts ? PART_KINDS : TYPES).has(object.kind)) continue;
+    const before = result.length;
+    cleanOne(object);
+    if (!parts && result.length > before) Object.assign(result[result.length - 1], anchorFields(object));
+  }
+  return result;
+
+  function cleanOne(object) {
     const base = {
       ...(parts ? {} : { id: String(object.id || '').slice(0, 80) || String(result.length + 1) }),
       kind: object.kind,
@@ -48,7 +66,7 @@ export function cleanOverlayObjects(input, { parts = false } = {}) {
     };
     if (object.kind === 'image') {
       const src = cleanSrc(object.src);
-      if (!src) continue;
+      if (!src) return;
       const crop = cleanImageCrop(object.crop);
       result.push({
         id: base.id, kind: 'image', x: base.x, y: base.y,
@@ -81,7 +99,7 @@ export function cleanOverlayObjects(input, { parts = false } = {}) {
       // Since 6.3 one pen entity can hold several separate pointer strokes. Older
       // notes with one `points` array (and optional group id) remain compatible.
       let remaining = parts ? Math.min(2500, MAX_PART_POINTS - partPoints) : 2500;
-      if (remaining < 2) continue;
+      if (remaining < 2) return;
       let pen = null;
       if (Array.isArray(object.strokes)) {
         const strokes = [];
@@ -107,7 +125,6 @@ export function cleanOverlayObjects(input, { parts = false } = {}) {
       });
     }
   }
-  return result;
 }
 
 export function splitOverlay(markdown) {

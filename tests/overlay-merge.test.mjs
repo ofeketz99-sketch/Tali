@@ -95,3 +95,17 @@ test('the page width the drawings refer to survives saving (8.4), and bad values
   assert.equal(splitOverlay(joinOverlay('Text\n', items, { pageWidth: 50 })).pageWidth, undefined);
   assert.equal(joinOverlay('Text\n', [], { pageWidth: 820 }), 'Text\n');
 });
+
+test('11.8: anchors to text and fixed positions survive cleaning; comments never get them', () => {
+  const out = cleanOverlayObjects([
+    { id: 'a', kind: 'line', x: 0, y: 0, dx: 5, dy: 5, anchor: { t: 'כותרת\nשנייה', n: 2, dy: 12.345 } },
+    { id: 'b', kind: 'textbox', x: 0, y: 0, width: 200, height: 80, text: '', fixed: true, anchor: { t: 'x', n: 0, dy: 1 } },
+    { id: 'c', kind: 'comment', x: 0, y: 0, width: 200, height: 80, text: '', anchor: { t: 'x', n: 0, dy: 1 } },
+    { id: 'd', kind: 'rect', x: 0, y: 0, dx: 5, dy: 5, anchor: { t: 'x', n: -1, dy: 'bad' } },
+  ]);
+  assert.deepEqual(out[0].anchor, { t: 'כותרת שנייה', n: 2, dy: 12.3 });
+  assert.equal(out[1].fixed, true);
+  assert.equal(out[1].anchor, undefined);
+  assert.equal(out[2].anchor, undefined);
+  assert.equal(out[3].anchor, undefined);
+});

@@ -358,8 +358,50 @@ function overlayImageUrls(o) {
   const pre = previewUrls.get(o.src);
   return [pre, p && fileUrl(p)].filter(Boolean);
 }
+// 11.8: "צמוד לטקסט" בשכבת הדף: הגושים העליונים של המסמך (פסקה, כותרת, רשימה...) כעוגנים.
+// key: תחילת הטקסט של הגוש ומספר ההופעה שלו, כדי למצוא אותו שוב אחרי פתיחה מחדש.
+const blockKey = (node) => (node.textContent || node.type.name).replace(/\s+/g, ' ').trim().slice(0, 80);
+const topBlocks = () => {
+  const out = [];
+  editorApi.editor.state.doc.forEach((node, pos) => out.push({ node, pos }));
+  return out;
+};
+const blockTop = (pos) => {
+  const el = editorApi.editor.view.nodeDOM(pos);
+  return el && el.nodeType === 1 ? el.getBoundingClientRect().top : null;
+};
+const overlayAnchors = {
+  blockAt(y) {
+    let best = null;
+    for (const b of topBlocks()) {
+      const top = blockTop(b.pos);
+      if (top == null) continue;
+      if (best && top > y) break;
+      best = { pos: b.pos, top };
+    }
+    return best;
+  },
+  topOf(pos) {
+    const { doc } = editorApi.editor.state;
+    if (pos < 0 || pos >= doc.content.size || doc.resolve(pos).depth !== 0 || !doc.nodeAt(pos)) return null;
+    return blockTop(pos);
+  },
+  keyOf(pos) {
+    const blocks = topBlocks();
+    const i = blocks.findIndex((b) => b.pos === pos);
+    if (i < 0) return null;
+    const t = blockKey(blocks[i].node);
+    return { t, n: blocks.slice(0, i).filter((b) => blockKey(b.node) === t).length };
+  },
+  find(t, n) {
+    let seen = 0;
+    for (const b of topBlocks()) if (blockKey(b.node) === t && seen++ === n) return b.pos;
+    return null;
+  },
+};
 const pageOverlay = createPageOverlay({
   page: $('page'), onChange: noteChanged,
+  anchors: overlayAnchors,
   // 7.8: תמונה חופשית. ![[...]] נפתרת כמו בעורך; ![](נתיב) יחסית להערה ואז לתיקייה הראשית
   resolveImage: (o) => overlayImageUrls(o),
   // 8.3: לחיצה על הטקסט בכלי הבחירה מחזירה לכתיבה בדיוק בנקודה שנלחצה
@@ -432,6 +474,8 @@ function freeImage({ ref, src, alt, rect, pos, format }) {
   setStatus('התמונה זזה חופשית: גוררים אותה לכל מקום בדף. "החזרה לטקסט" מחזירה אותה. באובסידיאן היא לא תוצג על הדף.');
 }
 editorApi.setOverlayController(pageOverlay);
+// 11.8: כל עריכה במסמך מזיזה את העוגנים יחד עם הגושים (Enter מעל שרטוט מוריד אותו)
+editorApi.editor.on('transaction', ({ transaction }) => { if (transaction.docChanged) pageOverlay.mapAnchors(transaction.mapping); });
 const useOverlay = (tool) => {
   if (!state.currentPath) { setStatus('קודם פותחים מסמך'); return; }
   if (editorApi.isRaw()) { setStatus('עבור לתצוגה המעוצבת כדי לשרטט על הדף'); return; }

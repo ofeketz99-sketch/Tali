@@ -80,7 +80,9 @@ const strokesOf = (object) => object.strokes || (object.points ? [object.points]
 // onTextClick(clientX, clientY): a plain click on the text in the select tool returns to writing at that point (8.3).
 // 11.6: onConvertToImage({ svg, x, y, w, h, vector }) -> Promise<{ ref, src } | null>: שומר את השרטוטים שנבחרו כתמונה.
 // onEditImage(object): 'עריכת הציור' בתמונה חופשית (ציור שמור); isDrawingImage(object): האם להציג את הכפתור.
-export function createPageOverlay({ page, onChange, resolveImage, onReturnImage, onTextClick, onConvertToImage, onEditImage, isDrawingImage }) {
+// 11.8: anchors (renderer.js, optional; TALI Mobile has none): ties every item to the text block above it.
+//   blockAt(clientY) -> { pos, top } | null, topOf(pos) -> clientTop | null, keyOf(pos) -> { t, n } | null, find(t, n) -> pos | null
+export function createPageOverlay({ page, onChange, resolveImage, onReturnImage, onTextClick, onConvertToImage, onEditImage, isDrawingImage, anchors = null }) {
   let objects = [], mode = null, session = false, enabled = false, drawing = null;
   // 8.3: בחירה מרובה. selection מחזיק מזהים; selected (לתאימות לקוד הקיים) הוא הראשון שבהם, או null.
   let selection = new Set();
@@ -143,6 +145,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
   const resetHistory = () => { undoStack = []; redoStack = []; snapshot = JSON.stringify(objects); updateHistoryButtons(); };
   const notify = ({ typing = false } = {}) => {
     if (!enabled) return;
+    reanchorChanged(); // 11.8
     const now = JSON.stringify(objects);
     if (now !== snapshot) {
       const merge = typing && Date.now() < typingUntil;
@@ -165,6 +168,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
       if (!editing.ids.size) editing = null;
     }
     setSelection([...selection].filter((id) => objects.some((item) => item.id === id)));
+    scheduleRelayout(); // 11.8: העוגנים שבתמונת המצב
     render(); updateHistoryButtons(); onChange();
     return true;
   }
@@ -272,6 +276,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
   const mergeButton = addButton(editGroup, { label: 'מיזוג לישות אחת (Ctrl+G)', iconName: 'mergeFixed', action: () => mergeSelection() });
   const splitButton = addButton(editGroup, { label: 'פירוק לצורות נפרדות (Ctrl+Shift+G)', iconName: 'ungroup', action: () => ungroupSelection() });
   const openButton = addButton(editGroup, { label: 'עריכת החלקים של השרטוט (לחיצה כפולה)', iconName: 'editDrawing', action: () => { const d = selectedShapes()[0]; if (d) enterDrawing(d.id); } });
+  // 11.8: צמוד לטקסט (ברירת מחדל) או מיקום קבוע בדף
+  const pinButton = addButton(editGroup, { label: 'צמוד לטקסט: זז עם הפסקה שמעליו (לחיצה: מיקום קבוע בדף)', iconName: 'pin', action: () => togglePinned() });
   const toImageButton = addButton(editGroup, { label: 'המרה לתמונה (נשמרת כקובץ PNG; אפשר לחזור לעריכה)', iconName: 'toImage', action: () => convertSelection() });
   addButton(editGroup, { label: 'הבאה לחזית', iconName: 'toFront', action: () => reorderSelection(1) });
   addButton(editGroup, { label: 'שליחה לרקע', iconName: 'toBack', action: () => reorderSelection(-1) });
@@ -313,7 +319,7 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
   }
   const PW = () => refWidth || cssPageWidth(); // רוחב הדף בקואורדינטות השכבה
   const PH = () => page.offsetHeight / scale;   // גובה הדף בקואורדינטות השכבה
-  new ResizeObserver(() => { if (enabled) { fitPage(); scheduleLinks(); } }).observe(page);
+  new ResizeObserver(() => { if (enabled) { fitPage(); scheduleLinks(); scheduleRelayout(); } }).observe(page);
   function fitPage() {
     applyScale();
     // 8.4: הישויות בקואורדינטות השכבה; הגובה על המסך = כפול קנה המידה
@@ -337,7 +343,101 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
   // 8.2: כשהטקסט גדל או קטן (הקלדה, פתיחת מסמך) הרווח מתחת מתעדכן. גובה הטקסט לא תלוי ב־min-height של הדף,
   // ולכן אין כאן לולאה.
   const editorEl = page.querySelector('.ProseMirror');
-  if (editorEl) new ResizeObserver(() => { if (enabled && objects.length) { fitPage(); scheduleLinks(); } }).observe(editorEl);
+  if (editorEl) new ResizeObserver(() => { if (enabled && objects.length) { fitPage(); scheduleLinks(); scheduleRelayout(); } }).observe(editorEl);
+
+  // ===== 11.8: צמוד לטקסט =====
+  // עד 11.7 המיקום היה רק בפיקסלים של השכבה, שמשתנה עם רוחב הדף (scale), בעוד שהטקסט לא משתנה. לכן בחלון
+  // צר או רחב השרטוט זז ביחס לטקסט, ו־Enter מעליו לא הזיז אותו. עכשיו כל ישות (חוץ מהערת שוליים, שמעוגנת
+  // לציטוט) קשורה לגוש הטקסט שמעליה: anchor = { t, n, dy } בקובץ (תחילת הטקסט של הגוש, מספר ההופעה, והמרחק
+  // בפיקסלים של המסך מראש הגוש), ובזמן העבודה מיקום הגוש במסמך (anchorPos), שעובר עם כל עריכה (mapAnchors).
+  // relayout מחשב מחדש את y מהגוש. fixed: true = מיקום קבוע בדף, כמו קודם ("צמוד לטקסט" כבוי).
+  const anchorPos = new WeakMap(); // ישות -> מיקום הגוש במסמך
+  const laidY = new WeakMap();     // ישות -> y אחרי העיגון או הסידור האחרון (שינוי אחר = המשתמש הזיז)
+  const anchorable = (o) => !!anchors && o.kind !== 'comment' && !o.fixed;
+  let pointerDown = false, relayoutWaiting = false, relayoutFrame = 0;
+  window.addEventListener('pointerdown', () => { pointerDown = true; }, true);
+  window.addEventListener('pointerup', () => { pointerDown = false; if (relayoutWaiting) scheduleRelayout(); }, true);
+  window.addEventListener('pointercancel', () => { pointerDown = false; }, true);
+  window.addEventListener('resize', () => scheduleRelayout());
+  function anchorObject(o) {
+    if (!anchorable(o)) { anchorPos.delete(o); if (!anchors || o.fixed) delete o.anchor; return; }
+    const top = page.getBoundingClientRect().top;
+    let b;
+    try { b = boundsOf(o); } catch { return; }
+    const hit = anchors.blockAt(top + b.y * scale);
+    if (!hit) return;
+    const key = anchors.keyOf(hit.pos) || { t: '', n: 0 };
+    anchorPos.set(o, hit.pos);
+    o.anchor = { t: key.t, n: key.n, dy: r1(top + o.y * scale - hit.top) };
+    laidY.set(o, o.y);
+  }
+  function resolveAnchor(o) {
+    const known = anchorPos.get(o);
+    if (known != null && anchors.topOf(known) != null) return known;
+    const found = o.anchor ? anchors.find(o.anchor.t, o.anchor.n) : null;
+    if (found != null) { anchorPos.set(o, found); return found; }
+    anchorPos.delete(o);
+    return null;
+  }
+  function relayout() {
+    if (!anchors || !enabled || !objects.length) return;
+    if (pointerDown || drawing) { relayoutWaiting = true; return; }
+    relayoutWaiting = false;
+    applyScale();
+    const top = page.getBoundingClientRect().top;
+    const moved = [];
+    for (const o of objects) {
+      if (!anchorable(o)) continue;
+      const pos = o.anchor ? resolveAnchor(o) : null;
+      if (pos == null) { anchorObject(o); continue; }
+      const y = r1((anchors.topOf(pos) + o.anchor.dy - top) / scale);
+      if (Number.isFinite(y) && Math.abs(y - o.y) > 0.05) { o.y = y; moved.push(o); }
+      laidY.set(o, o.y);
+    }
+    if (!moved.length) return;
+    for (const o of moved) {
+      if (shapeKinds.includes(o.kind)) {
+        shapes.querySelector(`.tali-overlay-shape[data-id="${CSS.escape(o.id)}"]`)?.setAttribute('transform', 'translate(' + o.x + ' ' + o.y + ')');
+      } else {
+        const el = boxes.querySelector(`[data-id="${CSS.escape(o.id)}"]`);
+        if (el) placeBox(o, el);
+      }
+    }
+    drawHandles(); fitPage(); scheduleLinks();
+  }
+  function scheduleRelayout() {
+    if (!anchors || relayoutFrame) return;
+    relayoutFrame = requestAnimationFrame(() => { relayoutFrame = 0; relayout(); });
+  }
+  // אחרי שינוי שהמשתמש עשה (הזזה, ציור, שינוי גודל): עיגון מחדש של מה שזז
+  function reanchorChanged() {
+    if (!anchors) return;
+    for (const o of objects) {
+      if (!anchorable(o)) { if (o.fixed) delete o.anchor; continue; }
+      if (!o.anchor || laidY.get(o) !== o.y) anchorObject(o);
+    }
+  }
+  // עריכה במסמך: הגושים זזים במסמך, והעוגנים זזים איתם (ProseMirror mapping)
+  function mapAnchors(mapping) {
+    if (!anchors) return;
+    for (const o of objects) {
+      const pos = anchorPos.get(o);
+      if (pos == null) continue;
+      const r = mapping.mapResult(pos);
+      if (r.deleted) anchorPos.delete(o); else anchorPos.set(o, r.pos);
+    }
+    scheduleRelayout();
+  }
+  // "צמוד לטקסט" לבחירה: מדליק (עיגון לגוש שמעל) או מכבה (מיקום קבוע בדף)
+  function togglePinned() {
+    const members = selectedObjects().filter((o) => o.kind !== 'comment');
+    if (!members.length || !anchors) return;
+    const pin = members.some((o) => o.fixed);
+    for (const o of members) {
+      if (pin) { delete o.fixed; anchorObject(o); } else { o.fixed = true; delete o.anchor; anchorPos.delete(o); }
+    }
+    updateToolbar(); notify();
+  }
   // מצב הסרגל לפי הכלי והבחירה: מה שלא רלוונטי מוסתר, כדי שהסרגל יהיה קצר
   function updateToolbar() {
     // 7.7: ידית הגרירה של השורות (⋮⋮, block-handle.js) מוסתרת בזמן ציור, כדי שלא תפריע
@@ -376,6 +476,13 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
     const oneDrawing = shapesSel.length === 1 && shapesSel[0].kind === 'drawing' && sel.length === 1;
     openButton.hidden = !oneDrawing || !!editing;
     toImageButton.hidden = !shapesSel.length || !onConvertToImage || !!editing;
+    // 11.8: מצב "צמוד לטקסט" של הבחירה
+    const pinnable = sel.filter((o) => o.kind !== 'comment');
+    pinButton.hidden = !anchors || !pinnable.length;
+    const pinned = pinnable.length && pinnable.every((o) => !o.fixed);
+    pinButton.classList.toggle('on', !!pinned);
+    pinButton.innerHTML = icon(pinned ? 'pin' : 'pinOff', 18);
+    pinButton.dataset.tip = pinned ? 'צמוד לטקסט: זז עם הפסקה שמעליו (לחיצה: מיקום קבוע בדף)' : 'מיקום קבוע בדף (לחיצה: צמוד לטקסט, זז עם הפסקה שמעליו)';
     editingGroup.hidden = !editing;
     const oneGroup = shapesSel.length > 1 && shapesSel.every((o) => o.group && o.group === shapesSel[0].group);
     const many = selectedObjects().length > 1 && !oneGroup;
@@ -1891,6 +1998,8 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
       objects = cleanOverlayObjects(items);
       setSelection([]); mode = null; session = false; drawing = null; sessionPen = null; marquee = null; render();
       resetHistory();
+      // 11.8: אחרי שהעורך צייר את המסמך החדש: מיקום לפי העוגנים (ועיגון של ישויות ממסמכים ישנים)
+      requestAnimationFrame(() => scheduleRelayout());
     },
     setEnabled: (value) => {
       enabled = !!value;
@@ -1899,7 +2008,9 @@ export function createPageOverlay({ page, onChange, resolveImage, onReturnImage,
       if (!enabled && editing) exitDrawing({ quiet: true });
       if (!enabled) { mode = null; session = false; setSelection([]); drawing = null; sessionPen = null; marquee = null; closeMenus(); }
       render();
+      if (enabled) requestAnimationFrame(() => scheduleRelayout());
     },
+    mapAnchors, // 11.8: editor transactions (renderer.js)
     setMode: (next) => setMode(next),
     inSession: () => enabled && session,
     getPageWidth: () => PW(),
