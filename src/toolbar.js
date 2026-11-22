@@ -16,8 +16,8 @@ const HIGHLIGHTS = [
 ];
 const STYLES = [
   ['paragraph', 'טקסט רגיל', '1em'], ['h1', 'כותרת 1', '1.5em'], ['h2', 'כותרת 2', '1.3em'], ['h3', 'כותרת 3', '1.12em'],
-  // 11.7: כותרות קטנות יותר
-  ['h4', 'כותרת 4', '1.02em'], ['h5', 'כותרת 5', '.94em'], ['h6', 'כותרת 6', '.86em'],
+  // 11.7: כותרת 4 (11.8: ארבע רמות; כותרות 5–6 שבקבצים מוצגות כמו 4)
+  ['h4', 'כותרת 4', '1.02em'],
 ];
 
 // ===== תפריט קופץ קטן מתחת לכפתור =====
@@ -89,7 +89,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
 
   // ===== סגנון פסקה =====
   const g2 = group('', 'style');
-  const styleOf = () => { for (let l = 1; l <= 6; l++) if (editor.isActive('heading', { level: l })) return 'h' + l; return 'paragraph'; };
+  const styleOf = () => { for (let l = 1; l <= 4; l++) if (editor.isActive('heading', { level: l })) return 'h' + l; return 'paragraph'; };
   const applyStyle = (s) => (s === 'paragraph' ? chain().setParagraph().run() : chain().setHeading({ level: +s[1] }).run());
   const styleBtn = button(g2, {
     id: 'style', html: '', tip: 'סגנון פסקה', cls: 'tb-select',
@@ -109,7 +109,7 @@ export function buildToolbar(container, editorApi, actions = {}) {
 
   // ===== 8.3 (רשות): כותרות בלחיצה אחת =====
   const gHead = group('', 'headings');
-  for (const level of [1, 2, 3, 4, 5, 6]) {
+  for (const level of [1, 2, 3, 4]) {
     button(gHead, { id: 'h' + level, html: icon('h' + level), tip: `כותרת ${level}`, run: () => chain().toggleHeading({ level }).run(), active: () => editor.isActive('heading', { level }) });
   }
 

@@ -7,7 +7,7 @@
 export const TOOLBAR_GROUPS = [
   ['history', 'ביטול וחזרה'],
   ['style', 'סגנון פסקה'],
-  ['headings', 'כותרות 1 עד 6 בלחיצה אחת', true],
+  ['headings', 'כותרות 1 עד 4 בלחיצה אחת', true],
   ['marks', 'מודגש, נטוי, קו תחתון, קו חוצה'],
   ['code', 'קוד בשורה, בלוק קוד וניקוי עיצוב', true],
   ['colors', 'צבע טקסט ומרקר'],
@@ -76,7 +76,7 @@ export const TOOLBAR_ITEMS = [
   ['undo', 'history', 'ביטול', 'undo'], ['redo', 'history', 'חזרה', 'redo'],
   ['style', 'style', 'סגנון פסקה (טקסט רגיל / כותרת)', 'paragraph'],
   ['h1', 'headings', 'כותרת 1', 'h1'], ['h2', 'headings', 'כותרת 2', 'h2'], ['h3', 'headings', 'כותרת 3', 'h3'],
-  ['h4', 'headings', 'כותרת 4', 'h4'], ['h5', 'headings', 'כותרת 5', 'h5'], ['h6', 'headings', 'כותרת 6', 'h6'],
+  ['h4', 'headings', 'כותרת 4', 'h4'],
   ['bold', 'marks', 'מודגש', 'bold'], ['italic', 'marks', 'נטוי', 'italic'], ['underline', 'marks', 'קו תחתון', 'underline'], ['strike', 'marks', 'קו חוצה', 'strike'],
   ['code', 'code', 'קוד בשורה', 'code'], ['codeBlock', 'code', 'בלוק קוד', 'codeBlock'], ['clearFormat', 'code', 'ניקוי עיצוב', 'clearFormat'],
   ['textColor', 'colors', 'צבע טקסט', 'textColor'], ['highlight', 'colors', 'מרקר', 'highlight'],

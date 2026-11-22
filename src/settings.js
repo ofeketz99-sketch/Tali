@@ -30,6 +30,9 @@ export const DEFAULTS = {
   headingStyleH2: 'rule',
   headingStyleH3: 'plain',
   headingStyleH4: 'plain',
+  // 11.8: גודל (em, ביחס לטקסט) וצבע לכל רמה. צבע: auto (כמו עד עכשיו) | text | accent | muted | #rrggbb
+  headingSizeH1: 2.15, headingSizeH2: 1.55, headingSizeH3: 1.25, headingSizeH4: 1.05,
+  headingColorH1: 'auto', headingColorH2: 'auto', headingColorH3: 'auto', headingColorH4: 'auto',
   showBacklinks: true,
   newNoteLocation: 'root',  // root | folder (תיקיית מסמכים חדשים) | selected (התיקייה שנבחרה בעץ). 11.0: ברירת המחדל root
   newNoteFolder: 'מסמכים חדשים', // נתיב יחסי לתיקיית העבודה; נוצר בעת הצורך
@@ -105,6 +108,12 @@ export function applyPrefs({ animate = false } = {}) {
   for (const n of [1, 2, 3, 4]) {
     const v = prefs['headingStyleH' + n];
     root.dataset['h' + n] = HEADING_STYLES.some(([k]) => k === v) ? v : DEFAULTS['headingStyleH' + n];
+    // 11.8: גודל וצבע (styles.css: --hN-size, --hN-color; בלי ערך = ברירת המחדל של הרמה)
+    const size = Number(prefs['headingSizeH' + n]);
+    root.style.setProperty('--h' + n + '-size', (Number.isFinite(size) && size >= .8 && size <= 4 ? size : DEFAULTS['headingSizeH' + n]) + 'em');
+    const c = prefs['headingColorH' + n];
+    const color = /^#[0-9a-f]{6}$/i.test(c || '') ? c : HEADING_COLORS[c];
+    if (color) root.style.setProperty('--h' + n + '-color', color); else root.style.removeProperty('--h' + n + '-color');
   }
   root.dataset.docTitleStyle = ['clean', 'strong', 'underline', 'label'].includes(prefs.docTitleStyle) ? prefs.docTitleStyle : 'clean';
   if (prefs.pageLook) delete root.dataset.page; else root.dataset.page = 'flat';
@@ -162,6 +171,8 @@ function el(tag, attrs = {}, ...kids) {
 }
 
 // 11.7: סגנונות הכותרות בהגדרות (הערך, השם בכפתור)
+// 11.8: צבעי כותרת מוכנים (משתני הערכה, כדי שיתאימו גם ללילה). auto = כמו שהיה
+const HEADING_COLORS = { auto: null, text: 'var(--text)', accent: 'var(--accent-strong)', bright: 'var(--accent)', muted: 'var(--muted)' };
 const HEADING_STYLES = [['plain', 'פשוט'], ['rule', 'קו ליד'], ['bar', 'קו קצר'], ['underline', 'קו מתחת'], ['side', 'פס בצד'], ['band', 'רקע'], ['caps', 'תווית']];
 
 function row(title, hint, control) {
@@ -207,6 +218,44 @@ function buildDialog() {
     const r = el('input', { type: 'range', min, max, step, on: { input: () => { setPref(key, Number(r.value)); out.textContent = fmt(r.value); } } });
     bind(() => { r.value = prefs[key]; out.textContent = fmt(prefs[key]); });
     return el('span', { style: 'display:flex;align-items:center;gap:6px' }, r, out);
+  };
+
+  // 11.8: כותרות: בוחרים רמה, ולה סגנון, גודל וצבע
+  const headingControls = () => {
+    let level = 1;
+    const panes = [];
+    const levelSeg = el('div', { class: 'seg' });
+    const colorFor = (n) => {
+      const key = 'headingColorH' + n;
+      const box = el('div', { class: 'seg heading-colors' });
+      for (const [value, text, sw] of [['auto', 'רגיל', ''], ['text', 'כהה', 'var(--text)'], ['accent', 'צבע הערכה', 'var(--accent-strong)'], ['bright', 'בהיר', 'var(--accent)'], ['muted', 'אפור', 'var(--muted)']]) {
+        const b = el('button', { type: 'button', on: { click: () => { setPref(key, value); refresh(); } } },
+          sw ? el('span', { class: 'hc-dot', style: 'background:' + sw }) : '', text);
+        box.append(b);
+        bind(() => b.classList.toggle('on', prefs[key] === value));
+      }
+      const pick = el('input', { type: 'color', 'aria-label': 'צבע אחר', on: { input: () => { setPref(key, pick.value); refresh(); } } });
+      const pickWrap = el('label', { class: 'hc-pick', 'data-tip': 'צבע אחר' }, pick);
+      bind(() => { const v = prefs[key]; pickWrap.classList.toggle('on', /^#/.test(v || '')); if (/^#[0-9a-f]{6}$/i.test(v || '')) pick.value = v; });
+      box.append(pickWrap);
+      return box;
+    };
+    for (const n of [1, 2, 3, 4]) {
+      const b = el('button', { type: 'button', on: { click: () => { level = n; refresh(); } } }, 'כותרת ' + n);
+      levelSeg.append(b);
+      bind(() => b.classList.toggle('on', level === n));
+      const pane = el('div', { class: 'heading-pane' },
+        row('סגנון', n === 2 ? 'בכותרת ממורכזת "קו ליד" נמתח לשני הצדדים' : null, seg('headingStyleH' + n, HEADING_STYLES)),
+        row('גודל', 'ביחס לטקסט הרגיל', range('headingSizeH' + n, 0.8, 3.5, 0.05, (v) => Math.round(v * 100) + '%')),
+        row('צבע', null, colorFor(n)),
+        el('div', { class: 'row' }, el('span'), el('button', { type: 'button', class: 'heading-reset', on: { click: () => {
+          for (const k of ['headingStyleH', 'headingSizeH', 'headingColorH']) setPref(k + n, DEFAULTS[k + n]);
+          refresh();
+        } } }, 'ברירת מחדל לכותרת ' + n)));
+      bind(() => { pane.hidden = level !== n; });
+      panes.push(pane);
+    }
+    return [row('איזו כותרת', 'כותרות 5–6 שבקבצים מאובסידיאן נראות כמו כותרת 4', levelSeg), ...panes];
   };
 
   // ערכות צבעים (theme-editor.js)
@@ -309,13 +358,10 @@ function buildDialog() {
         el('div', { style: 'font-family:var(--font-heading);font-weight:700;font-size:1.3em;margin-bottom:4px' }, 'כותרת לדוגמה'),
         'כך ייראה הטקסט במסמכים. The quick brown fox jumps over the lazy dog.')),
     card('כותרות',
-      row('כותרת 1', null, seg('headingStyleH1', HEADING_STYLES)),
-      row('כותרת 2', 'בכותרת ממורכזת "קו ליד" נמתח לשני הצדדים', seg('headingStyleH2', HEADING_STYLES)),
-      row('כותרת 3', null, seg('headingStyleH3', HEADING_STYLES)),
-      row('כותרות 4 עד 6', null, seg('headingStyleH4', HEADING_STYLES)),
+      ...headingControls(),
       el('div', { class: 'preview heading-preview ProseMirror', 'aria-hidden': 'true' },
         el('h1', {}, 'כותרת 1'), el('h2', {}, 'כותרת 2'), el('h2', { style: 'text-align: center' }, 'כותרת 2 ממורכזת'),
-        el('h3', {}, 'כותרת 3'), el('h4', {}, 'כותרת 4'), el('h5', {}, 'כותרת 5'), el('h6', {}, 'כותרת 6'))),
+        el('h3', {}, 'כותרת 3'), el('h4', {}, 'כותרת 4'))),
     card('דף',
       row('רוחב הדף', null, seg('pageWidth', [['narrow', 'צר'], ['normal', 'רגיל'], ['wide', 'רחב'], ['full', 'מלא']])),
       row('מראה דף', 'דף עם צל, כמו במסמך Word', check('pageLook'))),

@@ -277,8 +277,6 @@ export function setupContextMenus({ editorApi, edit, isNoteOpen, clipboard, link
         { label: 'כותרת 2', icon: 'h2', run: () => edit.heading(2), active: () => has('heading', { level: 2 }) },
         { label: 'כותרת 3', icon: 'h3', run: () => edit.heading(3), active: () => has('heading', { level: 3 }) },
         { label: 'כותרת 4', icon: 'h4', run: () => edit.heading(4), active: () => has('heading', { level: 4 }) },
-        { label: 'כותרת 5', icon: 'h5', run: () => edit.heading(5), active: () => has('heading', { level: 5 }) },
-        { label: 'כותרת 6', icon: 'h6', run: () => edit.heading(6), active: () => has('heading', { level: 6 }) },
         { label: 'טקסט רגיל', icon: 'paragraph', run: edit.paragraph, active: () => has('paragraph') },
       ] },
       { label: 'רשימה', icon: 'bullets', disabled: inCode(), sub: [

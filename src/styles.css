@@ -3020,21 +3020,33 @@ body:has(> .tb-menu:not(.from-bubble), > .cm-layer) .tb-bubble { visibility: hid
 :root[data-h3="caps"] .ProseMirror h3,
 :root[data-h4="caps"] .ProseMirror h4,
 :root[data-h4="caps"] .ProseMirror h5,
-:root[data-h4="caps"] .ProseMirror h6 { width: fit-content; padding: .12em .7em; border-radius: 999px; background: var(--accent-soft); color: var(--accent-strong); border: 1px solid var(--accent-line); }
+:root[data-h4="caps"] .ProseMirror h6 { width: fit-content; padding: .12em .7em; border-radius: 999px; background: var(--accent-soft); border: 1px solid var(--accent-line); }
 /* 11.7: תצוגה מקדימה של סגנונות הכותרות בהגדרות (משתמשת באותם כללים של .ProseMirror) */
 #settings .heading-preview { min-height: 0; direction: rtl; font-family: var(--font-doc); font-size: 14px; line-height: 1.5; padding: 10px 16px; }
 :root[data-textdir="ltr"] #settings .heading-preview { direction: ltr; }
 #settings .heading-preview :is(h1, h2, h3, h4, h5, h6) { margin: .5em 0 .25em; }
 #settings .heading-preview h1:first-child { margin-top: 0; }
-#settings .heading-preview.ProseMirror h1 { font-size: 2.15em; font-weight: 700; color: color-mix(in srgb, var(--text) 88%, var(--accent)); }
-#settings .heading-preview.ProseMirror h2 { font-size: 1.55em; font-weight: 650; color: color-mix(in srgb, var(--text) 88%, var(--accent)); }
-#settings .heading-preview.ProseMirror h3 { font-size: 1.25em; font-weight: 600; color: var(--accent-strong); }
-#settings .heading-preview.ProseMirror h4 { font-size: 1.05em; font-weight: 600; color: var(--muted); }
-#settings .heading-preview.ProseMirror h5 { font-size: .95em; font-weight: 600; color: var(--muted); }
-#settings .heading-preview.ProseMirror h6 { font-size: .86em; font-weight: 600; color: var(--faint); }
 :root[data-h1="caps"] .ProseMirror h1[style*="text-align: center"],
 :root[data-h2="caps"] .ProseMirror h2[style*="text-align: center"],
 :root[data-h3="caps"] .ProseMirror h3[style*="text-align: center"],
 :root[data-h4="caps"] .ProseMirror h4[style*="text-align: center"],
 :root[data-h4="caps"] .ProseMirror h5[style*="text-align: center"],
 :root[data-h4="caps"] .ProseMirror h6[style*="text-align: center"] { margin-inline: auto; }
+
+/* ===== 11.8: גודל וצבע לכל רמת כותרת (הגדרות ← כתיבה ודף ← כותרות; --hN-size / --hN-color מ־applyPrefs).
+   בלי ערך: הגודל והצבע שהיו עד 11.7. כותרות 5–6 (מקבצים מאובסידיאן) לפי כותרת 4, קצת קטנות יותר. */
+.ProseMirror h1, #settings .heading-preview.ProseMirror h1 { font-size: var(--h1-size, 2.15em); color: var(--h1-color, color-mix(in srgb, var(--text) 88%, var(--accent))); }
+.ProseMirror h2, #settings .heading-preview.ProseMirror h2 { font-size: var(--h2-size, 1.55em); color: var(--h2-color, color-mix(in srgb, var(--text) 88%, var(--accent))); }
+.ProseMirror h3, #settings .heading-preview.ProseMirror h3 { font-size: var(--h3-size, 1.25em); color: var(--h3-color, var(--accent-strong)); }
+.ProseMirror h4, #settings .heading-preview.ProseMirror h4 { font-size: var(--h4-size, 1.05em); color: var(--h4-color, var(--muted)); }
+.ProseMirror h5, #settings .heading-preview.ProseMirror h5 { font-size: calc(var(--h4-size, 1.05em) * .9); color: var(--h4-color, var(--muted)); }
+.ProseMirror h6, #settings .heading-preview.ProseMirror h6 { font-size: calc(var(--h4-size, 1.05em) * .82); color: var(--h4-color, var(--faint)); }
+#settings .heading-preview.ProseMirror :is(h1, h2) { font-weight: 700; } #settings .heading-preview.ProseMirror :is(h3, h4) { font-weight: 600; }
+#settings .heading-colors { flex-wrap: wrap; }
+#settings .heading-colors button { display: inline-flex; align-items: center; gap: 5px; }
+#settings .hc-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+#settings .hc-pick { position: relative; width: 26px; height: 26px; margin-inline-start: 4px; border-radius: 50%; background: var(--picker-rainbow); cursor: pointer; align-self: center; }
+#settings .hc-pick.on { box-shadow: 0 0 0 2px var(--panel-bg), 0 0 0 4px var(--accent); }
+#settings .hc-pick input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+#settings .heading-reset { border: 1px solid var(--border); border-radius: 7px; padding: 4px 10px; background: var(--panel-bg); color: var(--muted); font: 12px var(--font-ui); cursor: pointer; }
+#settings .heading-reset:hover { color: var(--text); border-color: var(--accent-line); }
