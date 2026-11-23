@@ -2981,6 +2981,7 @@ const COMMANDS = [
   { title: 'מחיקת המסמך (לסל המחזור)', run: () => deleteNode(currentNode()), needs: 'note' },
   { title: 'מסמך קשור… (בשורת "קשורים")', keys: 'Ctrl+Shift+K', run: () => pickLinksFor(state.currentPath), needs: 'note' },
   { title: 'קישור למסמך בתוך הטקסט', keys: 'Ctrl+K', run: () => { if (!editorApi.isRaw()) toolbarApi.edit.link(); }, needs: 'note' },
+  { id: 'wrapWikiLink', title: 'קישור טקסט מסומן בדיעבד ([[טקסט]])', keys: 'Alt+;', run: () => editorApi.wrapSelectionAsWikiLink(), needs: 'note' },
   { title: 'פתק קישור… (פתק שמקשר כמה מסמכים)', run: () => makeLinkHub(null), needs: 'note' },
   { title: 'שכפול המסמך', run: () => duplicateNode(currentNode()), needs: 'note' },
   { title: 'ייבוא תמונה', run: importImages, needs: 'note' },

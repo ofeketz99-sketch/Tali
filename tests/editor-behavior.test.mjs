@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isFormulaOnlyText, shouldResetCenteredOnBackspace, usesCompactToolbar } from '../src/editor-behavior.js';
+import { isFormulaOnlyText, shouldResetCenteredOnBackspace, usesCompactToolbar, wikiTargetFromSelection } from '../src/editor-behavior.js';
 
 test('only a whole-line LaTeX expression gets a fresh typing line', () => {
   assert.equal(isFormulaOnlyText('$x^2$'), true);
@@ -22,4 +22,12 @@ test('the toolbar is compact only in a normal window', () => {
   assert.equal(usesCompactToolbar({ maximized: false, fullScreen: false }), true);
   assert.equal(usesCompactToolbar({ maximized: true, fullScreen: false }), false);
   assert.equal(usesCompactToolbar({ maximized: false, fullScreen: true }), false);
+});
+
+test('retrospective wiki links accept only inline selected text', () => {
+  assert.equal(wikiTargetFromSelection('מסמך קיים'), 'מסמך קיים');
+  assert.equal(wikiTargetFromSelection(''), null);
+  assert.equal(wikiTargetFromSelection('שורה אחת\nשורה שנייה'), null);
+  assert.equal(wikiTargetFromSelection('[[כבר קישור]]'), null);
+  assert.equal(wikiTargetFromSelection(`טקסט\uFFFCתמונה`), null);
 });

@@ -9,6 +9,7 @@ const { eventToHotkey, matchesHotkey, commandHotkey } =
 test('captures shortcuts by physical code and rejects ordinary typing', () => {
   assert.equal(eventToHotkey({ code: 'KeyK', ctrlKey: true, metaKey: false, shiftKey: true, altKey: false }), 'Ctrl+Shift+K');
   assert.equal(eventToHotkey({ code: 'ArrowLeft', ctrlKey: false, metaKey: false, shiftKey: false, altKey: true }), 'Alt+←');
+  assert.equal(eventToHotkey({ code: 'Semicolon', ctrlKey: false, metaKey: false, shiftKey: false, altKey: true }), 'Alt+;');
   assert.equal(eventToHotkey({ code: 'KeyK', ctrlKey: false, metaKey: false, shiftKey: false, altKey: false }), null);
   assert.equal(eventToHotkey({ code: 'F11', ctrlKey: false, metaKey: false, shiftKey: false, altKey: false }), 'F11');
 });
@@ -17,6 +18,7 @@ test('matches shortcut modifiers exactly', () => {
   const event = { code: 'KeyP', ctrlKey: true, metaKey: false, shiftKey: false, altKey: false };
   assert.equal(matchesHotkey(event, 'Ctrl+P'), true);
   assert.equal(matchesHotkey({ ...event, shiftKey: true }, 'Ctrl+P'), false);
+  assert.equal(matchesHotkey({ code: 'Semicolon', ctrlKey: false, metaKey: false, shiftKey: false, altKey: true }, 'Alt+;'), true);
 });
 
 test('custom shortcuts override defaults and an empty string disables one', () => {

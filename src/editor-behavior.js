@@ -15,3 +15,10 @@ export function shouldResetCenteredOnBackspace({ empty, offset, type, textAlign 
 export function usesCompactToolbar({ maximized = false, fullScreen = false } = {}) {
   return !maximized && !fullScreen;
 }
+
+// Wiki links are single inline nodes. A retrospective link therefore accepts only
+// actual, single-line text (not a selection that crosses blocks or contains an atom).
+export function wikiTargetFromSelection(value) {
+  const target = String(value ?? '');
+  return target && !/[\[\]\r\n\uFFFC]/.test(target) ? target : null;
+}

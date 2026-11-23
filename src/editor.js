@@ -27,7 +27,7 @@ import { fitRaw, richAnchor, showRichAnchorInRaw, rawAnchor, rawAnchorToBlock, s
 import { BlockHandle } from './block-handle.js';
 import { SmartSymbols } from './smart-symbols.js';
 import { TaliBoxKeys } from './text-box.js';
-import { isFormulaOnlyText } from './editor-behavior.js';
+import { isFormulaOnlyText, wikiTargetFromSelection } from './editor-behavior.js';
 import { attachPropsEditor } from './props-editor.js';
 import {
   ObsidianMarkdown, FaithfulText, FaithfulHardBreak, FaithfulHorizontalRule, FaithfulParagraph, FaithfulHeading, FaithfulLink,
@@ -194,6 +194,29 @@ export function createEditor({ element, rawElement, propsElement, onChange, link
       if (!(shouldSortCompleted() && sortCompletedTaskLists(editor))) editor.view.dispatch(editor.state.tr.setMeta('taliRedecorate', true));
     },
     isRaw: () => raw,
+    // עוטף טקסט שכבר סומן ב־[[...]] והופך אותו מיד לצומת קישור בתצוגה המעוצבת.
+    // בחירה שחוצה פסקאות אינה חוקית בקישור Wiki ולכן נשארת ללא שינוי.
+    wrapSelectionAsWikiLink() {
+      if (raw) {
+        const from = rawElement.selectionStart;
+        const to = rawElement.selectionEnd;
+        const target = wikiTargetFromSelection(rawElement.value.slice(from, to));
+        if (!target) return false;
+        rawElement.setRangeText(`[[${target}]]`, from, to, 'end');
+        rawElement.dispatchEvent(new Event('input', { bubbles: true }));
+        rawElement.focus();
+        return true;
+      }
+      const { from, to, empty, $from, $to } = editor.state.selection;
+      if (empty || !$from.sameParent($to)) return false;
+      const target = wikiTargetFromSelection(editor.state.doc.textBetween(from, to, '\n', '\uFFFC'));
+      if (!target) return false;
+      const node = editor.schema.nodes.wikiLink?.create({ target });
+      if (!node) return false;
+      editor.view.dispatch(editor.state.tr.replaceWith(from, to, node).scrollIntoView());
+      editor.view.focus();
+      return true;
+    },
     // "הוספת מאפיינים" בהערה שאין בה: טופס עם שורה ריקה
     addProperties() { if (!raw) propsForm.addFirst(); },
     getMarkdown: () => (raw ? rawElement.value : richMarkdown()),
