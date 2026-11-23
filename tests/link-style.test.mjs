@@ -23,3 +23,8 @@ test('premium links keep icons, wrapping, selection and motion accessibility', (
   assert.match(css, /inset-block-start: -1px;/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });
+
+test('wiki links do not trigger a duplicate native title tooltip', () => {
+  assert.doesNotMatch(wiki, /class: 'wikilink tali-link', title:/);
+  assert.doesNotMatch(wiki, /dom\.title\s*=/);
+});

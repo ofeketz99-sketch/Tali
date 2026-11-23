@@ -65,7 +65,7 @@ export const WikiLink = Node.create({
 
   renderHTML({ node }) {
     const { target, alias } = node.attrs;
-    const attrs = { 'data-wikilink': target, class: 'wikilink tali-link', title: target, dir: 'auto' };
+    const attrs = { 'data-wikilink': target, class: 'wikilink tali-link', dir: 'auto' };
     if (alias != null) attrs['data-alias'] = alias;
     return ['span', attrs, alias || target];
   },
@@ -116,7 +116,6 @@ export const WikiLink = Node.create({
       dom.dir = 'auto';
       dom.setAttribute('data-wikilink', node.attrs.target);
       dom.textContent = node.attrs.alias || node.attrs.target;
-      dom.title = node.attrs.target;
       const mark = () => dom.classList.toggle('unresolved', !this.options.resolve(node.attrs.target));
       mark();
       dom.addEventListener('mousedown', (e) => { if (e.button === 0) e.preventDefault(); });

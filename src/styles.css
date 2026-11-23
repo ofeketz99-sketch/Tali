@@ -1432,19 +1432,27 @@ body[data-sidebar-mode="compact"] .side-top #btnNote {
 .task-row.done .task-text { color: var(--faint); text-decoration: line-through; }
 
 /* תצוגה מקדימה בריחוף על קישור */
-.note-preview { position: fixed; z-index: 900; width: 380px; max-height: 320px; display: flex; flex-direction: column; border: 1px solid var(--floating-border); border-radius: 12px; background: var(--floating-bg); box-shadow: var(--shadow); overflow: hidden; opacity: 0; transform: translateY(4px); transition: opacity .16s var(--ease), transform .16s var(--ease); }
+.note-preview { position: fixed; z-index: 900; width: 380px; max-height: 320px; display: flex; flex-direction: column; border: 1px solid var(--floating-border); border-radius: 12px; background: var(--floating-bg); box-shadow: 0 14px 34px -18px rgba(20, 32, 30, .42), var(--shadow); overflow: hidden; opacity: 0; transform: translateY(6px) scale(.985); transform-origin: 50% 0; transition: opacity .12s var(--ease), transform .14s var(--spring); will-change: opacity, transform; pointer-events: none; }
 .note-preview[hidden] { display: none; }
-.note-preview.show { opacity: 1; transform: none; }
+.note-preview.show { opacity: 1; transform: none; pointer-events: auto; }
 .np-head { display: flex; align-items: center; gap: 7px; padding: 8px 12px; border: none; border-bottom: 1px solid var(--border); background: var(--accent-tint); color: var(--accent-strong); font-weight: 600; text-align: start; border-radius: 0; }
 .np-head span { flex: 1; }
 .np-head .ic:last-child { transform: rotate(90deg); opacity: .6; }
-.np-body { overflow: auto; padding: 8px 14px 10px; font-family: var(--font-doc); font-size: 13.5px; line-height: 1.6; }
+.np-body.ProseMirror { overflow: auto; min-height: 0; padding: 8px 14px 10px; font-family: var(--font-doc); font-size: 13.5px; line-height: 1.6; }
 .np-body h1, .np-body h2, .np-body h3 { font-size: 1.1em; margin: .6em 0 .3em; }
 .np-body img { max-width: 100%; border-radius: 6px; }
 .np-body p { margin: 0 0 .5em; }
+.np-body :is(ul, ol) { margin: .35em 0 .65em; padding-inline-start: 1.6em; }
+.np-body blockquote { margin: .55em 0; }
+.np-body table { margin: .55em 0; font-size: .95em; }
+.np-body pre { margin: .55em 0; padding: 9px 11px; font-size: .9em; }
 .np-link { color: var(--accent-strong); cursor: pointer; border-bottom: 1px solid var(--accent-line); }
 .np-link.unresolved { color: var(--muted); border-bottom-style: dashed; }
 .np-empty, .np-more { color: var(--faint); font-size: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .note-preview { transition: none; transform: none; }
+}
 
 /* ![[הערה]] מוטמעת */
 .ProseMirror .embed-note { display: block; margin: .5em 0; border: 1px solid var(--accent-line); border-inline-start: 3px solid var(--accent); border-radius: 10px; background: color-mix(in srgb, var(--accent-tint) 55%, var(--page-bg)); overflow: hidden; cursor: default; }
