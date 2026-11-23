@@ -1,7 +1,7 @@
 // שמירה נאמנה של Markdown בסגנון אובסידיאן.
 // העורך הופך את הקובץ למסמך ואז כותב אותו מחדש. הקובץ הזה דואג שמה שלא נערך ייכתב חזרה כמו שהיה:
 // ירידות שורה, תחביר שהעורך לא מכיר (הערות שוליים, נוסחאות, callouts, HTML), ובלי תווי בריחה מיותרים.
-import { Extension, Node, getHTMLFromFragment } from '@tiptap/core';
+import { Extension, Node, getHTMLFromFragment, mergeAttributes } from '@tiptap/core';
 import Text from '@tiptap/extension-text';
 import HardBreak from '@tiptap/extension-hard-break';
 import HorizontalRule from '@tiptap/extension-horizontal-rule';
@@ -198,6 +198,11 @@ export const FaithfulHardBreak = HardBreak.extend({
 export const FaithfulLink = Link.extend({
   addOptions() {
     return { ...this.parent?.(), openOnClick: true, autolink: true, linkOnPaste: true, isAllowedUri: () => true };
+  },
+  // אותה מחלקת תצוגה משמשת גם קישור Markdown רגיל וגם Wiki Link. dir=auto גורם
+  // לסמל להישאר בתחילת הקישור החזותי לפי שפת הטקסט, בלי לשנות את ה־Markdown שנשמר.
+  renderHTML({ HTMLAttributes }) {
+    return ['a', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, { class: 'tali-link', dir: 'auto' }), 0];
   },
   addStorage() {
     const isBare = (mark, parent, index) => {

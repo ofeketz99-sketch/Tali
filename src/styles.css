@@ -308,7 +308,6 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { border-colo
 #props[hidden] { display: none; }
 
 /* ===== קישורים, תמונות, HTML גולמי ===== */
-.ProseMirror a { color: var(--link); cursor: pointer; }
 .ProseMirror img { max-width: 100%; height: auto; border-radius: 4px; vertical-align: middle; }
 .ProseMirror img.broken { min-width: 40px; min-height: 24px; outline: 1px dashed var(--border); }
 .ProseMirror .embed { display: inline-block; max-width: 100%; }
@@ -338,15 +337,77 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { border-colo
 .ProseMirror blockquote.callout[data-callout="warning"], .ProseMirror blockquote.callout[data-callout="caution"] { border-color: #e8a33d; background: color-mix(in srgb, #e8a33d 12%, var(--page-bg)); }
 .ProseMirror blockquote.callout[data-callout="danger"], .ProseMirror blockquote.callout[data-callout="error"] { border-color: #e06c6c; background: color-mix(in srgb, #e06c6c 12%, var(--page-bg)); }
 
-/* ===== קישורי [[הערה]] ===== */
-.ProseMirror .wikilink {
-  color: var(--accent-strong); cursor: pointer; border-radius: 3px; padding: 0 1px;
-  unicode-bidi: isolate; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  text-underline-offset: 3px;
+/* ===== TALI — Premium Links: קישורי Markdown וקישורי [[Wiki]] בעורך בלבד ===== */
+.ProseMirror .tali-link {
+  --link-color: #3d887e;
+  --link-hover: #2f756b;
+  --link-bg: rgba(109, 196, 170, .14);
+  --link-bg-hover: rgba(109, 196, 170, .23);
+
+  /* inline (ולא inline-flex) בכוונה: כתובת ארוכה יכולה להישבר בין שורות ולהישאר ניתנת לבחירה. */
+  display: inline;
+  position: relative;
+  padding: .10em .46em;
+  border-radius: 8px;
+  color: var(--link-color);
+  background: var(--link-bg);
+  text-decoration: none !important;
+  font-weight: 700;
+  line-height: 1.3;
+  vertical-align: middle;
+  cursor: pointer;
+  unicode-bidi: isolate;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition: font-size 180ms ease, inset-block-start 180ms ease, background 180ms ease,
+    color 180ms ease, box-shadow 180ms ease;
 }
-.ProseMirror .wikilink:hover { background: var(--accent-soft); text-decoration-color: var(--accent); }
-.ProseMirror .wikilink.unresolved { color: var(--muted); text-decoration-style: dashed; }
+
+/* הסמל הוא חלק תצוגתי בלבד; dir=auto על הרכיב מציב אותו בתחילת הטקסט ב־RTL וב־LTR. */
+.ProseMirror .tali-link::before {
+  content: "";
+  display: inline-block;
+  width: .9em;
+  height: .9em;
+  margin-inline-end: .38em;
+  vertical-align: -.08em;
+  background-color: currentColor;
+  opacity: .78;
+  pointer-events: none;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.ProseMirror .tali-link:hover {
+  color: var(--link-hover);
+  background: var(--link-bg-hover);
+  /* שינוי גודל גופן שומר על שבירת שורות, בניגוד ל־inline-flex שאינו נשבר. */
+  font-size: 1.03em;
+  inset-block-start: -1px;
+  box-shadow: 0 4px 10px rgba(71, 132, 119, .10);
+}
+.ProseMirror .tali-link:hover::before { opacity: 1; transform: scale(1.06); }
+.ProseMirror .tali-link:active { font-size: .99em; inset-block-start: 0; box-shadow: none; }
+.ProseMirror .tali-link:focus-visible { outline: 2px solid rgba(61, 136, 126, .55); outline-offset: 3px; }
+.ProseMirror .wikilink.unresolved {
+  --link-color: var(--muted);
+  --link-hover: var(--text);
+  --link-bg: color-mix(in srgb, var(--muted) 10%, transparent);
+  --link-bg-hover: color-mix(in srgb, var(--muted) 17%, transparent);
+}
 .ProseMirror .wikilink.ProseMirror-selectednode { outline: 2px solid var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ProseMirror .tali-link, .ProseMirror .tali-link::before { transition: none; }
+}
 
 .wikilink-suggest {
   position: fixed; z-index: 20; min-width: 220px; max-width: 360px; max-height: 280px; overflow: auto;
@@ -663,15 +724,6 @@ dialog { border-radius: 18px; }
 .ProseMirror h1:first-child { margin-top: .2em; }
 
 /* ----- טקסט ותוכן: חיוויי ריחוף ----- */
-.ProseMirror .wikilink {
-  text-decoration: none; padding: 0 2px; border-radius: 4px;
-  background: linear-gradient(currentColor, currentColor) no-repeat 0 100% / 100% 1px;
-  transition: background-size .25s var(--spring), background-color .2s var(--ease), color .2s;
-}
-.ProseMirror .wikilink:hover { background-color: var(--accent-soft); background-size: 100% 2px; }
-.ProseMirror .wikilink.unresolved { background: none; text-decoration: underline dashed; }
-.ProseMirror a { text-decoration-thickness: 1px; text-underline-offset: 3px; transition: text-decoration-thickness .2s, color .2s; }
-.ProseMirror a:hover { text-decoration-thickness: 2px; color: var(--accent); }
 .ProseMirror img { transition: transform .36s var(--spring), box-shadow .24s var(--ease); }
 .ProseMirror .embed:hover .pic-box { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
 .ProseMirror .pic-box { transition: transform .36s var(--spring), box-shadow .24s var(--ease); }

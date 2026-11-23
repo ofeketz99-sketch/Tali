@@ -65,7 +65,7 @@ export const WikiLink = Node.create({
 
   renderHTML({ node }) {
     const { target, alias } = node.attrs;
-    const attrs = { 'data-wikilink': target, class: 'wikilink', title: target };
+    const attrs = { 'data-wikilink': target, class: 'wikilink tali-link', title: target, dir: 'auto' };
     if (alias != null) attrs['data-alias'] = alias;
     return ['span', attrs, alias || target];
   },
@@ -112,7 +112,8 @@ export const WikiLink = Node.create({
   addNodeView() {
     return ({ node }) => {
       const dom = document.createElement('span');
-      dom.className = 'wikilink';
+      dom.className = 'wikilink tali-link';
+      dom.dir = 'auto';
       dom.setAttribute('data-wikilink', node.attrs.target);
       dom.textContent = node.attrs.alias || node.attrs.target;
       dom.title = node.attrs.target;
