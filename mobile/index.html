@@ -14,7 +14,7 @@
 <body class="m" data-view="list">
   <header id="mHead">
     <button id="mBack" class="m-icon-btn" type="button" aria-label="חזרה לרשימה"></button>
-    <button id="mLogo" class="m-logo-button" type="button" aria-label="מרכז השליטה של Tali">
+    <button id="mLogo" class="m-logo-button" type="button" aria-label="הגדרות וקבצים">
       <img class="m-logo" src="icon-192.png" alt="" />
       <span id="mLogoChevron" class="m-logo-chevron" aria-hidden="true"></span>
     </button>
@@ -32,15 +32,10 @@
       <button id="mInstallBtn" type="button" class="m-install-btn"></button>
       <button id="mInstallClose" type="button" class="m-icon-btn" aria-label="לא עכשיו"></button>
     </div>
-    <section class="m-companion" aria-labelledby="mCompanionTitle">
-      <div>
-        <span class="m-eyebrow">Tali איתך בדרך</span>
-        <h1 id="mCompanionTitle">מה תרצו לתפוס?</h1>
-        <p>רושמים עכשיו. מסדרים לעומק כשחוזרים למחשב.</p>
-      </div>
-      <button id="mCapture" type="button" class="m-capture"><span id="mCaptureIcon"></span><span>פתק מהיר</span></button>
-    </section>
-    <label class="m-search"><span id="mSearchIcon"></span><input id="mSearch" type="search" placeholder="חיפוש בשם ובתוכן…" enterkeyhint="search" /></label>
+    <div class="m-list-tools">
+      <button id="mCapture" type="button" class="m-capture"><span id="mCaptureIcon"></span><span>מסמך חדש</span></button>
+      <label class="m-search"><span id="mSearchIcon"></span><input id="mSearch" type="search" placeholder="חיפוש…" enterkeyhint="search" /></label>
+    </div>
     <div id="mCrumb" class="m-crumb" hidden><button id="mCrumbUp" type="button" class="m-icon-btn" aria-label="תיקייה למעלה"></button><span id="mCrumbText"></span></div>
     <div id="mList" class="m-list"></div>
   </section>
@@ -60,7 +55,7 @@
     <div class="m-sheet-grip"></div>
     <div class="m-sheet-heading">
       <img src="icon-192.png" alt="" />
-      <div><strong id="mSheetTitle">מרכז השליטה</strong><span id="mSheetSubtitle">המראה, הקבצים והחיבור של Tali</span></div>
+      <div><strong id="mSheetTitle">הגדרות וקבצים</strong><span id="mSheetSubtitle">תצוגה, סנכרון, ייבוא וייצוא</span></div>
     </div>
     <section id="mSheetNote">
       <h3>המסמך הזה</h3>
@@ -71,7 +66,7 @@
     </section>
     <div id="mSheetControl">
       <section>
-        <h3>המראה שלך</h3>
+        <h3>תצוגה</h3>
         <button id="mAppearanceOpen" type="button" class="m-sheet-item m-sheet-item-rich">
           <span data-icon="palette"></span><span><strong>עיצוב ותצוגה</strong><small id="mAppearanceSummary"></small></span><span id="mAppearanceChevron" class="m-item-chevron"></span>
         </button>
@@ -99,8 +94,8 @@
 
   <dialog id="mAppearance" class="m-sheet m-appearance">
     <div class="m-sheet-grip"></div>
-    <div class="m-appearance-title"><button id="mAppearanceBack" type="button" class="m-icon-btn" aria-label="חזרה"></button><div><strong>עיצוב ותצוגה</strong><span>השינויים מופיעים מיד ונשמרים במכשיר</span></div></div>
-    <div class="m-preview" aria-hidden="true"><span class="m-preview-dot"></span><div><strong>הרעיון הבא שלך</strong><span>נעים לקרוא, קל למצוא, פשוט להמשיך.</span></div></div>
+    <div class="m-appearance-title"><button id="mAppearanceBack" type="button" class="m-icon-btn" aria-label="חזרה"></button><div><strong>עיצוב ותצוגה</strong><span>השינויים נשמרים במכשיר</span></div></div>
+    <div class="m-preview" aria-hidden="true"><span class="m-preview-dot"></span><div><strong>כותרת מסמך</strong><span>טקסט לדוגמה</span></div></div>
     <section>
       <h3>ערכת צבעים</h3>
       <div id="mThemePresets" class="m-theme-presets"></div>
@@ -109,7 +104,7 @@
     <section>
       <h3>צפיפות הרשימה</h3>
       <div class="m-segment" role="group" aria-label="צפיפות הרשימה">
-        <button id="mDensityComfortable" type="button" data-density="comfortable">כרטיסים נינוחים</button>
+        <button id="mDensityComfortable" type="button" data-density="comfortable">כרטיסים</button>
         <button id="mDensityCompact" type="button" data-density="compact">רשימה קומפקטית</button>
       </div>
     </section>
@@ -126,7 +121,7 @@
       </div>
     </section>
     <button id="mAppearanceReset" type="button" class="m-sheet-item m-reset"><span data-icon="rotateCcw"></span>חזרה לברירת המחדל</button>
-    <button id="mAppearanceDone" type="button" class="m-sheet-close">סיימתי</button>
+    <button id="mAppearanceDone" type="button" class="m-sheet-close">סגירה</button>
   </dialog>
 
   <dialog id="mAsk" class="m-sheet m-ask">

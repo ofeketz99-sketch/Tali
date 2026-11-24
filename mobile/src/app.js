@@ -197,12 +197,12 @@ function renderList() {
   }
   const { dirs, docs } = folderChildren(state.folder);
   const promoted = new Set();
-  // הבית הוא companion: קודם ממשיכים, אחר כך נכנסים לכל המבנה רק אם צריך.
+  // במסך הראשי: המסמך האחרון והמסמכים האחרונים לפני המבנה המלא.
   if (!state.folder && state.lastOpen && notes().some((f) => f.path === state.lastOpen)) {
     const last = notes().find((f) => f.path === state.lastOpen);
     const head = document.createElement('div');
     head.className = 'm-section';
-    head.textContent = 'להמשיך מאיפה שהפסקתם';
+    head.textContent = 'נפתח לאחרונה';
     list.append(head);
     list.append(row({
       iconName: 'history', title: noteName(last.path),
@@ -224,7 +224,7 @@ function renderList() {
     if (dirs.length || docs.some((f) => !promoted.has(f.path))) {
       const all = document.createElement('div');
       all.className = 'm-section';
-      all.textContent = 'עוד תוכן';
+      all.textContent = 'מסמכים נוספים';
       list.append(all);
     }
   }
@@ -237,7 +237,7 @@ function renderList() {
     if (!state.folder && promoted.has(f.path)) continue;
     list.append(row({ iconName: 'file', title: noteName(f.path), sub: `${fmtTime(f.mtime)} · ${snippet(f.data)}`, onClick: () => openNote(f.path) }));
   }
-  if (!list.children.length) list.append(empty(notes().length ? 'התיקייה ריקה' : 'עוד אין כאן תוכן. פתק מהיר יפתח מיד, או שאפשר לייבא ולסנכרן דרך הלוגו.'));
+  if (!list.children.length) list.append(empty(notes().length ? 'התיקייה ריקה' : 'אין עדיין מסמכים.'));
 }
 function empty(text) {
   const p = document.createElement('p');
@@ -737,7 +737,7 @@ function renderAppearanceControls() {
   $('mAccent').value = mobilePrefs.accent || colors.accent;
   $('mFontSize').value = String(mobilePrefs.fontSize);
   $('mFontSizeValue').textContent = `${mobilePrefs.fontSize}px`;
-  $('mAppearanceSummary').textContent = `${mobileThemeLabel(mobilePrefs)} · ${mobilePrefs.density === 'compact' ? 'קומפקטי' : 'נינוח'} · ${mobilePrefs.fontSize}px`;
+  $('mAppearanceSummary').textContent = `${mobileThemeLabel(mobilePrefs)} · ${mobilePrefs.density === 'compact' ? 'רשימה' : 'כרטיסים'} · ${mobilePrefs.fontSize}px`;
 }
 
 function openAppearance() {
@@ -751,7 +751,7 @@ function closeAppearance({ returnToControl = false } = {}) {
   if (returnToControl) openSheet('control');
 }
 
-// ===== תפריטים (לוגו: מרכז השליטה; שלוש נקודות: המסמך) =====
+// ===== תפריטים (לוגו: הגדרות וקבצים; שלוש נקודות: המסמך) =====
 async function openSheet(mode = 'control') {
   const documentMode = mode === 'document';
   const remoteName = await remoteLabel();
@@ -764,8 +764,8 @@ async function openSheet(mode = 'control') {
   $('mSheetNote').hidden = !documentMode || !state.current;
   $('mSheetControl').hidden = documentMode;
   $('mSheetApp').hidden = isInstalled();
-  $('mSheetTitle').textContent = documentMode ? 'פעולות במסמך' : 'מרכז השליטה';
-  $('mSheetSubtitle').textContent = documentMode ? noteName(state.current || '') : 'המראה, הקבצים והחיבור של Tali';
+  $('mSheetTitle').textContent = documentMode ? 'פעולות במסמך' : 'הגדרות וקבצים';
+  $('mSheetSubtitle').textContent = documentMode ? noteName(state.current || '') : 'תצוגה, סנכרון, ייבוא וייצוא';
   renderAppearanceControls();
   $('mSheet').showModal();
 }

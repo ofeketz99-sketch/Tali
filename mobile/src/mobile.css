@@ -73,30 +73,16 @@ body[data-view="note"] #mListView, body[data-view="list"] #mNoteView { display: 
 }
 .m-install-btn:active { transform: scale(.96); }
 .m-install .m-icon-btn { flex: none; color: var(--muted); }
-.m-companion {
-  position: relative; overflow: hidden; display: flex; align-items: end; justify-content: space-between; gap: 14px;
-  margin-bottom: 12px; padding: 20px 18px; border: 1px solid var(--accent-line); border-radius: 22px;
-  background:
-    radial-gradient(circle at 8% 120%, color-mix(in srgb, var(--accent) 28%, transparent) 0 28%, transparent 29%),
-    linear-gradient(145deg, color-mix(in srgb, var(--accent) 13%, var(--page-bg)), var(--panel-bg));
-}
-.m-companion::after {
-  content: ''; position: absolute; width: 110px; height: 110px; inset: -64px -36px auto auto; border-radius: 50%;
-  border: 22px solid color-mix(in srgb, var(--accent) 12%, transparent); pointer-events: none;
-}
-.m-companion > div { position: relative; z-index: 1; min-width: 0; }
-.m-eyebrow { display: block; margin-bottom: 5px; color: var(--accent-strong); font-size: 12px; font-weight: 700; letter-spacing: .02em; }
-.m-companion h1 { margin: 0; font: 700 23px/1.2 var(--font-heading, var(--font-ui)); }
-.m-companion p { max-width: 250px; margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.m-list-tools { display: flex; align-items: stretch; gap: 8px; }
 .m-capture {
-  position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 7px; flex: none;
-  min-height: 46px; padding: 0 14px; border: 0; border-radius: 15px; background: var(--accent); color: var(--on-accent);
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 24%, transparent); font-size: 14px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; gap: 7px; flex: none;
+  min-height: 46px; padding: 0 14px; border: 0; border-radius: 14px; background: var(--accent); color: var(--on-accent);
+  font-size: 14px; font-weight: 650;
 }
 .m-capture span:first-child { display: grid; place-items: center; }
 .m-capture:active { transform: scale(.97); }
 .m-search {
-  display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 46px; border-radius: 14px;
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 0 12px; height: 46px; border-radius: 14px;
   background: var(--input-bg); border: 1px solid var(--border); color: var(--muted);
 }
 .m-search input { flex: 1; border: 0; background: none; outline: none; font-size: 16px; color: var(--text); min-width: 0; }
