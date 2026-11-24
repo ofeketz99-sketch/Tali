@@ -22,6 +22,13 @@
   </header>
 
   <section id="mListView">
+    <!-- התקנה כאפליקציה: רק כשנפתח בדפדפן. אנדרואיד: beforeinstallprompt; אייפון: הסבר (שיתוף ← הוספה למסך הבית) -->
+    <div id="mInstall" class="m-install" hidden>
+      <span id="mInstallIcon" class="m-install-icon"></span>
+      <div class="m-install-text"><strong>Tali כאפליקציה</strong><span id="mInstallHint"></span></div>
+      <button id="mInstallBtn" type="button" class="m-install-btn"></button>
+      <button id="mInstallClose" type="button" class="m-icon-btn" aria-label="לא עכשיו"></button>
+    </div>
     <label class="m-search"><span id="mSearchIcon"></span><input id="mSearch" type="search" placeholder="חיפוש בשם ובתוכן…" enterkeyhint="search" /></label>
     <div id="mCrumb" class="m-crumb" hidden><button id="mCrumbUp" type="button" class="m-icon-btn" aria-label="תיקייה למעלה"></button><span id="mCrumbText"></span></div>
     <div id="mList" class="m-list"></div>
@@ -53,6 +60,10 @@
       <button id="mRaw" type="button" class="m-sheet-item"><span data-icon="markdown"></span>תצוגה מעוצבת / Markdown</button>
       <button id="mExport" type="button" class="m-sheet-item"><span data-icon="copy"></span>שיתוף הקובץ</button>
       <button id="mDelete" type="button" class="m-sheet-item danger"><span data-icon="trash"></span>מחיקה</button>
+    </section>
+    <section id="mSheetApp">
+      <h3>אפליקציה</h3>
+      <button id="mInstallItem" type="button" class="m-sheet-item"><span id="mInstallItemIcon"></span>התקנה כאפליקציה</button>
     </section>
     <section>
       <h3>קבצים</h3>

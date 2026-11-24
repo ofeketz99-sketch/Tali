@@ -52,10 +52,12 @@ const resolve = (target) => {
 };
 // שאלה בגיליון תחתון. עם value: שדה שם, ומחזיר את הטקסט (או null). בלי: אישור, ומחזיר true/false.
 // prompt/confirm של הדפדפן חוסמים, נראים זרים, ובחלק מהמעטפות (Capacitor, תצוגה מקדימה) לא קיימים.
-function ask({ title, value, ok = 'אישור', danger = false }) {
+// info: הסבר בלבד, עם כפתור אחד (בלי "ביטול").
+function ask({ title, value, ok = 'אישור', danger = false, info = false }) {
   const dlg = $('mAsk'), input = $('mAskInput'), okBtn = $('mAskOk');
   const withInput = value !== undefined;
   $('mAskTitle').textContent = title;
+  $('mAskCancel').hidden = info;
   okBtn.textContent = ok;
   okBtn.classList.toggle('danger', danger);
   input.hidden = !withInput;
@@ -596,8 +598,44 @@ async function openSheet() {
   $('mDriveConnect').hidden = !!remoteName;
   $('mDriveDisconnect').hidden = !remoteName;
   $('mSheetNote').hidden = !state.current;
+  $('mSheetApp').hidden = isInstalled();
   $('mSheet').showModal();
 }
+
+// ===== התקנה כאפליקציה (מסך הבית, מסך מלא, בלי שורת הכתובת) =====
+// אנדרואיד (Chrome, Edge, Samsung): הדפדפן שולח beforeinstallprompt, ושומרים אותו לכפתור "התקנה".
+// אייפון: אין אירוע כזה, ולכן הסבר: שיתוף ← "הוספה למסך הבית". אחרי ההתקנה הפס והפריט בתפריט נעלמים.
+const isInstalled = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const INSTALL_DISMISSED = 'tali:install-dismissed';
+let installPrompt = null;
+function installDismissed() { try { return localStorage.getItem(INSTALL_DISMISSED) === '1'; } catch { return false; } }
+function renderInstall() {
+  const offer = !isInstalled() && (installPrompt || isIOS);
+  $('mInstall').hidden = !offer || installDismissed();
+  $('mInstallHint').textContent = installPrompt ? 'נפתחת ממסך הבית, במסך מלא, בלי דפדפן' : 'שיתוף ← "הוספה למסך הבית"';
+  $('mInstallBtn').textContent = installPrompt ? 'התקנה' : 'איך?';
+}
+async function install() {
+  $('mSheet').close();
+  if (installPrompt) {
+    const prompt = installPrompt;
+    installPrompt = null; // אפשר להציג אותו רק פעם אחת
+    prompt.prompt();
+    await prompt.userChoice.catch(() => null);
+    renderInstall();
+    return;
+  }
+  await ask({
+    info: true, ok: 'הבנתי',
+    title: isIOS
+      ? 'באייפון: לוחצים על כפתור השיתוף של הדפדפן (ריבוע עם חץ למעלה), ובוחרים "הוספה למסך הבית". מאז Tali נפתחת ממסך הבית כמו כל אפליקציה.'
+      : 'בתפריט של הדפדפן (שלוש הנקודות) בוחרים "התקנת אפליקציה" או "הוספה למסך הבית". מאז Tali נפתחת ממסך הבית כמו כל אפליקציה.',
+  });
+}
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; renderInstall(); });
+window.addEventListener('appinstalled', () => { installPrompt = null; renderInstall(); toast('Tali הותקנה. מעכשיו פותחים אותה ממסך הבית'); });
+matchMedia('(display-mode: standalone)').addEventListener?.('change', renderInstall);
 $('mSheet').addEventListener('click', (e) => { if (e.target === $('mSheet')) $('mSheet').close(); });
 
 // ===== חיווט =====
@@ -650,6 +688,17 @@ $('mDelete').addEventListener('click', async () => {
   scheduleAutoSync();
 });
 $('mSheetClose').addEventListener('click', () => $('mSheet').close());
+$('mInstallIcon').innerHTML = lucide('Smartphone', 22);
+$('mInstallItemIcon').innerHTML = lucide('Download', 18);
+$('mInstallClose').innerHTML = lucide('X', 18);
+$('mInstallBtn').addEventListener('click', install);
+$('mInstallItem').addEventListener('click', install);
+$('mInstallClose').addEventListener('click', () => {
+  try { localStorage.setItem(INSTALL_DISMISSED, '1'); } catch { /* פס שנסגר יחזור בפתיחה הבאה */ }
+  $('mInstall').hidden = true;
+  toast('אפשר להתקין גם מהתפריט (שלוש הנקודות)');
+});
+renderInstall();
 $('mTitle').addEventListener('click', () => { if (state.current) $('mRename').click(); });
 
 // מקלדת וירטואלית: הסרגל נצמד מעליה (visualViewport)
