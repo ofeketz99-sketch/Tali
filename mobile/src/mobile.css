@@ -3,7 +3,10 @@
 @import "../../src/styles.css";
 @import "../../node_modules/katex/dist/katex.min.css";
 
-:root { --m-head: 54px; --m-tools: 52px; --kb: 0px; --safe-b: env(safe-area-inset-bottom, 0px); }
+:root {
+  --m-head: 58px; --m-tools: 52px; --kb: 0px; --safe-b: env(safe-area-inset-bottom, 0px);
+  --m-editor-size: 17px; --m-editor-leading: 1.65;
+}
 html, body { height: 100%; }
 body.m {
   display: block; margin: 0; overflow: hidden; font-size: 16px; -webkit-tap-highlight-color: transparent;
@@ -18,7 +21,13 @@ button:hover:not(:disabled) { transform: none; }
   display: flex; align-items: center; gap: 6px; padding: env(safe-area-inset-top, 0px) 8px 0;
   background: var(--accent-tint); border-bottom: 1px solid var(--accent-line);
 }
-.m-logo { width: 28px; height: 28px; border-radius: 8px; margin-inline: 4px; }
+.m-logo-button {
+  position: relative; display: flex; align-items: center; gap: 2px; flex: none; height: 44px; padding: 0 4px;
+  border: 0; border-radius: 13px; background: transparent; color: var(--muted);
+}
+.m-logo-button:active { background: var(--accent-hover); }
+.m-logo { width: 30px; height: 30px; border-radius: 9px; box-shadow: 0 2px 8px rgb(0 0 0 / .08); }
+.m-logo-chevron { display: grid; place-items: center; transition: transform .18s var(--ease); }
 .m-title {
   flex: 1; min-width: 0; text-align: start; border: 0; background: none; padding: 6px 2px;
   font: 600 18px var(--font-heading, var(--font-ui)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -30,7 +39,7 @@ button:hover:not(:disabled) { transform: none; }
 .m-icon-btn:active { background: var(--accent-hover); }
 #mBack { display: none; }
 body[data-view="note"] #mBack { display: grid; }
-body[data-view="note"] .m-logo { display: none; }
+body[data-view="list"] #mMenu { display: none; }
 .m-badge {
   position: absolute; top: 3px; inset-inline-end: 1px; min-width: 17px; height: 17px; padding: 0 4px; box-sizing: border-box;
   border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 11px; line-height: 17px; text-align: center;
@@ -46,7 +55,7 @@ body[data-view="list"] .m-save-dot { display: none; }
 /* ===== רשימה ===== */
 #mListView, #mNoteView { position: fixed; inset: var(--m-head) 0 0 0; }
 body[data-view="note"] #mListView, body[data-view="list"] #mNoteView { display: none; }
-#mListView { overflow-y: auto; padding: 12px 12px calc(96px + var(--safe-b)); box-sizing: border-box; }
+#mListView { overflow-y: auto; padding: 12px 12px calc(36px + var(--safe-b)); box-sizing: border-box; }
 /* פס "Tali כאפליקציה" (רק בדפדפן, לפני התקנה) */
 .m-install {
   display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px 8px 10px 12px;
@@ -64,6 +73,28 @@ body[data-view="note"] #mListView, body[data-view="list"] #mNoteView { display: 
 }
 .m-install-btn:active { transform: scale(.96); }
 .m-install .m-icon-btn { flex: none; color: var(--muted); }
+.m-companion {
+  position: relative; overflow: hidden; display: flex; align-items: end; justify-content: space-between; gap: 14px;
+  margin-bottom: 12px; padding: 20px 18px; border: 1px solid var(--accent-line); border-radius: 22px;
+  background:
+    radial-gradient(circle at 8% 120%, color-mix(in srgb, var(--accent) 28%, transparent) 0 28%, transparent 29%),
+    linear-gradient(145deg, color-mix(in srgb, var(--accent) 13%, var(--page-bg)), var(--panel-bg));
+}
+.m-companion::after {
+  content: ''; position: absolute; width: 110px; height: 110px; inset: -64px -36px auto auto; border-radius: 50%;
+  border: 22px solid color-mix(in srgb, var(--accent) 12%, transparent); pointer-events: none;
+}
+.m-companion > div { position: relative; z-index: 1; min-width: 0; }
+.m-eyebrow { display: block; margin-bottom: 5px; color: var(--accent-strong); font-size: 12px; font-weight: 700; letter-spacing: .02em; }
+.m-companion h1 { margin: 0; font: 700 23px/1.2 var(--font-heading, var(--font-ui)); }
+.m-companion p { max-width: 250px; margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.m-capture {
+  position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 7px; flex: none;
+  min-height: 46px; padding: 0 14px; border: 0; border-radius: 15px; background: var(--accent); color: var(--on-accent);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 24%, transparent); font-size: 14px; font-weight: 700;
+}
+.m-capture span:first-child { display: grid; place-items: center; }
+.m-capture:active { transform: scale(.97); }
 .m-search {
   display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 46px; border-radius: 14px;
   background: var(--input-bg); border: 1px solid var(--border); color: var(--muted);
@@ -71,11 +102,11 @@ body[data-view="note"] #mListView, body[data-view="list"] #mNoteView { display: 
 .m-search input { flex: 1; border: 0; background: none; outline: none; font-size: 16px; color: var(--text); min-width: 0; }
 .m-crumb { display: flex; align-items: center; gap: 4px; margin-top: 10px; font-weight: 600; color: var(--muted); }
 .m-crumb[hidden] { display: none; }
-.m-list { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; }
-.m-section { margin: 14px 6px 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.m-list { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
+.m-section { margin: 16px 6px 1px; font-size: 12px; font-weight: 700; color: var(--muted); }
 .m-row {
-  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 8px 10px; box-sizing: border-box;
-  border: 0; border-radius: 14px; background: transparent; text-align: start;
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 10px 12px; box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent); border-radius: 16px; background: var(--page-bg); text-align: start;
 }
 .m-row:active { background: var(--accent-hover); }
 .m-row-icon { color: var(--document-ink); display: grid; place-items: center; flex: none; }
@@ -84,13 +115,20 @@ body[data-view="note"] #mListView, body[data-view="list"] #mNoteView { display: 
 .m-row-title { font-size: 16px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .m-row-sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .m-row-sub:empty { display: none; }
-.m-empty { color: var(--muted); text-align: center; padding: 40px 20px; line-height: 1.6; }
-.m-fab {
-  position: fixed; inset-inline-end: 18px; bottom: calc(22px + var(--safe-b)); width: 58px; height: 58px; padding: 0;
-  display: grid; place-items: center; border: 0; border-radius: 18px;
-  background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-lift);
+.m-row.is-continue {
+  min-height: 74px; border-color: var(--accent-line);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 10%, var(--page-bg)), var(--page-bg));
 }
-.m-fab:active { transform: scale(.95); }
+.m-row.is-continue .m-row-icon { color: var(--accent-strong); }
+.m-row.is-continue .m-row-title { font-weight: 650; }
+body[data-density="compact"] .m-list { gap: 1px; }
+body[data-density="compact"] .m-row {
+  min-height: 52px; padding: 6px 8px; border-color: transparent; border-bottom-color: var(--border); border-radius: 9px; background: transparent;
+}
+body[data-density="compact"] .m-row.is-continue { min-height: 60px; border: 1px solid var(--accent-line); background: var(--accent-tint); }
+body[data-density="compact"] .m-row-title { font-size: 15px; }
+body[data-density="compact"] .m-row-sub { font-size: 12px; }
+.m-empty { color: var(--muted); text-align: center; padding: 40px 20px; line-height: 1.6; }
 
 /* ===== מסמך ===== */
 #mNoteView #pageWrap {
@@ -107,7 +145,7 @@ body[data-view="note"] #mListView, body[data-view="list"] #mNoteView { display: 
 #mNoteView #raw { width: 100%; box-sizing: border-box; min-height: 70vh; padding: 16px; font: 14px/1.6 ui-monospace, monospace; border: 0; background: var(--page-bg); }
 /* בטלפון בלי ידית ⋮⋮ ובלי כלי עריכה של תמונה (גרירה, שינוי גודל, "חופשי"): המסמך נשאר כמו שנכתב במחשב */
 .block-handle, .tali-block-handle, .embed-tools, .embed-resize, .table-bar { display: none !important; }
-#editor .ProseMirror { font-size: 17px; line-height: 1.65; }
+#editor .ProseMirror { font-size: var(--m-editor-size); line-height: var(--m-editor-leading); }
 #editor .ProseMirror table { display: block; overflow-x: auto; max-width: 100%; }
 #editor .katex-display { overflow-x: auto; overflow-y: hidden; }
 #editor img { max-width: 100%; height: auto; }
@@ -140,7 +178,7 @@ body.m-drawing #mNoteView #pageWrap { touch-action: pan-x pan-y; }
 .m-sheet {
   position: fixed; inset: auto 0 0 0; margin: 0; width: 100%; max-width: none; max-height: 85vh; box-sizing: border-box;
   padding: 8px 16px calc(16px + var(--safe-b)); border: 0; border-radius: 20px 20px 0 0;
-  background: var(--panel-bg); color: var(--text); box-shadow: var(--shadow-lift);
+  overflow-y: auto; background: var(--panel-bg); color: var(--text); box-shadow: var(--shadow-lift);
 }
 .m-sheet::backdrop { background: rgb(0 0 0 / .32); }
 .m-sheet[open] { animation: m-sheet-in .22s var(--ease); }
@@ -148,6 +186,12 @@ body.m-drawing #mNoteView #pageWrap { touch-action: pan-x pan-y; }
 .m-sheet-grip { width: 40px; height: 4px; border-radius: 2px; background: var(--border); margin: 4px auto 6px; }
 .m-sheet h3 { margin: 14px 4px 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
 .m-sheet section[hidden] { display: none; }
+.m-sheet [hidden] { display: none !important; }
+.m-sheet-heading { display: flex; align-items: center; gap: 11px; margin: 12px 4px 4px; }
+.m-sheet-heading img { width: 38px; height: 38px; border-radius: 11px; box-shadow: 0 4px 14px rgb(0 0 0 / .1); }
+.m-sheet-heading > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.m-sheet-heading strong { font-size: 18px; }
+.m-sheet-heading span { overflow: hidden; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .m-muted { color: var(--muted); margin: 0 4px; line-height: 1.5; font-size: 14px; }
 .m-sheet-item {
   display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 0 8px; box-sizing: border-box;
@@ -156,7 +200,47 @@ body.m-drawing #mNoteView #pageWrap { touch-action: pan-x pan-y; }
 .m-sheet-item:active { background: var(--accent-hover); }
 .m-sheet-item.danger { color: var(--danger); }
 .m-sheet-item > span { display: grid; place-items: center; color: var(--muted); }
+.m-sheet-item-rich > span:nth-child(2) { display: flex; flex: 1; align-items: flex-start; flex-direction: column; gap: 2px; color: var(--text); }
+.m-sheet-item-rich strong { font-size: 16px; font-weight: 500; }
+.m-sheet-item-rich small { color: var(--muted); font-size: 12px; }
+.m-sheet-item-rich .m-item-chevron { color: var(--faint); }
 .m-sheet-close { width: 100%; height: 48px; margin-top: 12px; border-radius: 14px; font-size: 16px; }
+
+/* עיצוב ותצוגה */
+.m-appearance { max-height: 92vh; }
+.m-appearance-title { display: flex; align-items: center; gap: 8px; margin: 8px 0 10px; }
+.m-appearance-title > div { display: flex; flex-direction: column; gap: 2px; }
+.m-appearance-title strong { font-size: 18px; }
+.m-appearance-title span { color: var(--muted); font-size: 12px; }
+.m-preview {
+  display: flex; align-items: center; gap: 12px; min-height: 70px; padding: 12px 14px; box-sizing: border-box;
+  border: 1px solid var(--accent-line); border-radius: 16px; background: var(--page-bg);
+}
+.m-preview-dot { width: 32px; height: 32px; flex: none; border-radius: 11px; background: color-mix(in srgb, var(--accent) 24%, var(--page-bg)); box-shadow: inset 0 0 0 8px color-mix(in srgb, var(--accent) 38%, transparent); }
+.m-preview > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.m-preview strong { font-size: var(--m-editor-size); }
+.m-preview div span { color: var(--muted); font-size: 13px; line-height: var(--m-editor-leading); }
+.m-theme-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.m-theme-preset {
+  display: flex; align-items: center; gap: 7px; min-width: 0; height: 45px; padding: 0 8px; border: 1px solid var(--border);
+  border-radius: 12px; background: var(--page-bg); color: var(--text); font-size: 12px; text-align: start;
+}
+.m-theme-preset.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
+.m-theme-preset > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-theme-swatch { position: relative; width: 22px; height: 22px; flex: none; border: 1px solid rgb(127 127 127 / .25); border-radius: 50%; }
+.m-theme-swatch::after { content: ''; position: absolute; width: 7px; height: 7px; inset: auto 1px 1px auto; border: 2px solid white; border-radius: 50%; background: var(--swatch-accent, var(--accent)); }
+.m-color-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 50px; margin-top: 8px; padding: 0 4px; }
+.m-color-row > span { display: flex; flex-direction: column; gap: 2px; }
+.m-color-row strong { font-size: 14px; }
+.m-color-row small { color: var(--muted); font-size: 12px; }
+.m-color-row input { width: 48px; height: 34px; padding: 2px; border: 1px solid var(--border); border-radius: 10px; background: var(--page-bg); }
+.m-segment { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; border: 1px solid var(--border); border-radius: 13px; background: var(--input-bg); }
+.m-segment button { min-height: 39px; padding: 0 8px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-size: 13px; }
+.m-segment button.on { background: var(--page-bg); color: var(--accent-strong); box-shadow: 0 2px 8px rgb(0 0 0 / .08); font-weight: 650; }
+.m-setting-line { display: flex; align-items: center; justify-content: space-between; margin: 16px 4px 6px; font-size: 14px; font-weight: 600; }
+.m-setting-line output { color: var(--accent-strong); font-variant-numeric: tabular-nums; }
+.m-range { width: 100%; accent-color: var(--accent); }
+.m-reset { margin-top: 14px; color: var(--muted); }
 
 /* שאלה בתוך האפליקציה (שם / אישור), במקום prompt/confirm של הדפדפן */
 .m-ask h3 { font-size: 16px; color: var(--text); margin: 10px 4px 12px; line-height: 1.4; }

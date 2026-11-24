@@ -5,7 +5,7 @@ import { createEditor } from '../../src/editor.js';
 import { createPageOverlay } from '../../src/page-overlay.js';
 import { createEditActions } from '../../src/edit-actions.js';
 import { icon, lucide } from '../../src/icons.js';
-import { deriveVars, DEFAULT_THEMES } from '../../src/theme-core.js';
+import { deriveVars, PRESETS } from '../../src/theme-core.js';
 import { resolveLink } from '../../links.js';
 import { withCreated, extractTags } from '../../vault-data.js';
 import { vault, meta, localForSync, isNotePath, hashData } from './store.js';
@@ -13,6 +13,10 @@ import { runSync } from './sync-core.js';
 import { connectedRemote, remoteLabel, setRemote, memoryRemote } from './remotes.js';
 import { driveRemote, listFolders } from './drive.js';
 import { createDriveAuth } from './drive-auth.js';
+import {
+  MOBILE_PREFS_KEY, DEFAULT_MOBILE_PREFS, LEADING,
+  normalizeMobilePrefs, colorsForMobilePrefs, mobileThemeLabel,
+} from './preferences.js';
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -21,21 +25,36 @@ const state = {
   current: null,      // הנתיב של המסמך הפתוח
   dirty: false,
   query: '',
+  lastOpen: null,
 };
 const blobUrls = new Map(); // נתיב קובץ מצורף -> כתובת blob:
 
-// ===== ערכת צבעים: אותן ערכות ברירת מחדל כמו בדסקטופ, יום/לילה לפי הטלפון =====
+// ===== מראה ותצוגה: נשמרים מקומית ומוחלים מיד =====
+function readMobilePrefs() {
+  try { return normalizeMobilePrefs(JSON.parse(localStorage.getItem(MOBILE_PREFS_KEY) || 'null')); }
+  catch { return { ...DEFAULT_MOBILE_PREFS }; }
+}
+let mobilePrefs = readMobilePrefs();
 const darkQuery = matchMedia('(prefers-color-scheme: dark)');
 function paintTheme() {
-  const { vars, dark } = deriveVars(darkQuery.matches ? DEFAULT_THEMES.night : DEFAULT_THEMES.day);
+  const { vars, dark } = deriveVars(colorsForMobilePrefs(mobilePrefs, darkQuery.matches));
   const root = document.documentElement;
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+  root.style.setProperty('--m-editor-size', `${mobilePrefs.fontSize}px`);
+  root.style.setProperty('--m-editor-leading', LEADING[mobilePrefs.leading]);
   root.dataset.theme = dark ? 'dark' : 'light';
   root.style.colorScheme = dark ? 'dark' : 'light';
+  document.body.dataset.density = mobilePrefs.density;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', vars['--panel-bg']);
 }
+function saveMobilePrefs(next) {
+  mobilePrefs = normalizeMobilePrefs({ ...mobilePrefs, ...next });
+  try { localStorage.setItem(MOBILE_PREFS_KEY, JSON.stringify(mobilePrefs)); } catch { /* ההעדפה נשארת עד הרענון */ }
+  paintTheme();
+  renderAppearanceControls();
+}
 paintTheme();
-darkQuery.addEventListener('change', paintTheme);
+darkQuery.addEventListener('change', () => { if (mobilePrefs.theme === 'system') paintTheme(); });
 
 // ===== עזרים =====
 const baseName = (p) => p.split('/').pop();
@@ -103,6 +122,7 @@ function setIcon(el, name, size = 20) { el.innerHTML = icon(name, size); }
 
 async function loadFiles() {
   state.files = await vault.list({ includeDeleted: false });
+  state.lastOpen = await meta.get('lastOpen');
   for (const f of state.files) {
     if (f.data instanceof Blob && !blobUrls.has(f.path)) blobUrls.set(f.path, URL.createObjectURL(f.data));
   }
@@ -176,19 +196,37 @@ function renderList() {
     return;
   }
   const { dirs, docs } = folderChildren(state.folder);
-  // בתיקייה הראשית: האחרונים שנערכו קודם (גישה מהירה, זה עיקר השימוש בטלפון)
-  if (!state.folder && notes().length > 6) {
+  const promoted = new Set();
+  // הבית הוא companion: קודם ממשיכים, אחר כך נכנסים לכל המבנה רק אם צריך.
+  if (!state.folder && state.lastOpen && notes().some((f) => f.path === state.lastOpen)) {
+    const last = notes().find((f) => f.path === state.lastOpen);
     const head = document.createElement('div');
     head.className = 'm-section';
-    head.textContent = 'נערכו לאחרונה';
+    head.textContent = 'להמשיך מאיפה שהפסקתם';
     list.append(head);
-    for (const f of [...notes()].sort((a, b) => b.mtime - a.mtime).slice(0, 5)) {
+    list.append(row({
+      iconName: 'history', title: noteName(last.path),
+      sub: `${fmtTime(last.mtime)} · ${snippet(last.data) || 'המסמך האחרון שפתחתם'}`,
+      cls: 'is-continue', onClick: () => openNote(last.path),
+    }));
+    promoted.add(last.path);
+  }
+  // בתיקייה הראשית: האחרונים שנערכו קודם (גישה מהירה, זה עיקר השימוש בטלפון)
+  if (!state.folder && notes().length > 3) {
+    const head = document.createElement('div');
+    head.className = 'm-section';
+    head.textContent = 'אחרונים';
+    list.append(head);
+    for (const f of [...notes()].sort((a, b) => b.mtime - a.mtime).filter((f) => f.path !== state.lastOpen).slice(0, 4)) {
       list.append(row({ iconName: 'history', title: noteName(f.path), sub: `${fmtTime(f.mtime)} · ${dirOf(f.path) || 'התיקייה הראשית'}`, onClick: () => openNote(f.path) }));
+      promoted.add(f.path);
     }
-    const all = document.createElement('div');
-    all.className = 'm-section';
-    all.textContent = 'כל המסמכים';
-    list.append(all);
+    if (dirs.length || docs.some((f) => !promoted.has(f.path))) {
+      const all = document.createElement('div');
+      all.className = 'm-section';
+      all.textContent = 'עוד תוכן';
+      list.append(all);
+    }
   }
   for (const d of dirs) {
     const path = state.folder ? `${state.folder}/${d}` : d;
@@ -196,9 +234,10 @@ function renderList() {
     list.append(row({ iconName: 'folder', title: d, sub: `${count} מסמכים`, cls: 'is-folder', onClick: () => { state.folder = path; renderList(); } }));
   }
   for (const f of docs) {
+    if (!state.folder && promoted.has(f.path)) continue;
     list.append(row({ iconName: 'file', title: noteName(f.path), sub: `${fmtTime(f.mtime)} · ${snippet(f.data)}`, onClick: () => openNote(f.path) }));
   }
-  if (!list.children.length) list.append(empty(notes().length ? 'התיקייה ריקה' : 'עוד אין מסמכים בטלפון. אפשר ליצור מסמך חדש, לייבא קבצים או לחבר סנכרון (בתפריט).'));
+  if (!list.children.length) list.append(empty(notes().length ? 'התיקייה ריקה' : 'עוד אין כאן תוכן. פתק מהיר יפתח מיד, או שאפשר לייבא ולסנכרן דרך הלוגו.'));
 }
 function empty(text) {
   const p = document.createElement('p');
@@ -327,6 +366,15 @@ async function createNote(name) {
   editorApi.editor.commands.focus('end');
 }
 
+async function createQuickNote() {
+  const now = new Date();
+  const date = new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: '2-digit' }).format(now);
+  const time = `${String(now.getHours()).padStart(2, '0')}.${String(now.getMinutes()).padStart(2, '0')}`;
+  const stamp = `${date} · ${time}`;
+  await createNote(`פתק ${stamp}`);
+  editorApi.editor.commands.focus('end');
+}
+
 // ===== סרגל עריכה בתחתית (מעל המקלדת) =====
 const headingCycle = () => {
   const ed = editorApi.editor;
@@ -423,6 +471,73 @@ async function exportCurrent() {
   a.href = URL.createObjectURL(file);
   a.download = file.name;
   a.click();
+}
+
+const blobAsDataUrl = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result));
+  reader.onerror = () => reject(reader.error || new Error('לא ניתן לקרוא את הקובץ'));
+  reader.readAsDataURL(blob);
+});
+function dataUrlAsBlob(value) {
+  const match = /^data:([^;,]*)(;base64)?,(.*)$/s.exec(value);
+  if (!match) throw new Error('קובץ מצורף לא תקין בגיבוי');
+  const bytes = match[2] ? atob(match[3]) : decodeURIComponent(match[3]);
+  const array = Uint8Array.from(bytes, (char) => char.charCodeAt(0));
+  return new Blob([array], { type: match[1] || 'application/octet-stream' });
+}
+
+async function shareOrDownload(file, title) {
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title }); return true; } catch (error) {
+      if (error?.name === 'AbortError') return false;
+    }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file);
+  a.download = file.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  return true;
+}
+
+async function exportBackup() {
+  $('mSheet').close();
+  await saveNow();
+  const files = [];
+  for (const record of state.files) {
+    if (typeof record.data === 'string') files.push({ path: record.path, kind: 'text', data: record.data });
+    else if (record.data instanceof Blob) files.push({ path: record.path, kind: 'blob', type: record.data.type, data: await blobAsDataUrl(record.data) });
+  }
+  const backup = { format: 'tali-mobile-backup', version: 1, createdAt: new Date().toISOString(), files };
+  const day = new Date().toISOString().slice(0, 10);
+  const file = new File([JSON.stringify(backup)], `Tali-backup-${day}.json`, { type: 'application/json' });
+  if (await shareOrDownload(file, 'גיבוי Tali')) toast(`יוצא גיבוי עם ${files.length} קבצים`);
+}
+
+async function importBackup(file) {
+  $('mSheet').close();
+  let backup;
+  try { backup = JSON.parse(await file.text()); } catch { toast('קובץ הגיבוי אינו JSON תקין'); return; }
+  if (backup?.format !== 'tali-mobile-backup' || backup.version !== 1 || !Array.isArray(backup.files)) {
+    toast('זה לא קובץ גיבוי של Tali');
+    return;
+  }
+  if (!await ask({ title: `לשחזר ${backup.files.length} קבצים? קבצים בעלי אותו שם יעודכנו.`, ok: 'שחזור' })) return;
+  let count = 0;
+  for (const item of backup.files) {
+    const path = String(item?.path || '').replace(/^\/+/, '');
+    if (!path || path.split('/').some((part) => !part || part === '..' || part.startsWith('.'))) continue;
+    if (item.kind === 'text' && typeof item.data === 'string') await vault.write(path, item.data);
+    else if (item.kind === 'blob' && typeof item.data === 'string' && item.data.startsWith('data:')) {
+      await vault.write(path, dataUrlAsBlob(item.data));
+    } else continue;
+    count++;
+  }
+  await loadFiles();
+  renderList();
+  scheduleAutoSync();
+  toast(`שוחזרו ${count} קבצים`);
 }
 
 // ===== סנכרון =====
@@ -588,8 +703,57 @@ async function syncClicked() {
   syncNow();
 }
 
-// ===== תפריט (גיליון תחתון) =====
-async function openSheet() {
+// ===== עיצוב ותצוגה =====
+function buildThemePresets() {
+  const host = $('mThemePresets');
+  if (host.children.length) return;
+  const options = [{ id: 'system', name: 'לפי הטלפון', system: true }, ...PRESETS];
+  for (const preset of options) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'm-theme-preset';
+    button.dataset.theme = preset.id;
+    const swatch = document.createElement('span');
+    swatch.className = 'm-theme-swatch';
+    if (preset.system) swatch.style.background = 'linear-gradient(135deg, #fffdf9 0 50%, #26292f 50%)';
+    else {
+      swatch.style.background = preset.colors.page;
+      swatch.style.setProperty('--swatch-accent', preset.colors.accent);
+    }
+    const label = document.createElement('span');
+    label.textContent = preset.name;
+    button.append(swatch, label);
+    button.addEventListener('click', () => saveMobilePrefs({ theme: preset.id, accent: null }));
+    host.append(button);
+  }
+}
+
+function renderAppearanceControls() {
+  buildThemePresets();
+  for (const button of document.querySelectorAll('.m-theme-preset')) button.classList.toggle('on', button.dataset.theme === mobilePrefs.theme);
+  for (const button of document.querySelectorAll('[data-density]')) button.classList.toggle('on', button.dataset.density === mobilePrefs.density);
+  for (const button of document.querySelectorAll('[data-leading]')) button.classList.toggle('on', button.dataset.leading === mobilePrefs.leading);
+  const colors = colorsForMobilePrefs(mobilePrefs, darkQuery.matches);
+  $('mAccent').value = mobilePrefs.accent || colors.accent;
+  $('mFontSize').value = String(mobilePrefs.fontSize);
+  $('mFontSizeValue').textContent = `${mobilePrefs.fontSize}px`;
+  $('mAppearanceSummary').textContent = `${mobileThemeLabel(mobilePrefs)} · ${mobilePrefs.density === 'compact' ? 'קומפקטי' : 'נינוח'} · ${mobilePrefs.fontSize}px`;
+}
+
+function openAppearance() {
+  $('mSheet').close();
+  renderAppearanceControls();
+  $('mAppearance').showModal();
+}
+
+function closeAppearance({ returnToControl = false } = {}) {
+  if ($('mAppearance').open) $('mAppearance').close();
+  if (returnToControl) openSheet('control');
+}
+
+// ===== תפריטים (לוגו: מרכז השליטה; שלוש נקודות: המסמך) =====
+async function openSheet(mode = 'control') {
+  const documentMode = mode === 'document';
   const remoteName = await remoteLabel();
   const last = await meta.get('lastSync');
   $('mSheetSync').textContent = remoteName
@@ -597,8 +761,12 @@ async function openSheet() {
     : 'הסנכרון עוד לא מחובר. בינתיים כל מה שנכתב נשמר בטלפון בלבד; אפשר לייבא קבצים מהמחשב ולשתף מסמך.';
   $('mDriveConnect').hidden = !!remoteName;
   $('mDriveDisconnect').hidden = !remoteName;
-  $('mSheetNote').hidden = !state.current;
+  $('mSheetNote').hidden = !documentMode || !state.current;
+  $('mSheetControl').hidden = documentMode;
   $('mSheetApp').hidden = isInstalled();
+  $('mSheetTitle').textContent = documentMode ? 'פעולות במסמך' : 'מרכז השליטה';
+  $('mSheetSubtitle').textContent = documentMode ? noteName(state.current || '') : 'המראה, הקבצים והחיבור של Tali';
+  renderAppearanceControls();
   $('mSheet').showModal();
 }
 
@@ -642,26 +810,29 @@ $('mSheet').addEventListener('click', (e) => { if (e.target === $('mSheet')) $('
 setIcon($('mBack'), 'chevronRight', 22);
 $('mSyncIcon').innerHTML = lucide('RefreshCw', 20);
 setIcon($('mMenu'), 'more', 22);
-setIcon($('mNew'), 'plus', 26);
+setIcon($('mLogoChevron'), 'chevronDown', 12);
+setIcon($('mCaptureIcon'), 'plus', 19);
+setIcon($('mAppearanceChevron'), 'chevronLeft', 18);
+setIcon($('mAppearanceBack'), 'chevronRight', 22);
 setIcon($('mCrumbUp'), 'chevronRight', 18);
 setIcon($('mSearchIcon'), 'search', 18);
 for (const el of document.querySelectorAll('[data-icon]')) setIcon(el, el.dataset.icon, 18);
 
 $('mBack').addEventListener('click', () => closeNote());
+$('mLogo').addEventListener('click', () => openSheet('control'));
 $('mSync').addEventListener('click', syncClicked);
 $('mDriveIcon').innerHTML = lucide('Cloud', 18);
 setIcon($('mPickerUp'), 'chevronRight', 18);
 $('mDriveConnect').addEventListener('click', connectDrive);
 $('mDriveDisconnect').addEventListener('click', disconnectDrive);
-$('mMenu').addEventListener('click', openSheet);
-$('mNew').addEventListener('click', async () => {
-  const name = await ask({ title: 'שם המסמך החדש', value: 'מסמך חדש', ok: 'יצירה' });
-  if (name) await createNote(name);
-});
+$('mMenu').addEventListener('click', () => openSheet('document'));
+$('mCapture').addEventListener('click', createQuickNote);
 $('mCrumbUp').addEventListener('click', () => { state.folder = dirOf(state.folder); renderList(); });
 $('mSearch').addEventListener('input', (e) => { state.query = e.target.value; renderList(); });
 $('mImportFiles').addEventListener('change', (e) => { $('mSheet').close(); importFiles([...e.target.files]); e.target.value = ''; });
 $('mImportDir').addEventListener('change', (e) => { $('mSheet').close(); importFiles([...e.target.files]); e.target.value = ''; });
+$('mExportAll').addEventListener('click', exportBackup);
+$('mImportBackup').addEventListener('change', (e) => { const [file] = e.target.files; e.target.value = ''; if (file) importBackup(file); });
 $('mExport').addEventListener('click', () => { $('mSheet').close(); exportCurrent(); });
 $('mRaw').addEventListener('click', () => { $('mSheet').close(); editorApi.toggleRaw(); });
 $('mRename').addEventListener('click', async () => {
@@ -688,6 +859,15 @@ $('mDelete').addEventListener('click', async () => {
   scheduleAutoSync();
 });
 $('mSheetClose').addEventListener('click', () => $('mSheet').close());
+$('mAppearanceOpen').addEventListener('click', openAppearance);
+$('mAppearanceBack').addEventListener('click', () => closeAppearance({ returnToControl: true }));
+$('mAppearanceDone').addEventListener('click', () => closeAppearance());
+$('mAppearanceReset').addEventListener('click', () => saveMobilePrefs({ ...DEFAULT_MOBILE_PREFS }));
+$('mAppearance').addEventListener('click', (e) => { if (e.target === $('mAppearance')) closeAppearance(); });
+for (const button of document.querySelectorAll('[data-density]')) button.addEventListener('click', () => saveMobilePrefs({ density: button.dataset.density }));
+for (const button of document.querySelectorAll('[data-leading]')) button.addEventListener('click', () => saveMobilePrefs({ leading: button.dataset.leading }));
+$('mFontSize').addEventListener('input', (e) => saveMobilePrefs({ fontSize: Number(e.target.value) }));
+$('mAccent').addEventListener('input', (e) => saveMobilePrefs({ accent: e.target.value }));
 $('mInstallIcon').innerHTML = lucide('Smartphone', 22);
 $('mInstallItemIcon').innerHTML = lucide('Download', 18);
 $('mInstallClose').innerHTML = lucide('X', 18);
@@ -699,6 +879,7 @@ $('mInstallClose').addEventListener('click', () => {
   toast('אפשר להתקין גם מהתפריט (שלוש הנקודות)');
 });
 renderInstall();
+renderAppearanceControls();
 $('mTitle').addEventListener('click', () => { if (state.current) $('mRename').click(); });
 
 // מקלדת וירטואלית: הסרגל נצמד מעליה (visualViewport)
