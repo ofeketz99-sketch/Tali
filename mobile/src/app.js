@@ -9,6 +9,7 @@ import { deriveVars, PRESETS } from '../../src/theme-core.js';
 import { resolveLink } from '../../links.js';
 import { withCreated, extractTags } from '../../vault-data.js';
 import { vault, meta, localForSync, isNotePath, hashData } from './store.js';
+import { importPlan, SKIP_REASON, decodeText, docxToMarkdown, freePath } from './import-file.js';
 import { runSync } from './sync-core.js';
 import { connectedRemote, remoteLabel, setRemote, memoryRemote } from './remotes.js';
 import { driveRemote, listFolders } from './drive.js';
@@ -447,19 +448,37 @@ async function addImages(files) {
 
 // ===== ייבוא וייצוא (עד שיחובר סנכרון) =====
 async function importFiles(list) {
-  let count = 0;
+  const taken = new Set(state.files.map((f) => f.path));
+  const done = [], skipped = [];
   for (const file of list) {
     const rel = (file.webkitRelativePath || file.name).split('/');
     if (file.webkitRelativePath) rel.shift(); // שם התיקייה שנבחרה עצמה
-    const path = rel.join('/');
-    if (!path || rel.some((s) => s.startsWith('.'))) continue; // .obsidian, .tali.json, .trash
-    const data = /\.(md|canvas|txt)$/i.test(path) ? await file.text() : file;
-    await vault.write(path, data);
-    count++;
+    const plan = importPlan(rel.join('/'), file.type);
+    if (plan.skip) { if (plan.skip !== 'hidden') skipped.push(`${file.name}: ${SKIP_REASON[plan.skip]}`); continue; }
+    try {
+      let data;
+      if (plan.kind === 'text') data = decodeText(await file.arrayBuffer());
+      else if (plan.kind === 'docx') data = await docxToMarkdown(await file.arrayBuffer());
+      else data = file;
+      if (typeof data === 'string' && isNotePath(plan.path)) data = data.replace(/\r\n?/g, '\n');
+      const path = freePath(plan.path, taken);
+      taken.add(path);
+      await vault.write(path, data);
+      done.push(path);
+    } catch (error) {
+      console.warn('import failed', file.name, error);
+      skipped.push(`${file.name}: לא הצלחתי לקרוא את הקובץ`);
+    }
   }
   await loadFiles();
   renderList();
-  toast(`יובאו ${count} קבצים`);
+  if (done.length) scheduleAutoSync();
+  const opened = done.filter(isNotePath);
+  if (skipped.length) {
+    await ask({ info: true, ok: 'הבנתי', title: (done.length ? (done.length === 1 ? 'יובא קובץ אחד. לא יובא: ' : `יובאו ${done.length} קבצים. לא יובאו: `) : 'לא יובא: ') + skipped.join(' · ') });
+  } else if (!done.length) toast('לא נבחר קובץ');
+  else toast(done.length === 1 ? `יובא: ${noteName(done[0])}` : `יובאו ${done.length} קבצים`);
+  if (opened.length === 1) openNote(opened[0]);
 }
 async function exportCurrent() {
   if (!state.current) return;
